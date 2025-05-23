@@ -18,6 +18,7 @@ import { DashboardLayout } from "./layouts/dashboard-layout";
 import RootLayout from "./layouts/RootLayout";
 import OnboardingPage from "./pages/OnboardingPage";
 import { GatewaysPage } from "./pages/GatewayPage";
+import { SensorsPage } from "./pages/SensorsPage";
 
 export function AppRouter() {
   return (
@@ -49,7 +50,7 @@ export function AppRouter() {
             >
               <Route index element={<Dashboard />} />
               <Route path="gateways" element={<GatewaysPage />} />
-              {/* <Route path="sensors" element={<SensorsPage />} /> */}
+              <Route path="sensors" element={<SensorsPage />} />
             </Route>
 
             <Route path="/onboarding" element={<OnboardingPage />} />

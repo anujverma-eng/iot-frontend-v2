@@ -1,5 +1,5 @@
 import { Gateway, GatewayResponse, GatewayStats } from "../types/gateway";
-import { Sensor } from "../types/sensor";
+import { Sensor, SensorResponse } from "../types/sensor";
 import http from "./http";
 
 interface ApiResponse<T> {
@@ -30,7 +30,7 @@ export const GatewayService = {
     sort?: string,
     dir: "asc" | "desc" = "asc",
   ) =>
-    http.get<{ data: Sensor[]; pagination: any }>(`/gateways/${id}/sensors`, {
+    http.get(`/gateways/${id}/sensors`, {
       params: { claimed, page, limit, search, sort, dir },
     }),
 

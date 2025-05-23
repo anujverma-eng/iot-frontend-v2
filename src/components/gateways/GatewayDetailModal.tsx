@@ -69,15 +69,17 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
   }, [dispatch, gatewayId]);
 
   const fetchSensorsData = React.useCallback(() => {
-    return dispatch(fetchGatewaySensors({
-      id: gatewayId,
-      claimed: showClaimed,
-      page: pagination.page,
-      limit: 10,
-      search: searchQuery,
-      sort: sortColumn || undefined,
-      dir: sortDirection
-    })).unwrap();
+    return dispatch(
+      fetchGatewaySensors({
+        id: gatewayId,
+        claimed: showClaimed,
+        page: pagination.page,
+        limit: 10,
+        search: searchQuery,
+        sort: sortColumn || undefined,
+        dir: sortDirection,
+      })
+    ).unwrap();
   }, [dispatch, gatewayId, showClaimed, pagination.page, searchQuery, sortColumn, sortDirection]);
 
   console.log({ gateway });
@@ -100,22 +102,24 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
 
   const handleSaveLabel = async () => {
     if (!gateway) return;
-    
+
     setIsSavingLabel(true);
     try {
       // Update the label
       await dispatch(updateGatewayLabel({ id: gatewayId, label: labelValue })).unwrap();
-      
+
       // Wait for both operations to complete
       await Promise.all([
         fetchGatewayData(),
-        dispatch(fetchGateways({ 
-          page: 1, 
-          limit: 20, 
-          search: "" 
-        })).unwrap()
+        dispatch(
+          fetchGateways({
+            page: 1,
+            limit: 20,
+            search: "",
+          })
+        ).unwrap(),
       ]);
-      
+
       setEditingLabel(false);
     } catch (error) {
       console.error("Failed to update gateway label:", error);
@@ -133,10 +137,7 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
   React.useEffect(() => {
     if (isOpen && gatewayId) {
       setIsInitialLoad(true);
-      Promise.all([
-        fetchGatewayData(),
-        fetchSensorsData()
-      ]).finally(() => {
+      Promise.all([fetchGatewayData(), fetchSensorsData()]).finally(() => {
         setIsInitialLoad(false);
       });
     }
@@ -316,7 +317,7 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
                 "Gateway Details"
               )}
             </ModalHeader>
-            <ModalBody>
+            <ModalBody className="max-h-[60vh] overflow-y-auto">
               {isGatewayLoading && !gateway ? (
                 <div className="space-y-4">
                   {renderSkeletonStats()}
@@ -457,17 +458,6 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
                           ))}
                         </TableBody>
                       </Table>
-
-                      {pagination.totalPages > 1 && (
-                        <div className="flex justify-center mt-4">
-                          <Pagination
-                            total={pagination.totalPages}
-                            page={pagination.page}
-                            onChange={handlePageChange}
-                            showControls
-                          />
-                        </div>
-                      )}
                     </>
                   ) : (
                     <div className="flex flex-col items-center justify-center h-64 gap-4">
@@ -496,6 +486,16 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
               )}
             </ModalBody>
             <ModalFooter>
+              {pagination.totalPages > 1 && (
+                <div className="justify-center flex w-full">
+                  <Pagination
+                    total={pagination.totalPages}
+                    page={pagination.page}
+                    onChange={handlePageChange}
+                    showControls
+                  />
+                </div>
+              )}
               <Button color="primary" variant="light" onPress={onClose}>
                 Close
               </Button>
