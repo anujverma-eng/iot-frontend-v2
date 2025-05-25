@@ -11,7 +11,7 @@ export interface Sensor {
   claimed?: boolean;
   lastSeenBy?: string[];
   isStarred?: boolean;
-  status?: 'live' | 'offline';
+  status?: "live" | "offline";
 }
 
 export interface SensorResponse {
@@ -58,19 +58,88 @@ export interface TelemetryQueryParams {
   bucketSize?: string; // e.g., '1h', '15m', '1d'
 }
 
-export type SensorType = 'temperature' | 'humidity' | 'pressure' | 'battery' | 'generic';
+export type SensorType = 
+  | 'temperature' 
+  | 'humidity' 
+  | 'pressure' 
+  | 'battery' 
+  | 'co2' 
+  | 'light' 
+  | 'motion'
+  | 'unknown'
+  | 'accelerometer'
+  | 'generic'; // Add 'generic' as a valid SensorType
+
+// export interface ChartConfig {
+//   type: SensorType;
+//   unit: string;
+//   series: {
+//     id: string;
+//     name: string;
+//     data: SensorTelemetry[];
+//     color?: string;
+//   }[];
+//   min?: number;
+//   max?: number;
+//   avg?: number;
+//   current?: number;
+// }
 
 export interface ChartConfig {
+  type: SensorType;
+  unit: string;
+  series: DataPoint[];
+  color?: string;
+  visualizationType?: VisualizationType;
+  showMovingAverage?: boolean;
+  showDailyRange?: boolean;
+}
+
+export type SensorStatus = "live" | "offline";
+export type VisualizationType =
+  | "line"
+  | "area"
+  | "bar"
+  | "gauge"
+  | "candlestick"
+  | "histogram"
+  | "heatmap"
+  | "fft"
+  | "spark";
+
+/* ➜ 1-B  Filter types the mock slice relied on */
+export interface TimeRange {
+  start: Date;
+  end: Date;
+}
+export interface FilterState {
+  search: string;
+  types: SensorType[];
+  status: SensorStatus | "all";
+  timeRange: TimeRange;
+}
+
+/* ➜ 1-C  Extra helper shapes the mock charts used */
+export interface DataPoint {
+  timestamp: number;
+  value: number;
+  movingAverage?: number;
+}
+export interface SensorData {
+  id: string;
+  mac: string;
+  type: SensorType;
+  unit: string;
+  series: DataPoint[];
+}
+
+export interface MultiSeriesConfig {
   type: SensorType;
   unit: string;
   series: {
     id: string;
     name: string;
-    data: SensorTelemetry[];
-    color?: string;
+    color: string;
+    data: DataPoint[];
   }[];
-  min?: number;
-  max?: number;
-  avg?: number;
-  current?: number;
 }

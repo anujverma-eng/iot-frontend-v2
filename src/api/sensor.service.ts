@@ -1,11 +1,6 @@
 // src/api/sensor.service.ts
 import http from "./http";
-import type {
-  Sensor,
-  SensorResponse,
-  SensorTelemetryResponse,
-  TelemetryQueryParams,
-} from "../types/sensor";
+import type { Sensor, SensorResponse, SensorTelemetryResponse, TelemetryQueryParams } from "../types/sensor";
 import { ServerResponse } from "http";
 
 /** All sensor-related API calls live here so pages/slices never import `http` directly */
@@ -18,7 +13,7 @@ export const SensorService = {
     search?: string;
     sort?: string | null;
     dir?: "asc" | "desc";
-  }){
+  }) {
     const { page = 1, limit = 50, claimed = true, search = "", sort, dir = "asc" } = params;
     return http
       .get<ServerResponse>("/sensors", {
@@ -54,6 +49,18 @@ export const SensorService = {
 
   telemetry(params: TelemetryQueryParams): Promise<SensorTelemetryResponse[]> {
     return http.post("/telemetry/query", params).then((r) => r.data.data);
+  },
+
+  toggleSensorStar(mac: string) {
+    return http.post(`/sensors/${mac}/star`).then((r) => r.data);
+  },
+
+  updateSensorNickname(mac: string, displayName: string) {
+    return http.patch(`/sensors/${mac}`, { displayName }).then((r) => r.data);
+  },
+  async getSensorById(id: string): Promise<Sensor> {
+    const response = await http.get(`/sensors/${id}`);
+    return response.data.data;
   },
 };
 export default SensorService;
