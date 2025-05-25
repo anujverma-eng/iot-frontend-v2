@@ -13,14 +13,14 @@ interface SidebarItem {
 }
 
 const sidebarItems: SidebarItem[] = [
+  // {
+  //   name: "Overview",
+  //   icon: "lucide:layout-dashboard",
+  //   path: "/dashboard",
+  //   badge: "New",
+  // },
   {
-    name: "Overview",
-    icon: "lucide:layout-dashboard",
-    path: "/dashboard",
-    badge: "New",
-  },
-  {
-    name: "Analytics",
+    name: "Dashboard",
     icon: "lucide:bar-chart-2",
     path: "/dashboard/analytics",
   },

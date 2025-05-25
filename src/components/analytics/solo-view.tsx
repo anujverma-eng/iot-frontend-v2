@@ -42,6 +42,10 @@ import { ChartConfig } from "../../types/sensor";
 import { ChartContainer } from "../visualization/chart-container";
 import { FilterBar } from "./filter-bar";
 import { TableView } from "./table-view";
+import { DistributionChart } from "./distribution-charts/distribution-chart";
+import { TrendAnalysisChart } from "./distribution-charts/trend-analysis-chart";
+import { AnomalyDetectionChart } from "./distribution-charts/anomaly-detection-chart";
+import { CorrelationAnalysisChart } from "./distribution-charts/correlation-analysis-chart";
 
 // Fix the interface to satisfy the Record<string, string | undefined> constraint
 interface SoloViewParams {
@@ -166,7 +170,6 @@ export const SoloView: React.FC = () => {
     }
   }, [sensorId, filters.timeRange.start, filters.timeRange.end, initialLoading, dispatch]);
 
-  
   // Prepare chart config for selected sensor
   const chartConfig: ChartConfig | null = React.useMemo(() => {
     if (!sensorId || !telemetryData[sensorId]) return null;
@@ -294,8 +297,6 @@ export const SoloView: React.FC = () => {
 
     return { min, max, avg, latest, stdDev };
   }, [sensorId, telemetryData]);
-
-  
 
   // Handlers
   const handleBackToAnalytics = () => {
@@ -610,41 +611,70 @@ export const SoloView: React.FC = () => {
               <Tab key="analytics" title="Analytics">
                 <Card>
                   <CardBody>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Distribution Chart */}
-                      <div className="h-64">
-                        <h3 className="text-lg font-medium mb-2">Value Distribution</h3>
-                        <div className="h-56 bg-default-100 rounded-lg flex items-center justify-center">
-                          <p className="text-default-500">Histogram chart will be displayed here</p>
+                    <Tabs aria-label="Analytics tabs" color="primary" variant="underlined" className="mb-4">
+                      <Tab key="distribution" title="Distribution">
+                        <div className="h-[400px] mt-4">
+                          {chartConfig && <DistributionChart config={chartConfig} />}
                         </div>
-                      </div>
-
-                      {/* Trend Analysis */}
-                      <div className="h-64">
-                        <h3 className="text-lg font-medium mb-2">Trend Analysis</h3>
-                        <div className="h-56 bg-default-100 rounded-lg flex items-center justify-center">
-                          <p className="text-default-500">Trend chart will be displayed here</p>
+                      </Tab>
+                      <Tab key="trend" title="Trend Analysis">
+                        <div className="h-[400px] mt-4">
+                          {chartConfig && <TrendAnalysisChart config={chartConfig} />}
                         </div>
-                      </div>
-
-                      {/* Anomaly Detection */}
-                      <div className="h-64">
-                        <h3 className="text-lg font-medium mb-2">Anomaly Detection</h3>
-                        <div className="h-56 bg-default-100 rounded-lg flex items-center justify-center">
-                          <p className="text-default-500">Anomaly chart will be displayed here</p>
+                      </Tab>
+                      <Tab key="anomaly" title="Anomaly Detection">
+                        <div className="h-[400px] mt-4">
+                          {chartConfig && <AnomalyDetectionChart config={chartConfig} />}
                         </div>
-                      </div>
-
-                      {/* Correlation Analysis */}
-                      <div className="h-64">
-                        <h3 className="text-lg font-medium mb-2">Correlation Analysis</h3>
-                        <div className="h-56 bg-default-100 rounded-lg flex items-center justify-center">
-                          <p className="text-default-500">Correlation chart will be displayed here</p>
+                      </Tab>
+                      <Tab key="correlation" title="Correlation">
+                        <div className="h-[400px] mt-4">
+                          {chartConfig && <CorrelationAnalysisChart config={chartConfig} />}
                         </div>
-                      </div>
-                    </div>
+                      </Tab>
+                    </Tabs>
                   </CardBody>
                 </Card>
+              </Tab>
+
+              <Tab key="dashboard" title="Dashboard">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Card className="shadow-sm">
+                    <CardBody className="p-3">
+                      <h3 className="text-sm font-medium mb-2 text-primary-600">Value Distribution</h3>
+                      <div className="h-[250px]">
+                        {chartConfig && <DistributionChart config={chartConfig} compact />}
+                      </div>
+                    </CardBody>
+                  </Card>
+
+                  <Card className="shadow-sm">
+                    <CardBody className="p-3">
+                      <h3 className="text-sm font-medium mb-2 text-secondary-600">Trend Analysis</h3>
+                      <div className="h-[250px]">
+                        {chartConfig && <TrendAnalysisChart config={chartConfig} compact />}
+                      </div>
+                    </CardBody>
+                  </Card>
+
+                  <Card className="shadow-sm">
+                    <CardBody className="p-3">
+                      <h3 className="text-sm font-medium mb-2 text-danger-600">Anomaly Detection</h3>
+                      <div className="h-[250px]">
+                        {chartConfig && <AnomalyDetectionChart config={chartConfig} compact />}
+                      </div>
+                    </CardBody>
+                  </Card>
+
+                  <Card className="shadow-sm">
+                    <CardBody className="p-3">
+                      <h3 className="text-sm font-medium mb-2 text-success-600">Correlation Analysis</h3>
+                      <div className="h-[250px]">
+                        {chartConfig && <CorrelationAnalysisChart config={chartConfig} compact />}
+                      </div>
+                    </CardBody>
+                  </Card>
+                </div>
               </Tab>
             </Tabs>
           </div>

@@ -49,30 +49,6 @@ interface ChartContainerProps {
   onOpenInNewTab?: () => void;
 }
 
-// Add this function to check if a visualization type is valid
-const isValidVisualizationType = (type: string, config: ChartConfig): boolean => {
-  if (isMultiSeries) {
-    return ["line", "area"].includes(type);
-  }
-
-  switch (config.type) {
-    case "temperature":
-    case "humidity":
-      return ["line", "area", "gauge"].includes(type);
-    case "pressure":
-      return ["line", "candlestick"].includes(type);
-    case "battery":
-      return ["gauge", "area"].includes(type);
-    case "motion":
-      return ["bar", "spark"].includes(type);
-    case "light":
-      return ["area", "heatmap"].includes(type);
-    case "accelerometer":
-      return ["line"].includes(type);
-    default:
-      return ["line", "area", "bar", "gauge"].includes(type);
-  }
-};
 
 export const ChartContainer: React.FC<ChartContainerProps> = ({
   config,
@@ -161,6 +137,28 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       }
     }
   }, [sensor, config]);
+
+
+  const handleNicknameSubmit = () => {
+    if (onNicknameChange) {
+      onNicknameChange(displayName);
+      addToast({
+        title: "Nickname updated",
+        description: `Sensor ${sensor?.mac} nickname updated successfully`,
+      });
+    }
+    setIsEditing(false);
+  };
+
+  const handleToggleStar = () => {
+    if (onToggleStar) {
+      onToggleStar();
+      addToast({
+        title: isStarred ? "Removed from favorites" : "Added to favorites",
+        description: `Sensor ${sensor?.mac} ${isStarred ? "removed from" : "added to"} favorites`,
+      });
+    }
+  };
 
   // Update URL hash when visualization type changes
   React.useEffect(() => {
@@ -306,26 +304,6 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
     );
   }
 
-  const handleNicknameSubmit = () => {
-    if (onNicknameChange) {
-      onNicknameChange(displayName);
-      addToast({
-        title: "Nickname updated",
-        description: `Sensor ${sensor?.mac} nickname updated successfully`,
-      });
-    }
-    setIsEditing(false);
-  };
-
-  const handleToggleStar = () => {
-    if (onToggleStar) {
-      onToggleStar();
-      addToast({
-        title: isStarred ? "Removed from favorites" : "Added to favorites",
-        description: `Sensor ${sensor?.mac} ${isStarred ? "removed from" : "added to"} favorites`,
-      });
-    }
-  };
 
   const handleVisualizationTypeChange = (type: VisualizationType) => {
     setVisualizationType(type);
@@ -656,7 +634,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
             );
           default:
             return (
-              <PressureChart config={enhancedConfig} onBrushChange={onBrushChange} onZoomChange={handleZoomChange} />
+              <PressureChart config={enhancedConfig} onBrushChange={onBrushChange} />
             );
         }
 

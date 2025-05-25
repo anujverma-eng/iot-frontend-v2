@@ -41,13 +41,25 @@ export const GaugeChart: React.FC<GaugeChartProps> = ({
   // Determine color based on type and value
   const getColor = () => {
     if (config.type === 'battery') {
-      if (currentValue < 10) return CHART_COLORS.danger;
-      if (currentValue < 30) return CHART_COLORS.warning;
-      return CHART_COLORS.success;
+      if (currentValue < 10) return "#f43f5e"; // danger
+      if (currentValue < 30) return "#f59e0b"; // warning
+      return "#10b981"; // success
     }
-    return config.color || CHART_COLORS.primary;
+    
+    if (config.type === 'temperature') {
+      if (currentValue > 30) return "#f43f5e"; // danger - hot
+      if (currentValue < 10) return "#3b82f6"; // primary - cold
+      return "#10b981"; // success - normal
+    }
+    
+    if (config.type === 'humidity') {
+      if (currentValue > 80) return "#3b82f6"; // primary - wet
+      if (currentValue < 30) return "#f59e0b"; // warning - dry
+      return "#10b981"; // success - normal
+    }
+    
+    return config.color || "#4f46e5"; // default
   };
-
   
   const color = getColor();
   
@@ -69,7 +81,7 @@ export const GaugeChart: React.FC<GaugeChartProps> = ({
   return (
     <div className="flex flex-col items-center justify-center" style={{ height }}>
       <div className="relative w-full h-full flex items-center justify-center">
-        <div className="absolute inset-0 rounded-full bg-content2"></div>
+        <div className="absolute inset-0 rounded-full bg-gray-100 dark:bg-gray-800"></div>
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             {/* Background track for gauge */}
@@ -84,7 +96,7 @@ export const GaugeChart: React.FC<GaugeChartProps> = ({
               paddingAngle={0}
               dataKey="value"
               strokeWidth={0}
-              fill="var(--heroui-default-200)"
+              fill="#e5e7eb"
             />
             <Pie
               data={data}
@@ -97,6 +109,8 @@ export const GaugeChart: React.FC<GaugeChartProps> = ({
               paddingAngle={0}
               dataKey="value"
               strokeWidth={0}
+              animationDuration={1200}
+              animationBegin={300}
             >
               <Cell fill={color} />
               <Cell fill="transparent" />
@@ -109,11 +123,39 @@ export const GaugeChart: React.FC<GaugeChartProps> = ({
             <div style={{ fontSize }} className="font-semibold">
               {currentValue}
             </div>
-            <div style={{ fontSize: labelSize }} className="text-default-500">
+            <div style={{ fontSize: labelSize }} className="text-gray-500">
               {config.unit}
             </div>
           </div>
         </div>
+        
+        {/* Add tick marks */}
+        <div className="absolute inset-0">
+          {[0, 25, 50, 75, 100].map((tick) => {
+            const angle = -180 + (tick * 1.8); // Convert percentage to angle (180 degrees total)
+            const radian = (angle * Math.PI) / 180;
+            const x = 50 + 45 * Math.cos(radian); // 50% is center, 45% is radius to tick
+            const y = 50 + 45 * Math.sin(radian);
+            
+            return (
+              <div 
+                key={tick} 
+                className="absolute w-1 h-3 bg-gray-400" 
+                style={{
+                  left: `${x}%`,
+                  top: `${y}%`,
+                  transform: `translate(-50%, -50%) rotate(${angle + 90}deg)`
+                }}
+              />
+            );
+          })}
+        </div>
+      </div>
+      
+      {/* Add min/max labels */}
+      <div className="flex justify-between w-full mt-2 px-4">
+        <span className="text-xs text-gray-500">{min}</span>
+        <span className="text-xs text-gray-500">{max}</span>
       </div>
     </div>
   );

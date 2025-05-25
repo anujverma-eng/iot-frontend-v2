@@ -49,7 +49,7 @@ export function AppRouter() {
                 </DashboardLayout>
               }
             >
-              <Route index element={<Dashboard />} />
+              <Route index element={<AnalyticsPage />} />
               <Route path="gateways" element={<GatewaysPage />} />
               <Route path="sensors" element={<SensorsPage />} />+{" "}
               <Route path="analytics">

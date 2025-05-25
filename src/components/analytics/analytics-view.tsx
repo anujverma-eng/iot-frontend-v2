@@ -19,6 +19,10 @@ import { HistogramChart } from '../visualization/histogram-chart';
 import { GaugeChart } from '../visualization/gauge-chart';
 import { LineChart } from '../visualization/line-chart';
 import { AreaChart } from '../visualization/area-chart';
+import { DistributionChart } from './distribution-charts/distribution-chart';
+import { TrendAnalysisChart } from './distribution-charts/trend-analysis-chart';
+import { AnomalyDetectionChart } from './distribution-charts/anomaly-detection-chart';
+import { CorrelationAnalysisChart } from './distribution-charts/correlation-analysis-chart';
 interface AnalyticsViewProps {
   config: ChartConfig;
 }
@@ -42,7 +46,6 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ config }) => {
     }
 
     const values = config.series.map(point => point.value);
-    console.log('Calculating stats for values:', values);
     const min = Math.min(...values);
     const max = Math.max(...values);
     const sum = values.reduce((acc, val) => acc + val, 0);
@@ -86,7 +89,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ config }) => {
       median,
       stdDev,
       count: values.length,
-      trend
+      trend: trend as 'up' | 'down' | 'neutral'
     };
   }, [config.series]);
 
@@ -331,7 +334,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ config }) => {
                             {new Date(point.timestamp).toLocaleString()}
                           </td>
                           <td className="px-4 py-2 text-sm font-medium">
-                            {point?.value?.toFixed(2) || 1} {config.unit}
+                            {point.value.toFixed(2)} {config.unit}
                           </td>
                           <td className="px-4 py-2 text-sm">
                             {point.isHigh ? (
@@ -363,8 +366,26 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ config }) => {
         </Tab>
         
         <Tab key="distribution" title="Distribution">
-          <div className="h-[400px] border border-default-200 rounded-lg p-4 bg-white dark:bg-gray-900 shadow-sm">
-            <HistogramChart config={filteredConfig} />
+          <div className="h-[500px] border border-default-200 rounded-lg p-4 bg-white dark:bg-gray-900 shadow-sm">
+            <DistributionChart config={filteredConfig} />
+          </div>
+        </Tab>
+        
+        <Tab key="trend" title="Trend Analysis">
+          <div className="h-[500px] border border-default-200 rounded-lg p-4 bg-white dark:bg-gray-900 shadow-sm">
+            <TrendAnalysisChart config={filteredConfig} />
+          </div>
+        </Tab>
+        
+        <Tab key="anomaly" title="Anomaly Detection">
+          <div className="h-[500px] border border-default-200 rounded-lg p-4 bg-white dark:bg-gray-900 shadow-sm">
+            <AnomalyDetectionChart config={filteredConfig} />
+          </div>
+        </Tab>
+        
+        <Tab key="correlation" title="Correlation">
+          <div className="h-[500px] border border-default-200 rounded-lg p-4 bg-white dark:bg-gray-900 shadow-sm">
+            <CorrelationAnalysisChart config={filteredConfig} />
           </div>
         </Tab>
         
