@@ -45,19 +45,27 @@ export const HistogramChart: React.FC<HistogramChartProps> = ({ config }) => {
       };
     });
     
+    console.log(values)
+    console.log(bins)
     // Count values in each bin
     values.forEach(value => {
-      const binIndex = Math.min(
+      console.log(`Value: ${value}, Min: ${min}, Max: ${max}, Bin Size: ${binSize}`);
+      let binIndex = Math.min(
         Math.floor((value - min) / binSize),
         binCount - 1
       );
+      // if binIndex is NaN or negative, set it to 0
+      if (isNaN(binIndex) || binIndex < 0) {
+        binIndex = 0;
+      }
+      console.log(binIndex)
       bins[binIndex].count++;
     });
     
     // Calculate percentages
     const total = values.length;
     bins.forEach(bin => {
-      bin.percentage = (bin.count / total) * 100;
+      bin.percentage = (bin?.count / total) * 100;
     });
     
     return bins;

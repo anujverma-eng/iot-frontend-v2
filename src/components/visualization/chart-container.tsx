@@ -51,7 +51,7 @@ interface ChartContainerProps {
     mac: string;
     displayName?: string;
   };
-  onNicknameChange?: (nickname: string) => void;
+  onDisplayNameChange?: (nickname: string) => void;
   onToggleStar?: () => void;
   isStarred?: boolean;
   onOpenInNewTab?: () => void;
@@ -63,7 +63,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   onBrushChange,
   onDownloadCSV,
   sensor,
-  onNicknameChange,
+  onDisplayNameChange,
   onToggleStar,
   isStarred = false,
   onOpenInNewTab,
@@ -164,12 +164,12 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
     }
   }, [sensor, config]);
 
-  const handleNicknameSubmit = () => {
-    if (onNicknameChange) {
-      onNicknameChange(displayName);
+  const handleDisplayNameSubmit = () => {
+    if (onDisplayNameChange) {
+      onDisplayNameChange(displayName);
       addToast({
-        title: "Nickname updated",
-        description: `Sensor ${sensor?.mac} nickname updated successfully`,
+        title: "Display Name Updated",
+        description: `Sensor ${sensor?.mac} display name updated successfully`,
       });
     }
     setIsEditing(false);
@@ -207,11 +207,11 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                       size="sm"
                       value={displayName}
                       onValueChange={setDisplayName}
-                      placeholder="Enter nickname"
+                      placeholder="Enter Display Name"
                       className="w-48"
                       autoFocus
                     />
-                    <Button size="sm" color="primary" onPress={handleNicknameSubmit}>
+                    <Button size="sm" color="primary" onPress={handleDisplayNameSubmit}>
                       Save
                     </Button>
                     <Button size="sm" variant="flat" onPress={() => setIsEditing(false)}>
@@ -279,7 +279,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                       className="w-48"
                       autoFocus
                     />
-                    <Button size="sm" color="primary" onPress={handleNicknameSubmit}>
+                    <Button size="sm" color="primary" onPress={handleDisplayNameSubmit}>
                       Save
                     </Button>
                     <Button size="sm" variant="flat" onPress={() => setIsEditing(false)}>
@@ -475,18 +475,6 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                 Candlestick
               </Button>
             </ButtonGroup>
-
-            <Tooltip content="Show moving average">
-              <Button
-                isIconOnly
-                size="sm"
-                variant={showMovingAverage ? "solid" : "flat"}
-                color={showMovingAverage ? "primary" : "default"}
-                onPress={handleToggleMovingAverage}
-              >
-                <Icon icon="lucide:trending-up" width={16} />
-              </Button>
-            </Tooltip>
           </div>
         );
 
@@ -729,7 +717,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                     className="w-48"
                     autoFocus
                   />
-                  <Button size="sm" color="primary" onPress={handleNicknameSubmit}>
+                  <Button size="sm" color="primary" onPress={handleDisplayNameSubmit}>
                     Save
                   </Button>
                   <Button size="sm" variant="flat" onPress={() => setIsEditing(false)}>

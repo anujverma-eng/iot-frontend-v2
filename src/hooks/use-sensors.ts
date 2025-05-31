@@ -1,30 +1,27 @@
 import React from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { 
-  fetchSensors, 
+import { AppDispatch } from '../store';
+import {
   fetchSensorById,
-  toggleSensorStar, 
-  updateSensorNickname,
-  setFilters,
-  setSelectedSensorIds,
-  addSelectedSensorId,
-  removeSelectedSensorId,
-  clearSelectedSensorIds,
+  fetchSensors,
+  selectFilters,
+  selectSelectedSensor,
+  selectSelectedSensorIds,
   selectSensors,
   selectSensorsLoading,
-  selectFilters,
-  selectSelectedSensorIds,
-  selectSelectedSensor
-} from '../store/sensorSlice';
+  setFilters,
+  setSelectedSensorIds,
+  toggleSensorStar,
+  updateSensorDisplayName
+} from '../store/sensorsSlice';
 import {
   fetchTelemetry,
-  setTimeRange,
-  selectTelemetryLoading,
   selectTelemetryData,
-  selectTimeRange
+  selectTelemetryLoading,
+  selectTimeRange,
+  setTimeRange
 } from '../store/telemetrySlice';
-import { AppDispatch } from '../store';
-import { SensorType, SensorStatus, TimeRange, FilterState } from '../types/sensor';
+import { FilterState, TimeRange } from '../types/sensor';
 
 export const useSensors = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -42,9 +39,12 @@ export const useSensors = () => {
   // Load sensors based on filters
   React.useEffect(() => {
     dispatch(fetchSensors({
+      page: 1,
+      limit: 50,
+      claimed: true,
       search: filters.search,
-      type: filters.types,
-      status: filters.status === 'all' ? undefined : filters.status
+      // type: filters.types,
+      // status: filters.status === 'all' ? undefined : filters.status
     }));
   }, [dispatch, filters.search, filters.types, filters.status]);
   
@@ -78,7 +78,7 @@ export const useSensors = () => {
   
   // Update sensor displayName
   const handleUpdateNickname = (sensorId: string, displayName: string) => {
-    dispatch(updateSensorNickname({ id: sensorId, displayName }));
+    dispatch(updateSensorDisplayName({ mac: sensorId, displayName }));
   };
   
   // Handle sensor selection

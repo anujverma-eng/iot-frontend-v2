@@ -124,7 +124,7 @@ export const SensorDetailDrawer: React.FC<SensorDetailDrawerProps> = ({
                           variant="light" 
                           onPress={() => setEditingName(true)}
                         >
-                          <Icon icon="lucide:edit-3" size={16} />
+                          <Icon icon="lucide:edit-3" height={16} width={16} />
                         </Button>
                       </div>
                     ) : (
@@ -167,7 +167,7 @@ export const SensorDetailDrawer: React.FC<SensorDetailDrawerProps> = ({
                           variant="light" 
                           onPress={() => copyToClipboard(sensor.mac)}
                         >
-                          <Icon icon="lucide:copy" size={14} />
+                          <Icon icon="lucide:copy" height={14} width={14} />
                         </Button>
                       </Tooltip>
                     </div>
@@ -214,7 +214,7 @@ export const SensorDetailDrawer: React.FC<SensorDetailDrawerProps> = ({
                               <div className="flex flex-col gap-1">
                                 {sensor.lastSeenBy.map((gatewayId) => (
                                   <div key={gatewayId} className="flex items-center gap-2">
-                                    <Icon icon="lucide:cpu" className="text-default-400" size={14} />
+                                    <Icon icon="lucide:cpu" className="text-default-400" height={14} width={14} />
                                     <span className="text-sm">{gatewayId}</span>
                                     <Tooltip content="Copy Gateway ID">
                                       <Button 
@@ -223,7 +223,7 @@ export const SensorDetailDrawer: React.FC<SensorDetailDrawerProps> = ({
                                         variant="light" 
                                         onPress={() => copyToClipboard(gatewayId)}
                                       >
-                                        <Icon icon="lucide:copy" size={14} />
+                                        <Icon icon="lucide:copy" height={14} width={14} />
                                       </Button>
                                     </Tooltip>
                                   </div>
@@ -240,7 +240,7 @@ export const SensorDetailDrawer: React.FC<SensorDetailDrawerProps> = ({
                         <div className="flex flex-col gap-4">
                           <div className="flex items-start gap-3">
                             <div className="rounded-full bg-danger-100 p-2 dark:bg-danger-500/20">
-                              <Icon icon="lucide:trash-2" className="text-danger-500" size={20} />
+                              <Icon icon="lucide:trash-2" className="text-danger-500" height={20} width={20} />
                             </div>
                             <div className="flex flex-col gap-1">
                               <h3 className="text-lg font-medium text-danger-600 dark:text-danger-400">

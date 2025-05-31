@@ -235,14 +235,13 @@ export const GatewaysPage: React.FC = () => {
           </div>
         ) : (
           <>
-            <StatsCard title="Total Gateways" value={stats?.totalGateways || 0} icon="lucide:cpu" color="primary" />
-            <StatsCard title="Live Gateways" value={stats?.liveGateways || 0} icon="lucide:activity" color="success" />
+            <StatsCard title="Total Gateways" value={String(stats?.totalGateways || 0)} icon="lucide:cpu" color="primary" />
+            <StatsCard title="Live Gateways" value={String(stats?.liveGateways || 0)} icon="lucide:activity" color="success" />
             <StatsCard
               title="Avg. Sensors per Gateway"
-              value={avgSensorsPerGateway}
+              value={avgSensorsPerGateway.toFixed(1)}
               icon="lucide:radio"
               color="secondary"
-              decimals={1}
             />
             <Card className="w-full">
               <CardBody className="flex gap-4">

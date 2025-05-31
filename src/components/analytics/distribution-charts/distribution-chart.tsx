@@ -22,7 +22,18 @@ interface DistributionChartProps {
 export const DistributionChart: React.FC<DistributionChartProps> = ({ config, compact = false }) => {
   // Generate histogram data
   const histogramData = React.useMemo(() => {
-    if (!config.series || config.series.length === 0) return [];
+    if (!config.series || config.series.length === 0) {
+      return {
+        bins: [],
+        stats: {
+          min: 0,
+          max: 0,
+          mean: 0,
+          stdDev: 0,
+          count: 0
+        }
+      };
+    }
     
     const values = config.series.map(point => point.value);
     const min = Math.min(...values);
@@ -47,10 +58,14 @@ export const DistributionChart: React.FC<DistributionChartProps> = ({ config, co
     
     // Count values in each bin
     values.forEach(value => {
-      const binIndex = Math.min(
+      let binIndex = Math.min(
         Math.floor((value - min) / binSize),
         binCount - 1
       );
+      // if binIndex is NaN or negative, set it to 0
+      if (isNaN(binIndex) || binIndex < 0) {
+        binIndex = 0;
+      }
       bins[binIndex].count++;
     });
     

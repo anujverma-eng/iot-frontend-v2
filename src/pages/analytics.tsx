@@ -26,7 +26,7 @@ import {
   setFilters,
   setSelectedSensorIds,
   toggleSensorStar,
-  updateSensorNickname,
+  updateSensorDisplayName,
 } from "../store/sensorsSlice";
 import { fetchTelemetry, selectTelemetryData, selectTelemetryLoading, setTimeRange } from "../store/telemetrySlice";
 import { ChartConfig, FilterState, MultiSeriesConfig, SensorStatus, SensorType } from "../types/sensor";
@@ -214,7 +214,7 @@ export const AnalyticsPage: React.FC = () => {
   };
 
   const handleStatusChange = (status: string) => {
-    dispatch(setFilters({ ...filters, status }));
+    dispatch(setFilters({ ...filters, status: status as SensorStatus | "all" }));
   };
 
   const handleFiltersChange = (newFilters: Partial<FilterState>) => {
@@ -325,9 +325,10 @@ export const AnalyticsPage: React.FC = () => {
     });
   };
 
-  const handleDisplayNameChange = (nickname: string) => {
+  const handleDisplayNameChange = (displayName: string) => {
+    console.log({ selectedSensor, displayName });
     if (selectedSensor) {
-      dispatch(updateSensorNickname({ mac: selectedSensor, displayName: nickname }));
+      dispatch(updateSensorDisplayName({ mac: selectedSensor, displayName }));
     }
   };
 
@@ -608,6 +609,7 @@ export const AnalyticsPage: React.FC = () => {
                   isMultiSeries={true}
                   onBrushChange={handleBrushChange}
                   onDownloadCSV={handleDownloadCSV}
+                  onDisplayNameChange={handleDisplayNameChange}
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-center">
@@ -642,15 +644,15 @@ export const AnalyticsPage: React.FC = () => {
                       mac: currentSensor.mac,
                       displayName: currentSensor.displayName,
                     }}
-                    onDisplayNameChange={handleDisplayNameChange}
                     onToggleStar={handleToggleStar}
                     isStarred={currentSensor.starred || currentSensor.isStarred}
                     onOpenInNewTab={!isSoloMode ? handleOpenInNewTab : undefined}
+                    onDisplayNameChange={handleDisplayNameChange}
                   />
                 </div>
 
                 {/* Mobile gauge view (swipe panel) */}
-                {isMobile && chartConfig.type !== "gauge" && (
+                {isMobile && chartConfig && (chartConfig.type as any) !== "gauge" && (
                   <div
                     className="absolute top-0 left-full w-full h-full transition-transform duration-300"
                     style={{ transform: isSwipingToGauge ? "translateX(-100%)" : "translateX(0)" }}
@@ -677,7 +679,7 @@ export const AnalyticsPage: React.FC = () => {
                 )}
 
                 {/* Mobile swipe indicator */}
-                {isMobile && chartConfig.type !== "gauge" && !isSwipingToGauge && (
+                {isMobile && (chartConfig.type as any) !== "gauge" && !isSwipingToGauge && (
                   <div className="absolute bottom-4 right-4">
                     <Button
                       size="sm"

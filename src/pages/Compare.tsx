@@ -70,9 +70,12 @@ export const ComparePage: React.FC = () => {
   // Load sensors on component mount
   React.useEffect(() => {
     dispatch(fetchSensors({
+      page: 1,
+      limit: 50,
+      claimed: true,
       search: filters.search,
-      type: filters.types,
-      status: filters.status === 'all' ? undefined : filters.status
+      // type: filters.types,
+      // status: filters.status === 'all' ? undefined : filters.status
     }));
   }, [dispatch, filters.search, filters.types, filters.status]);
   

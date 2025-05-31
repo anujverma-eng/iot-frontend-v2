@@ -63,7 +63,11 @@ export const TableView: React.FC<TableViewProps> = ({ config, onDownloadCSV }) =
           timestamp: point.timestamp,
           date,
           time,
-          value: point.value
+          value: point.value,
+          min: undefined,
+          max: undefined,
+          avg: undefined,
+          count: undefined
         };
       });
     } else {

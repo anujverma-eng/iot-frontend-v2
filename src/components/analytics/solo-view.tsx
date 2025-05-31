@@ -9,21 +9,14 @@ import {
   DropdownMenu,
   DropdownTrigger,
   Input,
-  Pagination,
   Spinner,
   Tab,
-  Table,
-  TableBody,
-  TableCell,
-  TableColumn,
-  TableHeader,
-  TableRow,
   Tabs,
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import React from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { chartColors } from "../../data/analytics";
 import { AppDispatch, RootState } from "../../store";
 import {
@@ -35,17 +28,17 @@ import {
   selectSensorsLoading,
   setFilters,
   toggleSensorStar,
-  updateSensorNickname,
+  updateSensorDisplayName,
 } from "../../store/sensorsSlice";
 import { fetchTelemetry, selectTelemetryData, selectTelemetryLoading } from "../../store/telemetrySlice";
 import { ChartConfig } from "../../types/sensor";
 import { ChartContainer } from "../visualization/chart-container";
-import { FilterBar } from "./filter-bar";
-import { TableView } from "./table-view";
-import { DistributionChart } from "./distribution-charts/distribution-chart";
-import { TrendAnalysisChart } from "./distribution-charts/trend-analysis-chart";
 import { AnomalyDetectionChart } from "./distribution-charts/anomaly-detection-chart";
 import { CorrelationAnalysisChart } from "./distribution-charts/correlation-analysis-chart";
+import { DistributionChart } from "./distribution-charts/distribution-chart";
+import { TrendAnalysisChart } from "./distribution-charts/trend-analysis-chart";
+import { FilterBar } from "./filter-bar";
+import { TableView } from "./table-view";
 
 // Fix the interface to satisfy the Record<string, string | undefined> constraint
 interface SoloViewParams {
@@ -71,9 +64,9 @@ export const SoloView: React.FC = () => {
   const [searchText, setSearchText] = React.useState("");
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
   const [selectedTab, setSelectedTab] = React.useState("chart");
-  const [page, setPage] = React.useState(1);
-  const [rowsPerPage, setRowsPerPage] = React.useState(10);
-  const [sortDescriptor, setSortDescriptor] = React.useState({ column: "timestamp", direction: "descending" });
+  // const [page, setPage] = React.useState(1);
+  // const [rowsPerPage, setRowsPerPage] = React.useState(10);
+  // const [sortDescriptor, setSortDescriptor] = React.useState({ column: "timestamp", direction: "descending" });
   const [groupBy, setGroupBy] = React.useState<"none" | "hourly" | "daily" | "weekly">("none");
 
   const sensorsLoaded = useSelector((s: RootState) => s.sensors.loaded);
@@ -84,7 +77,7 @@ export const SoloView: React.FC = () => {
     return sensors.map((sensor) => ({
       ...sensor,
       id: sensor._id,
-      nickname: sensor.displayName,
+      displayName: sensor.displayName,
       starred: sensor.isStarred,
     }));
   }, [sensors]);
@@ -97,7 +90,7 @@ export const SoloView: React.FC = () => {
     return mappedSensors.filter(
       (sensor) =>
         sensor.mac.toLowerCase().includes(lowerSearch) ||
-        (sensor.nickname && sensor.nickname.toLowerCase().includes(lowerSearch))
+        (sensor.displayName && sensor.displayName.toLowerCase().includes(lowerSearch))
     );
   }, [mappedSensors, searchText]);
 
@@ -107,7 +100,7 @@ export const SoloView: React.FC = () => {
   }, [mappedSensors, sensorId]);
 
   // Add state for initial loading
-  const [initialLoading, setInitialLoading] = React.useState(true);
+  const [initialLoading, _setInitialLoading] = React.useState(true);
 
   // Fetch sensors on component mount - ONLY ONCE
   React.useEffect(() => {
@@ -131,8 +124,6 @@ export const SoloView: React.FC = () => {
   const filteredIds = React.useMemo(() => filteredSensors.map((s) => s.id).join("|"), [filteredSensors]);
 
   React.useEffect(() => {
-    log("🔄 sensor-selection", { sensorId, filteredIds });
-
     if (!sensorsLoaded) return; // wait for list
 
     /* a) we have an id in the URL ----------------------------------------- */
@@ -185,98 +176,98 @@ export const SoloView: React.FC = () => {
   }, [sensorId, telemetryData]);
 
   // Prepare table data with grouping
-  const tableData = React.useMemo(() => {
-    if (!sensorId || !telemetryData[sensorId]) return [];
+  // const tableData = React.useMemo(() => {
+  //   if (!sensorId || !telemetryData[sensorId]) return [];
 
-    const series = telemetryData[sensorId].series;
+  //   const series = telemetryData[sensorId].series;
 
-    if (groupBy === "none") {
-      return series.map((point) => ({
-        timestamp: point.timestamp,
-        value: point.value,
-        date: new Date(point.timestamp).toLocaleDateString(),
-        time: new Date(point.timestamp).toLocaleTimeString(),
-      }));
-    }
+  //   if (groupBy === "none") {
+  //     return series.map((point) => ({
+  //       timestamp: point.timestamp,
+  //       value: point.value,
+  //       date: new Date(point.timestamp).toLocaleDateString(),
+  //       time: new Date(point.timestamp).toLocaleTimeString(),
+  //     }));
+  //   }
 
-    // Group data
-    const groupedData: Record<string, { min: number; max: number; avg: number; count: number; timestamp: number }> = {};
+  //   // Group data
+  //   const groupedData: Record<string, { min: number; max: number; avg: number; count: number; timestamp: number }> = {};
 
-    series.forEach((point) => {
-      const date = new Date(point.timestamp);
-      let key: string;
+  //   series.forEach((point) => {
+  //     const date = new Date(point.timestamp);
+  //     let key: string;
 
-      switch (groupBy) {
-        case "hourly":
-          date.setMinutes(0, 0, 0);
-          key = date.toISOString();
-          break;
-        case "daily":
-          date.setHours(0, 0, 0, 0);
-          key = date.toISOString();
-          break;
-        case "weekly":
-          const dayOfWeek = date.getDay();
-          const diff = date.getDate() - dayOfWeek;
-          const startOfWeek = new Date(date);
-          startOfWeek.setDate(diff);
-          startOfWeek.setHours(0, 0, 0, 0);
-          key = startOfWeek.toISOString();
-          break;
-        default:
-          key = date.toISOString();
-      }
+  //     switch (groupBy) {
+  //       case "hourly":
+  //         date.setMinutes(0, 0, 0);
+  //         key = date.toISOString();
+  //         break;
+  //       case "daily":
+  //         date.setHours(0, 0, 0, 0);
+  //         key = date.toISOString();
+  //         break;
+  //       case "weekly":
+  //         const dayOfWeek = date.getDay();
+  //         const diff = date.getDate() - dayOfWeek;
+  //         const startOfWeek = new Date(date);
+  //         startOfWeek.setDate(diff);
+  //         startOfWeek.setHours(0, 0, 0, 0);
+  //         key = startOfWeek.toISOString();
+  //         break;
+  //       default:
+  //         key = date.toISOString();
+  //     }
 
-      if (!groupedData[key]) {
-        groupedData[key] = {
-          min: point.value,
-          max: point.value,
-          avg: point.value,
-          count: 1,
-          timestamp: date.getTime(),
-        };
-      } else {
-        groupedData[key].min = Math.min(groupedData[key].min, point.value);
-        groupedData[key].max = Math.max(groupedData[key].max, point.value);
-        groupedData[key].avg =
-          (groupedData[key].avg * groupedData[key].count + point.value) / (groupedData[key].count + 1);
-        groupedData[key].count += 1;
-      }
-    });
+  //     if (!groupedData[key]) {
+  //       groupedData[key] = {
+  //         min: point.value,
+  //         max: point.value,
+  //         avg: point.value,
+  //         count: 1,
+  //         timestamp: date.getTime(),
+  //       };
+  //     } else {
+  //       groupedData[key].min = Math.min(groupedData[key].min, point.value);
+  //       groupedData[key].max = Math.max(groupedData[key].max, point.value);
+  //       groupedData[key].avg =
+  //         (groupedData[key].avg * groupedData[key].count + point.value) / (groupedData[key].count + 1);
+  //       groupedData[key].count += 1;
+  //     }
+  //   });
 
-    return Object.entries(groupedData).map(([key, data]) => ({
-      timestamp: data.timestamp,
-      value: data.avg,
-      min: data.min,
-      max: data.max,
-      count: data.count,
-      date: new Date(data.timestamp).toLocaleDateString(),
-      time: new Date(data.timestamp).toLocaleTimeString(),
-    }));
-  }, [sensorId, telemetryData, groupBy]);
+  //   return Object.entries(groupedData).map(([, data]) => ({
+  //     timestamp: data.timestamp,
+  //     value: data.avg,
+  //     min: data.min,
+  //     max: data.max,
+  //     count: data.count,
+  //     date: new Date(data.timestamp).toLocaleDateString(),
+  //     time: new Date(data.timestamp).toLocaleTimeString(),
+  //   }));
+  // }, [sensorId, telemetryData, groupBy]);
 
   // Sort and paginate table data
-  const sortedData = React.useMemo(() => {
-    if (!tableData.length) return [];
+  // const sortedData = React.useMemo(() => {
+  //   if (!tableData.length) return [];
 
-    const sorted = [...tableData].sort((a, b) => {
-      const { column, direction } = sortDescriptor;
-      const first = a[column as keyof typeof a];
-      const second = b[column as keyof typeof b];
-      const cmp = first < second ? -1 : first > second ? 1 : 0;
+  //   const sorted = [...tableData].sort((a, b) => {
+  //     const { column, direction } = sortDescriptor;
+  //     const first = a[column as keyof typeof a];
+  //     const second = b[column as keyof typeof b];
+  //     const cmp = first < second ? -1 : first > second ? 1 : 0;
 
-      return direction === "descending" ? -cmp : cmp;
-    });
+  //     return direction === "descending" ? -cmp : cmp;
+  //   });
 
-    return sorted;
-  }, [tableData, sortDescriptor]);
+  //   return sorted;
+  // }, [tableData, sortDescriptor]);
 
-  const paginatedData = React.useMemo(() => {
-    const start = (page - 1) * rowsPerPage;
-    const end = start + rowsPerPage;
+  // const paginatedData = React.useMemo(() => {
+  //   const start = (page - 1) * rowsPerPage;
+  //   const end = start + rowsPerPage;
 
-    return sortedData.slice(start, end);
-  }, [sortedData, page, rowsPerPage]);
+  //   return sortedData.slice(start, end);
+  // }, [sortedData, page, rowsPerPage]);
 
   // Calculate statistics
   const stats = React.useMemo(() => {
@@ -338,9 +329,19 @@ export const SoloView: React.FC = () => {
     });
   };
 
-  const handleNicknameChange = (nickname: string) => {
-    if (sensorId) {
-      dispatch(updateSensorNickname({ mac: sensorId, displayName: nickname }));
+  const handleDisplayNameChange = (displayName: string) => {
+    if (currentSensor) {
+      dispatch(
+        updateSensorDisplayName({
+          mac: currentSensor.mac, // or id: currentSensor._id – whichever your slice expects
+          displayName,
+        })
+      );
+
+      addToast({
+        title: "Display Name Updated",
+        description: `Sensor ${currentSensor.mac} nickname saved`,
+      });
     }
   };
 
@@ -350,16 +351,9 @@ export const SoloView: React.FC = () => {
     }
   };
 
-  const handleSortChange = (column: string) => {
-    setSortDescriptor((prev) => ({
-      column,
-      direction: prev.column === column && prev.direction === "ascending" ? "descending" : "ascending",
-    }));
-  };
-
   const handleGroupByChange = (value: "none" | "hourly" | "daily" | "weekly") => {
     setGroupBy(value);
-    setPage(1); // Reset to first page when changing grouping
+    // setPage(1); // Reset to first page when changing grouping
   };
 
   if (loading) {
@@ -405,8 +399,8 @@ export const SoloView: React.FC = () => {
                           className={`w-2 h-2 rounded-full ${sensor.status === "live" ? "bg-success" : "bg-danger"}`}
                         />
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate">{sensor.nickname || sensor.mac}</div>
-                          {sensor.nickname && <div className="text-xs text-default-500 truncate">{sensor.mac}</div>}
+                          <div className="text-sm font-medium truncate">{sensor.displayName || sensor.mac}</div>
+                          {sensor.displayName && <div className="text-xs text-default-500 truncate">{sensor.mac}</div>}
                         </div>
                         {sensor.starred && <Icon icon="lucide:star" className="text-warning fill-warning" width={14} />}
                       </div>
@@ -466,19 +460,7 @@ export const SoloView: React.FC = () => {
                 <CardBody>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <h2 className="text-xl font-semibold">{currentSensor.nickname || currentSensor.mac}</h2>
-                      <Button
-                        isIconOnly
-                        size="sm"
-                        variant="light"
-                        onPress={() => {
-                          // if (onNicknameChange) {
-                          //   // Open edit nickname dialog
-                          // }
-                        }}
-                      >
-                        <Icon icon="lucide:edit-3" width={16} />
-                      </Button>
+                      <h2 className="text-xl font-semibold">{currentSensor.displayName || currentSensor.mac}</h2>
                       <Badge color={currentSensor.status === "live" ? "success" : "danger"} variant="flat">
                         {currentSensor?.status?.toUpperCase()}
                       </Badge>
@@ -552,7 +534,7 @@ export const SoloView: React.FC = () => {
                       mac: currentSensor.mac,
                       displayName: currentSensor.displayName,
                     }}
-                    // onDisplayNameChange={handleDisplayNameChange}
+                    onDisplayNameChange={handleDisplayNameChange}
                     onToggleStar={handleToggleStar}
                     isStarred={currentSensor.starred}
                   />

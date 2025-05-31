@@ -32,18 +32,22 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
   }, [zoomDomain, onZoomChange]);
 
     
+  // Define the candlestick data type with optional movingAverage
+  type CandlestickDatum = {
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    timestamp: number;
+    movingAverage?: number;
+  };
+
   // Generate candlestick data from time series
   const candlestickData = React.useMemo(() => {
     if (!config.series || config.series.length === 0) return [];
     
     // Group data by hour
-    const hourlyData: Record<string, {
-      open: number;
-      high: number;
-      low: number;
-      close: number;
-      timestamp: number;
-    }> = {};
+    const hourlyData: Record<string, CandlestickDatum> = {};
     
     config.series.forEach(point => {
       const date = new Date(point.timestamp);
@@ -226,10 +230,6 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
                 stroke="var(--heroui-primary)"
                 name="Range"
                 barSize={20}
-                formatter={(value, name, props) => {
-                  return [props.low, props.high];
-                }}
-                zIndex={5}
               />
             )}
             
@@ -241,7 +241,6 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
               dot={false}
               activeDot={{ r: 4 }}
               strokeWidth={2}
-              zIndex={10}
             />
             
             {/* Moving Average Line */}
@@ -254,7 +253,6 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
                 dot={false}
                 activeDot={{ r: 4 }}
                 strokeDasharray="5 5"
-                zIndex={20}
               />
             )}
             

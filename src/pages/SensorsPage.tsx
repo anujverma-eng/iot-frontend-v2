@@ -129,7 +129,7 @@ export const SensorsPage: React.FC = () => {
           </Chip>
         );
       case "lastValue":
-        return `${sensor?.lastValue?.toFixed(1)} ${sensor.lastUnit}`;
+        return `${sensor?.lastValue?.toFixed(1)} ${sensor?.unit?.toLowerCase() || ""}`;
       case "lastSeen":
         return formatDistanceToNow(new Date(sensor.lastSeen), { addSuffix: true });
       case "seenBy":
@@ -178,15 +178,13 @@ export const SensorsPage: React.FC = () => {
 
       {/* Stats cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatsCard title="Claimed Sensors" value={stats?.claimed || 0} icon="lucide:radio" color="primary" />
-        <StatsCard title="Unclaimed Sensors" value={stats?.unclaimed || 0} icon="lucide:radio-tower" color="warning" />
+        <StatsCard title="Claimed Sensors" value={(stats?.claimed ?? 0).toString()} icon="lucide:radio" color="primary" />
+        <StatsCard title="Unclaimed Sensors" value={(stats?.unclaimed ?? 0).toString()} icon="lucide:radio-tower" color="warning" />
         <StatsCard
           title="Avg. Reading Frequency"
-          value={stats?.avgReadingFrequency || 0}
+          value={(stats?.avgReadingFrequency ?? 0).toString()}
           icon="lucide:timer"
           color="success"
-          decimals={1}
-          suffix="min"
         />
       </div>
 

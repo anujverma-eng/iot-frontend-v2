@@ -61,7 +61,7 @@ export const toggleSensorStar = createAsyncThunk("sensors/toggleStar", async (ma
   return { mac, success: res.success };
 });
 
-export const updateSensorNickname = createAsyncThunk(
+export const updateSensorDisplayName = createAsyncThunk(
   "sensors/updateNickname",
   async ({ mac, displayName }: { mac: string; displayName: string }) => {
     const res = await SensorService.updateSensorNickname(mac, displayName);
@@ -203,8 +203,25 @@ const sensorSlice = createSlice({
     builder.addCase(fetchSensors.fulfilled, (s, a) => {
       s.loading = false;
       s.loaded = true;
-      s.data = a.payload.data;
-      s.pagination.totalPages = a.payload.pagination.totalPages;
+      // If the API returns the array directly, assign it directly
+      // s.data = a.payload;
+      // If the API returns an object, destructure as needed
+      if (
+        typeof a.payload === "object" &&
+        a.payload !== null &&
+        "data" in a.payload &&
+        "pagination" in a.payload &&
+        typeof (a.payload as any).pagination === "object" &&
+        (a.payload as any).pagination !== null &&
+        "totalPages" in (a.payload as any).pagination
+      ) {
+        s.data = (a.payload as { data: Sensor[]; pagination: { totalPages: number } }).data;
+        s.pagination.totalPages = (a.payload as { data: Sensor[]; pagination: { totalPages: number } }).pagination.totalPages;
+      } else {
+        // fallback: assign payload directly if it's an array
+        s.data = Array.isArray(a.payload) ? (a.payload as Sensor[]) : [];
+        s.pagination.totalPages = 1;
+      }
     });
 
     /* fetch stats ------------------------------------- */
@@ -321,7 +338,7 @@ const sensorSlice = createSlice({
     });
 
     /* nickname update --------------------------------- */
-    builder.addCase(updateSensorNickname.fulfilled, (s, a) => {
+    builder.addCase(updateSensorDisplayName.fulfilled, (s, a) => {
       if (!a.payload.success) return;
       const idx = s.data.findIndex((se) => se.mac === a.payload.mac);
       if (idx !== -1) {
