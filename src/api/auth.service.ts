@@ -5,7 +5,6 @@ import {
   CognitoUserAttribute,
   CognitoRefreshToken,
 } from "amazon-cognito-identity-js";
-import { tokenManager } from "../utils/tokenManager";
 
 const pool = new CognitoUserPool({
   UserPoolId: import.meta.env.VITE_COGNITO_USER_POOL_ID,

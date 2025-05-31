@@ -109,9 +109,23 @@ const telemetrySlice = createSlice({
         s.error = a.payload ?? a.error.message ?? "Error";
       })
       /* success */
+      // .addCase(fetchTelemetry.fulfilled, (s, a) => {
+      //   s.loading = false;
+      //   s.data = { ...s.data, ...a.payload };
+      // })
       .addCase(fetchTelemetry.fulfilled, (s, a) => {
         s.loading = false;
-        s.data = { ...s.data, ...a.payload };
+
+        Object.entries(a.payload).forEach(([sensorId, incoming]) => {
+          const current = s.data[sensorId];
+          /* only update if the newest sample changed */
+          const nextStamp = incoming.series[0]?.timestamp;
+          const currentStamp = current?.series[0]?.timestamp;
+
+          if (!current || nextStamp !== currentStamp) {
+            s.data[sensorId] = incoming;
+          }
+        });
       });
   },
 });

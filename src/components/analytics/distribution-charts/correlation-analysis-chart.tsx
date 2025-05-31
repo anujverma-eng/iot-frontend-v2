@@ -1,17 +1,16 @@
-import React from 'react';
-import { 
-  ScatterChart, 
-  Scatter, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  ReferenceLine,
-  Label
-} from 'recharts';
 import { Card, CardBody, Chip, Divider } from '@heroui/react';
 import { Icon } from '@iconify/react';
+import React from 'react';
+import {
+  CartesianGrid,
+  ReferenceLine,
+  ResponsiveContainer,
+  Scatter,
+  ScatterChart,
+  Tooltip,
+  XAxis,
+  YAxis
+} from 'recharts';
 import { ChartConfig } from '../../../types/sensor';
 
 interface CorrelationAnalysisChartProps {
@@ -279,7 +278,7 @@ export const CorrelationAnalysisChart: React.FC<CorrelationAnalysisChartProps> =
                         return [`${value.toFixed(2)} ${correlationData.secondaryUnit}`, name];
                       return [`${value}`, name];
                     }}
-                    labelFormatter={(label) => `Correlation: ${(correlationData.correlation ?? 0).toFixed(2)}`}
+                    labelFormatter={() => `Correlation: ${(correlationData.correlation ?? 0).toFixed(2)}`}
                     contentStyle={{
                       backgroundColor: "#ffffff",
                       border: "1px solid #e5e7eb",
@@ -455,7 +454,7 @@ export const CorrelationAnalysisChart: React.FC<CorrelationAnalysisChartProps> =
                     data={correlationData.autocorrelations} 
                     fill="#6366f1"
                     shape={(props: any) => {
-                      const { cx, cy, width, height, payload } = props;
+                      const { cx, cy, payload } = props;
                       const { lag, correlation } = payload;
                       
                       // Determine if this lag is significant

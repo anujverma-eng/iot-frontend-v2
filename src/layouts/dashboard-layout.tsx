@@ -29,6 +29,13 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     return () => mediaQuery.removeEventListener("change", handler);
   }, []);
 
+  // If the page is "/dashboard/analytics", close the sidebar
+  React.useEffect(() => {
+    if (location.pathname.includes("/dashboard/analytics")) {
+      setIsSidebarOpen(false);
+    }
+  }, [location.pathname]);
+
   return (
     <div className="flex flex-col min-h-screen bg-background">
       {/* ─── header ─────────────────────────────────────────────── */}

@@ -1,5 +1,4 @@
-import { Gateway, GatewayResponse, GatewayStats } from "../types/gateway";
-import { Sensor, SensorResponse } from "../types/sensor";
+import { Gateway, GatewayStats } from "../types/gateway";
 import http from "./http";
 
 interface ApiResponse<T> {

@@ -33,6 +33,14 @@ import { SparkTimelineChart } from "./spark-timeline-chart";
 import { AnalyticsView } from "../analytics/analytics-view";
 import { TableView } from "../analytics/table-view";
 
+/* ------------------------------------------------------------------ *
+ *  1.  Ultra-cheap wrappers so React.memo can short-circuit re-renders
+ * ------------------------------------------------------------------ */
+const MemoizedLineChart = React.memo(LineChart);
+const MemoizedAreaChart = React.memo(AreaChart);
+const MemoizedGaugeChart = React.memo(GaugeChart);
+const MemoizedHistogramChart = React.memo(HistogramChart);
+
 interface ChartContainerProps {
   config: ChartConfig | MultiSeriesConfig;
   isMultiSeries?: boolean;
@@ -48,7 +56,6 @@ interface ChartContainerProps {
   isStarred?: boolean;
   onOpenInNewTab?: () => void;
 }
-
 
 export const ChartContainer: React.FC<ChartContainerProps> = ({
   config,
@@ -71,6 +78,25 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   const [isZoomed, setIsZoomed] = React.useState(false);
   const [downloadType, setDownloadType] = React.useState<"csv" | "png">("csv");
   const chartRef = React.useRef<HTMLDivElement>(null);
+
+  const ChartBox: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+    <div className="h-[300px] border border-default-200 rounded-lg p-3 bg-white dark:bg-content1">
+      <h3 className="text-sm font-medium mb-2 text-primary-600">{title}</h3>
+      <div className="h-[250px]">{children}</div>
+    </div>
+  );
+  
+  const memoizedConfig = React.useMemo(
+    () => config, // same reference until series/type actually change
+    [
+      isMultiSeries
+        ? (config as MultiSeriesConfig).series // track series array (object identity)
+        : (config as ChartConfig).series,
+      config.type, // track primitive sensor-type
+    ]
+  );
+
+  const memoizedSingle = !isMultiSeries ? (memoizedConfig as ChartConfig) : undefined;
 
   // Set default visualization type based on sensor type
   React.useEffect(() => {
@@ -137,7 +163,6 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       }
     }
   }, [sensor, config]);
-
 
   const handleNicknameSubmit = () => {
     if (onNicknameChange) {
@@ -303,7 +328,6 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       </Card>
     );
   }
-
 
   const handleVisualizationTypeChange = (type: VisualizationType) => {
     setVisualizationType(type);
@@ -580,33 +604,19 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
     }
   };
 
-  const renderChart = () => {
-    if (isMultiSeries) {
-      const multiConfig = config as MultiSeriesConfig;
+  const renderChart = React.useCallback(() => {
+    const cfg = memoizedConfig;
 
-      switch (visualizationType) {
-        case "area":
-          return (
-            <AreaChart
-              config={multiConfig}
-              isMultiSeries={true}
-              onBrushChange={onBrushChange}
-              onZoomChange={handleZoomChange}
-            />
-          );
-        default:
-          return (
-            <LineChart
-              config={multiConfig}
-              isMultiSeries={true}
-              onBrushChange={onBrushChange}
-              onZoomChange={handleZoomChange}
-            />
-          );
-      }
+    if (isMultiSeries) {
+      const multi = cfg as MultiSeriesConfig;
+      return visualizationType === "area" ? (
+        <AreaChart config={multi} isMultiSeries onBrushChange={onBrushChange} onZoomChange={handleZoomChange} />
+      ) : (
+        <LineChart config={multi} isMultiSeries onBrushChange={onBrushChange} onZoomChange={handleZoomChange} />
+      );
     }
 
-    const singleConfig = config as ChartConfig;
+    const singleConfig = cfg as ChartConfig;
     const enhancedConfig = {
       ...singleConfig,
       showMovingAverage,
@@ -633,9 +643,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
               <CandlestickChart config={enhancedConfig} onBrushChange={onBrushChange} onZoomChange={handleZoomChange} />
             );
           default:
-            return (
-              <PressureChart config={enhancedConfig} onBrushChange={onBrushChange} />
-            );
+            return <PressureChart config={enhancedConfig} onBrushChange={onBrushChange} />;
         }
 
       case "battery":
@@ -691,7 +699,16 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
           />
         );
     }
-  };
+  }, [
+    memoizedConfig,
+    isMultiSeries,
+    visualizationType,
+    showMovingAverage,
+    showDailyRange,
+    isFFTDrawerOpen,
+    onBrushChange,
+    handleZoomChange,
+  ]);
 
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const [activeTab, setActiveTab] = React.useState("chart");
@@ -811,75 +828,69 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
         )}
       </div>
 
-      {/* Detailed View Modal */}
-      <Modal isOpen={isOpen} onOpenChange={onOpenChange} size="5xl" scrollBehavior="inside">
-        <ModalContent>
-          {(onClose) => (
-            <>
-              <ModalHeader className="flex flex-col gap-1 border-b border-divider">
-                <h2 className="text-xl font-semibold text-primary-600">
-                  {sensor?.displayName || sensor?.mac || "Sensor Details"}
-                </h2>
-              </ModalHeader>
-              <ModalBody className="p-0">
-                <Tabs selectedKey={activeTab} onSelectionChange={setActiveTab as any} className="w-full">
-                  <Tab key="chart" title="Chart View">
-                    <div className="p-4 h-[600px]">{renderChart()}</div>
-                  </Tab>
-                  <Tab key="table" title="Table View">
-                    <div className="p-4 h-[600px]">
-                      <TableView config={config as ChartConfig} onDownloadCSV={onDownloadCSV} />
-                    </div>
-                  </Tab>
-                  <Tab key="analytics" title="Analytics">
-                    <div className="p-4">
-                      <AnalyticsView config={config as ChartConfig} />
-                    </div>
-                  </Tab>
-                  <Tab key="multi" title="Multi-Chart View">
-                    <div className="p-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="h-[300px] border border-default-200 rounded-lg p-3 bg-white dark:bg-content1">
-                          <h3 className="text-sm font-medium mb-2 text-primary-600">Line Chart</h3>
-                          <div className="h-[250px]">
-                            <LineChart config={config as ChartConfig} />
-                          </div>
-                        </div>
+      {isOpen && (
+        <Modal isOpen={isOpen} onOpenChange={onOpenChange} size="5xl" scrollBehavior="inside">
+          <ModalContent>
+            {(onClose) => (
+              <>
+                <ModalHeader className="flex flex-col gap-1 border-b border-divider">
+                  <h2 className="text-xl font-semibold text-primary-600">
+                    {sensor?.displayName || sensor?.mac || "Sensor Details"}
+                  </h2>
+                </ModalHeader>
+                <ModalBody className="p-0">
+                  <Tabs
+                    selectedKey={activeTab}
+                    onSelectionChange={setActiveTab as any}
+                    color="primary"
+                    className="w-full"
+                  >
+                    <Tab key="chart" title="Chart View" />
+                    {!isMultiSeries && <Tab key="table" title="Table View" />}
+                    {!isMultiSeries && <Tab key="analytics" title="Analytics" />}
+                    {!isMultiSeries && <Tab key="multi" title="Multi-Chart View" />}
+                  </Tabs>
 
-                        <div className="h-[300px] border border-default-200 rounded-lg p-3 bg-white dark:bg-content1">
-                          <h3 className="text-sm font-medium mb-2 text-secondary-600">Area Chart</h3>
-                          <div className="h-[250px]">
-                            <AreaChart config={config as ChartConfig} />
-                          </div>
-                        </div>
+                  <div className="h-[600px] overflow-auto">
+                    {activeTab === "chart" && <div className="p-4 h-full flex flex-col">{renderChart()}</div>}
 
-                        <div className="h-[300px] border border-default-200 rounded-lg p-3 bg-white dark:bg-content1">
-                          <h3 className="text-sm font-medium mb-2 text-success-600">Gauge Chart</h3>
-                          <div className="h-[250px] flex items-center justify-center">
-                            <GaugeChart config={config as ChartConfig} size="md" />
-                          </div>
-                        </div>
+                    {activeTab === "table" && memoizedSingle && (
+                      <TableView config={memoizedSingle} onDownloadCSV={onDownloadCSV} />
+                    )}
 
-                        <div className="h-[300px] border border-default-200 rounded-lg p-3 bg-white dark:bg-content1">
-                          <h3 className="text-sm font-medium mb-2 text-warning-600">Histogram</h3>
-                          <div className="h-[250px]">
-                            <HistogramChart config={config as ChartConfig} />
-                          </div>
-                        </div>
+                    {activeTab === "analytics" && memoizedSingle && <AnalyticsView config={memoizedSingle} />}
+
+                    {activeTab === "multi" && memoizedSingle && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+                        <ChartBox title="Line Chart">
+                          <MemoizedLineChart config={memoizedSingle} />
+                        </ChartBox>
+
+                        <ChartBox title="Area Chart">
+                          <MemoizedAreaChart config={memoizedSingle} />
+                        </ChartBox>
+
+                        <ChartBox title="Gauge Chart">
+                          <MemoizedGaugeChart config={memoizedSingle} />
+                        </ChartBox>
+
+                        <ChartBox title="Histogram">
+                          <MemoizedHistogramChart config={memoizedSingle} />
+                        </ChartBox>
                       </div>
-                    </div>
-                  </Tab>
-                </Tabs>
-              </ModalBody>
-              <ModalFooter className="border-t border-divider">
-                <Button color="danger" variant="light" onPress={onClose}>
-                  Close
-                </Button>
-              </ModalFooter>
-            </>
-          )}
-        </ModalContent>
-      </Modal>
+                    )}
+                  </div>
+                </ModalBody>
+                <ModalFooter className="border-t border-divider">
+                  <Button color="danger" variant="light" onPress={onClose}>
+                    Close
+                  </Button>
+                </ModalFooter>
+              </>
+            )}
+          </ModalContent>
+        </Modal>
+      )}
     </Card>
   );
 };

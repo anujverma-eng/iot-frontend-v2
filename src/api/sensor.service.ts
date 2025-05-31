@@ -1,7 +1,7 @@
 // src/api/sensor.service.ts
-import http from "./http";
-import type { Sensor, SensorResponse, SensorTelemetryResponse, TelemetryQueryParams } from "../types/sensor";
 import { ServerResponse } from "http";
+import type { Sensor, SensorTelemetryResponse, TelemetryQueryParams } from "../types/sensor";
+import http from "./http";
 
 /** All sensor-related API calls live here so pages/slices never import `http` directly */
 export const SensorService = {

@@ -1,5 +1,4 @@
 // src/App.tsx
-import { Footer } from './components/footer';
 import { AppRouter } from './router';
 
 export default function App() {

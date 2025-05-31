@@ -464,7 +464,7 @@ export const AnalyticsPage: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-screen m-0 p-0">
       {!isMobile && (
         <FilterBar
           filters={filters}
