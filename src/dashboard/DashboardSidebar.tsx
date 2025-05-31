@@ -68,6 +68,7 @@ interface DashboardSidebarProps {
 }
 
 export const DashboardSidebar = ({ isOpen, onToggle, className }: DashboardSidebarProps) => {
+  const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
   const { pathname } = useLocation();
   return (
     <>
@@ -81,15 +82,26 @@ export const DashboardSidebar = ({ isOpen, onToggle, className }: DashboardSideb
       {/* rail */}
       <motion.aside
         initial={false}
+        /* ✨ 1A – do TWO things when we change state
+         - translate on mobile
+         - resize on desktop
+  ------------------------------------------------------------------------- */
         animate={{
-          width: isOpen ? "16rem" : "4.5rem",
+          x: isDesktop ? 0 : isOpen ? 0 : "-100%", // slide in/out on mobile
+          width: isDesktop
+            ? isOpen
+              ? "16rem"
+              : "4.5rem" // rail vs drawer on desktop
+            : "16rem", // mobile drawer width
           transition: { duration: 0.25, ease: "easeInOut" },
         }}
+        /* ✨ 1B – an attribute to let the navbar know when we are in rail mode */
+        data-collapsed={!isDesktop || !isOpen ? true : undefined}
         className={cn(
-          `fixed top-0 left-0 z-50 flex h-screen flex-col
-           ${isOpen ? "bg-white/80 dark:bg-zinc-900/70" : "bg-[#353f8b]/100"}
-           backdrop-blur-md shadow-md`,
-          isOpen ? "lg:w-64" : "lg:w-16",
+          "fixed top-0 left-0 z-50 flex h-screen flex-col shadow-md",
+          /* glass effect only for the wide drawer */
+          isOpen ? "bg-white/80 dark:bg-zinc-900/70 backdrop-blur-md" : "bg-[#353f8b]",
+          "transition-[width] duration-400 ease-in-out",
           className
         )}
       >
@@ -107,7 +119,7 @@ export const DashboardSidebar = ({ isOpen, onToggle, className }: DashboardSideb
             </div>
           ) : (
             <div className="flex h-18 flex-col items-center justify-center p-6">
-            <Icon icon="lucide:cloud" className="h-6 w-6 text-white/90" />
+              <Icon icon="lucide:cloud" className="h-6 w-6 text-white/90" />
             </div>
           )}
         </>
@@ -116,7 +128,7 @@ export const DashboardSidebar = ({ isOpen, onToggle, className }: DashboardSideb
         <nav className={cn("flex flex-1 flex-col gap-1 overflow-y-auto py-4 ", isOpen ? "px-3" : "items-center px-3")}>
           {/* primary links */}
           {sidebarItems.map((i) => (
-            <NavItem key={i.path} item={i} isOpen={isOpen} active={pathname.startsWith(i.path)} />
+            <NavItem key={i.path} item={i} isOpen={isOpen} active={pathname.startsWith(i.path)} onSelect={onToggle} />
           ))}
 
           {/* section label */}
@@ -126,7 +138,7 @@ export const DashboardSidebar = ({ isOpen, onToggle, className }: DashboardSideb
 
           {/* secondary links */}
           {appPages.map((i) => (
-            <NavItem key={i.path} item={i} isOpen={isOpen} active={pathname.startsWith(i.path)} />
+            <NavItem key={i.path} item={i} isOpen={isOpen} active={pathname.startsWith(i.path)} onSelect={onToggle} />
           ))}
 
           {/* spacer */}
@@ -155,7 +167,17 @@ export const DashboardSidebar = ({ isOpen, onToggle, className }: DashboardSideb
   );
 };
 
-function NavItem({ item, isOpen, active }: { item: SidebarItem; isOpen: boolean; active: boolean }) {
+function NavItem({
+  item,
+  isOpen,
+  active,
+  onSelect,
+}: {
+  item: SidebarItem;
+  isOpen: boolean;
+  active: boolean;
+  onSelect: () => void;
+}) {
   const pill =
     active &&
     `before:absolute before:inset-y-1 before:w-1.5 before:rounded-r-lg ${
@@ -163,6 +185,8 @@ function NavItem({ item, isOpen, active }: { item: SidebarItem; isOpen: boolean;
     }`;
   const { pathname } = useLocation();
   const isActive = pathname.startsWith(item.path);
+  const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
+
   return (
     <motion.div key={item.name} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
       <Tooltip content={item.name} placement="right" isDisabled={isOpen}>
@@ -198,6 +222,11 @@ function NavItem({ item, isOpen, active }: { item: SidebarItem; isOpen: boolean;
               </Chip>
             ) : null
           }
+          onPress={() => {
+            if (!isDesktop || isOpen) {
+              onSelect();
+            }
+          }}
         >
           {isOpen && <span className={`${isActive ? "font-medium" : ""}`}>{item.name}</span>}
         </Button>

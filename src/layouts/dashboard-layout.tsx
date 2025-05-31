@@ -14,7 +14,9 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   if (profile.loaded && !profile.data?.orgId && location.pathname !== "/onboarding") {
     return;
   }
-  const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
+  // const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
+  const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
+  const [isSidebarOpen, setIsSidebarOpen] = React.useState(isDesktop ? false /* rail */ : false /* hidden */);
 
   // Add this useEffect to handle mobile detection
   React.useEffect(() => {
