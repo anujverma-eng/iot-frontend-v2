@@ -1,12 +1,12 @@
 // src/store/authSlice.ts
-import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import { tokenManager } from "../utils/tokenManager";
+import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
+import { RootState } from ".";
 import { AuthClient } from "../lib/auth/cognitoClient";
 import { UserRole } from "../types/User";
+import { tokenManager } from "../utils/tokenManager";
 import { start } from "./confirmationSlice";
-import { RootState } from ".";
-import { getMe } from "../lib/apiClient";
 import { fetchProfile } from "./profileSlice";
+import { fetchOrg } from "./orgSlice";
 
 type Status = "idle" | "loading" | "auth" | "guest" | "error";
 
@@ -19,7 +19,7 @@ interface AuthState {
 const initial: AuthState = { status: "idle", user: null, pendingEmail: null, error: null };
 
 const setSession = (s: AuthState, p: { access: string; refresh: string; exp: number; id: string }) => {
-  console.log({session: s})
+  console.log({ session: s });
   s.status = "auth";
   s.user = { email: JSON.parse(atob(p.id.split(".")[1])).email ?? "user", role: extractRole(p.id), orgId: null };
   tokenManager.save({ accessToken: p.access, refreshToken: p.refresh, expiresAt: p.exp, idToken: p.id });
@@ -28,7 +28,10 @@ const setSession = (s: AuthState, p: { access: string; refresh: string; exp: num
 /* ---------- Thunks ---------- */
 export const login = createAsyncThunk("auth/login", async (form: { email: string; password: string }, { dispatch }) => {
   try {
-    return await AuthClient.signIn(form.email, form.password);
+    const tokens = await AuthClient.signIn(form.email, form.password);
+    dispatch(fetchProfile());
+    dispatch(fetchOrg());
+    return tokens;
   } catch (e: any) {
     if (e.code === "UserNotConfirmedException") {
       dispatch(start({ flow: "signup", email: form.email }));
@@ -130,8 +133,8 @@ const slice = createSlice({
     builder.addCase(logout.fulfilled, () => ({ ...initial, status: "guest" }));
     builder.addCase(fetchProfile.fulfilled, (s, a) => {
       if (!s.user) return;
-      s.user.orgId = a.payload.orgId ?? null;      // ← keep auth slice consistent
-      s.user.role  = a.payload.role  as UserRole;
+      s.user.orgId = a.payload.orgId ?? null; // ← keep auth slice consistent
+      s.user.role = a.payload.role as UserRole;
     });
   },
 });
@@ -147,6 +150,6 @@ export const initSession = createAsyncThunk("auth/initSession", async () => {
     expiresAt: sess.exp,
     idToken: sess.id,
   });
-  console.log({sess})
+  console.log({ sess });
   return { email: sess.email, id: sess.id };
 });
