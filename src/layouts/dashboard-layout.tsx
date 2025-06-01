@@ -60,12 +60,16 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           transition={{ duration: 0.3 }}
           aria-label="Main content"
           className={`
-            flex-1 p-4 sm:p-6 lg:p-8 pt-20
+            flex-1 min-w-0
+            pt-10 
+            p-4 sm:p-6 lg:p-8
             transition-[margin] duration-200
             ${isSidebarOpen ? "lg:ml-64" : "lg:ml-16"}
           `}
         >
-          {children}
+          <div className="mx-auto w-full max-w-full lg:max-w-5xl xl:max-w-7xl">
+            {children}
+          </div>
         </motion.main>
       </div>
     </div>

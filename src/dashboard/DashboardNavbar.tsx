@@ -44,19 +44,10 @@ export const DashboardNavbar = ({ onMenuToggle, className }: DashboardNavbarProp
     <Navbar
       isBordered={false}
       isBlurred
-      // className={cn(
-      //   "top-0 w-full z-40 bg-background/70 backdrop-blur-xl h-16 border-none",
-      //   "lg:pl-64" /* full sidebar width */,
-      //   "data-[collapsed=true]:lg:pl-16 shadow-md" /*  rail width  */,
-      //   className // ← MERGE
-      // )}
       className={cn(
         "top-0 w-full z-40 bg-background/70 backdrop-blur-xl h-16 border-none shadow-md",
-        /* full drawer width */
         "lg:pl-64",
-        /* ❗ when the sidebar has data-collapsed, use rail padding                         */
         "[data-collapsed=true]&:lg:pl-16",
-        /* mobile never needs left-padding                                                 */
         "max-lg:pl-0",
         className
       )}

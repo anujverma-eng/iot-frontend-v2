@@ -177,9 +177,19 @@ export const SensorsPage: React.FC = () => {
       </div>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatsCard title="Claimed Sensors" value={(stats?.claimed ?? 0).toString()} icon="lucide:radio" color="primary" />
-        <StatsCard title="Unclaimed Sensors" value={(stats?.unclaimed ?? 0).toString()} icon="lucide:radio-tower" color="warning" />
+      <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 gap-4">
+        <StatsCard
+          title="Claimed Sensors"
+          value={(stats?.claimed ?? 0).toString()}
+          icon="lucide:radio"
+          color="primary"
+        />
+        <StatsCard
+          title="Unclaimed Sensors"
+          value={(stats?.unclaimed ?? 0).toString()}
+          icon="lucide:radio-tower"
+          color="warning"
+        />
         <StatsCard
           title="Avg. Reading Frequency"
           value={(stats?.avgReadingFrequency ?? 0).toString()}
@@ -189,9 +199,9 @@ export const SensorsPage: React.FC = () => {
       </div>
 
       {/* Search input */}
-      <div className="flex flex-col md:flex-row justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <Input
-          className="w-full md:max-w-xs"
+          className="w-full sm:max-w-xs"
           placeholder="Search sensors..."
           startContent={<Icon icon="lucide:search" className="text-default-400" />}
           onChange={(e) => debouncedSearch(e.target.value)}

@@ -98,6 +98,7 @@ export const DashboardSidebar = ({ isOpen, onToggle, className }: DashboardSideb
         /* ✨ 1B – an attribute to let the navbar know when we are in rail mode */
         data-collapsed={!isDesktop || !isOpen ? true : undefined}
         className={cn(
+          "box-border",
           "fixed top-0 left-0 z-50 flex h-screen flex-col shadow-md",
           /* glass effect only for the wide drawer */
           isOpen ? "bg-white/80 dark:bg-zinc-900/70 backdrop-blur-md" : "bg-[#353f8b]",
