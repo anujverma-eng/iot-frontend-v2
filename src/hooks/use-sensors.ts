@@ -76,8 +76,8 @@ export const useSensors = () => {
     dispatch(toggleSensorStar(sensorId));
   };
   
-  // Update sensor displayName
-  const handleUpdateNickname = (sensorId: string, displayName: string) => {
+  // Update sensor display name
+  const handleUpdateDisplayName = (sensorId: string, displayName: string) => {
     dispatch(updateSensorDisplayName({ mac: sensorId, displayName }));
   };
   
@@ -108,7 +108,7 @@ export const useSensors = () => {
     setFilters: handleFiltersChange,
     setSelectedSensorIds: handleMultiSelect,
     toggleSensorStar: handleToggleStar,
-    updateSensorNickname: handleUpdateNickname,
+    updateSensorDisplayName: handleUpdateDisplayName,
     fetchSensorData: handleSensorSelect,
     handleTimeRangeChange
   };

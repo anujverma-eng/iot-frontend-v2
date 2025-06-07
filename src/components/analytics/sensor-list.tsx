@@ -51,7 +51,7 @@ export const SensorList: React.FC<SensorListProps> = ({
     <div className="flex flex-col h-full">
       <div className="p-4 border-b border-divider">
         <Input
-          placeholder="Search by MAC or nickname"
+          placeholder="Search by MAC or display name"
           value={searchText}
           onValueChange={onSearch}
           startContent={<Icon icon="lucide:search" className="text-default-400" />}

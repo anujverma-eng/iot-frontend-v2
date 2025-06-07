@@ -340,7 +340,7 @@ export const SoloView: React.FC = () => {
 
       addToast({
         title: "Display Name Updated",
-        description: `Sensor ${currentSensor.mac} nickname saved`,
+        description: `Sensor ${currentSensor.mac} display name saved`,
       });
     }
   };

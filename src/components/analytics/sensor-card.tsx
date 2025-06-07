@@ -25,7 +25,7 @@ export const SensorCard: React.FC<SensorCardProps> = ({
   // Map sensor properties to component props
   const sensorId = sensor._id || '';
   const sensorMac = sensor.mac;
-  const sensorNickname = sensor.displayName || '';
+  const sensorDisplayName = sensor.displayName || '';
   const sensorType = sensor.type;
   const sensorStatus = sensor.status;
   const sensorStarred = sensor.isStarred || false;
@@ -88,7 +88,7 @@ export const SensorCard: React.FC<SensorCardProps> = ({
           <div className="flex items-center gap-2 mb-1">
             <div className={`w-2 h-2 rounded-full ${sensorStatus === 'live' ? 'bg-success' : 'bg-danger'}`} />
             <span className="text-sm font-medium truncate">
-              {sensorNickname || sensorMac}
+              {sensorDisplayName || sensorMac}
             </span>
             <div className="ml-auto">
               <Button
@@ -108,9 +108,9 @@ export const SensorCard: React.FC<SensorCardProps> = ({
             </div>
           </div>
           
-          {(!isMobile || sensorNickname) && (
+          {(!isMobile || sensorDisplayName) && (
             <div className="text-xs text-default-500 truncate">
-              {sensorNickname ? sensorMac : ''}
+              {sensorDisplayName ? sensorMac : ''}
             </div>
           )}
           
