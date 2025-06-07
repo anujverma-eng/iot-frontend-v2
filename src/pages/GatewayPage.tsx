@@ -3,7 +3,6 @@ import {
   Card,
   CardBody,
   Chip,
-  Input,
   Pagination,
   Spinner,
   Table,
@@ -19,12 +18,10 @@ import { formatDistanceToNow } from "date-fns";
 import { motion } from "framer-motion";
 import React from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { AddGatewayModal } from "../components/gateways/AddGatewayModal";
 import { GatewayDetailModal } from "../components/gateways/GatewayDetailModal";
 import { StatsCard } from "../components/stats-card";
 import { AppDispatch, RootState } from "../store";
 import {
-  createGateway,
   fetchGateways,
   fetchGatewayStats,
   gatewaysIsBusy,
@@ -34,7 +31,6 @@ import {
   setPage
 } from "../store/gatewaySlice";
 import type { Gateway } from "../types/gateway";
-import { debounce } from "../utils/debounce";
 
 export const GatewaysPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -43,32 +39,32 @@ export const GatewaysPage: React.FC = () => {
   const pagination = useSelector(selectGatewayPagination);
   const isLoading = useSelector(gatewaysIsBusy);
   const [selectedGateway, setSelectedGateway] = React.useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = React.useState("");
   const [sortColumn, setSortColumn] = React.useState<string | null>(null);
   const [sortDirection, setSortDirection] = React.useState<"asc" | "desc">("asc");
   const [filteredGateways, setFilteredGateways] = React.useState<Gateway[]>([]);
   const [lastHeartbeat, setLastHeartbeat] = React.useState<Date | null>(null);
   const [avgSensorsPerGateway, setAvgSensorsPerGateway] = React.useState<number>(0);
   const { isOpen: isDetailOpen, onOpen: onDetailOpen, onClose: onDetailClose } = useDisclosure();
-  const { isOpen: isAddOpen, onOpen: onAddOpen, onClose: onAddClose } = useDisclosure();
   const lastUpdateRef = React.useRef<number>(Date.now());
   const error = useSelector((state: RootState) => state.gateways.error);
 
   const fetchData = React.useCallback(async () => {
     try {
       const [gatewaysResult, statsResult] = await Promise.all([
-        dispatch(fetchGateways({ 
-          page: pagination.page, 
-          limit: 20, 
-          search: searchQuery 
-        })),
+        dispatch(
+          fetchGateways({
+            page: pagination.page,
+            limit: 20,
+            search: ""
+          })
+        ),
         dispatch(fetchGatewayStats())
       ]);
       console.log('Gateway stats result:', statsResult);
     } catch (error) {
       console.error('Error fetching data:', error);
     }
-  }, [dispatch, pagination.page, searchQuery]);
+  }, [dispatch, pagination.page]);
 
   React.useEffect(() => {
     fetchData();
@@ -133,14 +129,6 @@ export const GatewaysPage: React.FC = () => {
     }
   }, [gateways, sortColumn, sortDirection, applyFilters]);
 
-  const debouncedSearch = React.useMemo(
-    () =>
-      debounce((value: string) => {
-        setSearchQuery(value);
-        dispatch(setPage(1)); // Reset to first page on new search
-      }, 500),
-    [dispatch]
-  );
 
   const handleSort = (column: string) => {
     if (sortColumn === column) {
@@ -149,11 +137,6 @@ export const GatewaysPage: React.FC = () => {
       setSortColumn(column);
       setSortDirection("asc");
     }
-  };
-
-  const handleAddGateway = async (mac: string) => {
-    await dispatch(createGateway(mac));
-    fetchData();
   };
 
   const handleGatewayClick = (gatewayId: string) => {
@@ -171,7 +154,7 @@ export const GatewaysPage: React.FC = () => {
         return (
           <div className="flex flex-col">
             <p className="text-bold text-small capitalize">{gateway.label || gateway.mac}</p>
-            <p className="text-bold text-tiny text-default-400">{gateway._id}</p>
+            <p className="text-bold text-tiny text-default-400">{gateway.mac}</p>
           </div>
         );
       case "status":
@@ -210,20 +193,6 @@ export const GatewaysPage: React.FC = () => {
     >
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-semibold">Gateways</h1>
-        <Button color="primary" onPress={onAddOpen} startContent={<Icon icon="lucide:plus" />}>
-          Add Gateway
-        </Button>
-      </div>
-
-      {/* Add search input */}
-      <div className="flex flex-col md:flex-row justify-between gap-4">
-        <Input
-          className="w-full md:max-w-xs"
-          placeholder="Search gateways..."
-          startContent={<Icon icon="lucide:search" className="text-default-400" />}
-          onChange={(e) => debouncedSearch(e.target.value)}
-          size="sm"
-        />
       </div>
 
       {/* Enhanced stats cards */}
@@ -243,31 +212,12 @@ export const GatewaysPage: React.FC = () => {
               icon="lucide:radio"
               color="secondary"
             />
-            <Card className="w-full">
-              <CardBody className="flex gap-4">
-                <div className="rounded-lg bg-warning-100 p-3 dark:bg-warning-500/20">
-                  <Icon icon="lucide:clock" className="h-6 w-6 text-warning-500" />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <motion.span
-                    className="text-sm text-default-600"
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    Last Heartbeat
-                  </motion.span>
-                  <motion.span
-                    className="text-md font-semibold"
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: 0.1 }}
-                  >
-                    {lastHeartbeat ? formatDistanceToNow(lastHeartbeat, { addSuffix: true }) : "N/A"}
-                  </motion.span>
-                </div>
-              </CardBody>
-            </Card>
+            <StatsCard
+              title="Last Heartbeat"
+              value={lastHeartbeat ? formatDistanceToNow(lastHeartbeat, { addSuffix: true }) : "N/A"}
+              icon="lucide:clock"
+              color="warning"
+            />
           </>
         )}
       </div>
@@ -347,26 +297,10 @@ export const GatewaysPage: React.FC = () => {
             <div className="flex flex-col items-center justify-center h-64 gap-4">
               <Icon icon="lucide:database" className="w-12 h-12 text-default-400" />
               <p className="text-default-400">No gateways found</p>
-              {searchQuery && (
-                <Button
-                  variant="light"
-                  color="primary"
-                  onPress={() => {
-                    setSearchQuery("");
-                    debouncedSearch("");
-                  }}
-                  startContent={<Icon icon="lucide:x" />}
-                >
-                  Clear search
-                </Button>
-              )}
             </div>
           )}
         </CardBody>
       </Card>
-
-      <AddGatewayModal isOpen={isAddOpen} onClose={onAddClose} onAdd={handleAddGateway} />
-
       {selectedGateway && (
         <GatewayDetailModal isOpen={isDetailOpen} onClose={onDetailClose} gatewayId={selectedGateway} />
       )}
