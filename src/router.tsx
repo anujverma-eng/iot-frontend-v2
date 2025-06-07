@@ -51,7 +51,7 @@ export function AppRouter() {
             >
               <Route index element={<AnalyticsPage />} />
               <Route path="gateways" element={<GatewaysPage />} />
-              <Route path="sensors" element={<SensorsPage />} />+{" "}
+              <Route path="sensors" element={<SensorsPage />} />
               <Route path="analytics">
                 <Route index element={<AnalyticsPage />} />
                 <Route path=":sensorId" element={<AnalyticsPage />} />
