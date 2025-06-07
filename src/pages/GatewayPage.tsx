@@ -18,10 +18,12 @@ import { formatDistanceToNow } from "date-fns";
 import { motion } from "framer-motion";
 import React from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { AddGatewayModal } from "../components/gateways/AddGatewayModal";
 import { GatewayDetailModal } from "../components/gateways/GatewayDetailModal";
 import { StatsCard } from "../components/stats-card";
 import { AppDispatch, RootState } from "../store";
 import {
+  createGateway,
   fetchGateways,
   fetchGatewayStats,
   gatewaysIsBusy,
@@ -45,6 +47,7 @@ export const GatewaysPage: React.FC = () => {
   const [lastHeartbeat, setLastHeartbeat] = React.useState<Date | null>(null);
   const [avgSensorsPerGateway, setAvgSensorsPerGateway] = React.useState<number>(0);
   const { isOpen: isDetailOpen, onOpen: onDetailOpen, onClose: onDetailClose } = useDisclosure();
+  const { isOpen: isAddOpen, onOpen: onAddOpen, onClose: onAddClose } = useDisclosure();
   const lastUpdateRef = React.useRef<number>(Date.now());
   const error = useSelector((state: RootState) => state.gateways.error);
 
@@ -139,6 +142,11 @@ export const GatewaysPage: React.FC = () => {
     }
   };
 
+  const handleAddGateway = async (mac: string) => {
+    await dispatch(createGateway(mac));
+    fetchData();
+  };
+
   const handleGatewayClick = (gatewayId: string) => {
     setSelectedGateway(gatewayId);
     onDetailOpen();
@@ -193,6 +201,9 @@ export const GatewaysPage: React.FC = () => {
     >
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-semibold">Gateways</h1>
+        <Button color="primary" onPress={onAddOpen} startContent={<Icon icon="lucide:plus" />}>
+          Add Gateway
+        </Button>
       </div>
 
       {/* Enhanced stats cards */}
@@ -320,6 +331,8 @@ export const GatewaysPage: React.FC = () => {
           )}
         </CardBody>
       </Card>
+
+      <AddGatewayModal isOpen={isAddOpen} onClose={onAddClose} onAdd={handleAddGateway} />
 
       {selectedGateway && (
         <GatewayDetailModal isOpen={isDetailOpen} onClose={onDetailClose} gatewayId={selectedGateway} />
