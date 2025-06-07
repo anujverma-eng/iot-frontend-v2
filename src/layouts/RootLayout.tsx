@@ -3,7 +3,7 @@ import { TopNavbar } from "../components/navbar";
 
 export default function RootLayout() {
   const { pathname } = useLocation();
-  const isDashboard = pathname.startsWith("/dashboard");
+  const isDashboard = pathname.startsWith("/dashboard") || pathname.startsWith("/home");
   return (
     <div role="main" aria-label="Application root">
       {!isDashboard && <TopNavbar />}

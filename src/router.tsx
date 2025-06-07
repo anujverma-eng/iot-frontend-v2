@@ -2,10 +2,10 @@
 import { BrowserRouter, Outlet, Route, Routes } from "react-router-dom";
 import { Unauthorized } from "./pages/403";
 import { NotFound } from "./pages/404";
-import Dashboard from "./pages/Dashboard";
 import Logout from "./pages/Logout";
 import { Terms } from "./pages/Terms";
 import { ForgotPassword } from "./pages/forgot-password";
+import { HomePage } from "./pages/HomePage";
 import { Home } from "./pages/home";
 import { Login } from "./pages/login";
 import { Privacy } from "./pages/privacy";
@@ -41,6 +41,7 @@ export function AppRouter() {
           {/* ---------- private (logged‑in) ---------- */}
 
           <Route element={<PrivateRoute />}>
+            <Route path="/home" element={<DashboardLayout><HomePage /></DashboardLayout>} />
             <Route
               path="/dashboard"
               element={
