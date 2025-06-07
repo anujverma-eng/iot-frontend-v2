@@ -5,7 +5,7 @@ import { NotFound } from "./pages/404";
 import Logout from "./pages/Logout";
 import { Terms } from "./pages/Terms";
 import { ForgotPassword } from "./pages/forgot-password";
-import { HomePage } from "./pages/HomePage";
+import { DashboardHomePage } from "./pages/DashboardHomePage";
 import { Home } from "./pages/home";
 import { Login } from "./pages/login";
 import { Privacy } from "./pages/privacy";
@@ -41,7 +41,6 @@ export function AppRouter() {
           {/* ---------- private (logged‑in) ---------- */}
 
           <Route element={<PrivateRoute />}>
-            <Route path="/home" element={<DashboardLayout><HomePage /></DashboardLayout>} />
             <Route
               path="/dashboard"
               element={
@@ -50,6 +49,7 @@ export function AppRouter() {
                 </DashboardLayout>
               }
             >
+              <Route path="home" element={<DashboardHomePage />} />
               <Route index element={<AnalyticsPage />} />
               <Route path="gateways" element={<GatewaysPage />} />
               <Route path="sensors" element={<SensorsPage />} />

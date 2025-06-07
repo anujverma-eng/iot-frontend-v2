@@ -1,6 +1,5 @@
 import React from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { HeroSection } from "../components/hero-sections";
 import { StatsCard } from "../components/stats-card";
 import { AppDispatch, RootState } from "../store";
 import {
@@ -14,7 +13,7 @@ import {
   selectSensors,
 } from "../store/sensorsSlice";
 
-export const HomePage: React.FC = () => {
+export const DashboardHomePage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const gatewayStats = useSelector(selectGatewayStats);
   const sensorStats = useSelector(selectSensorStats);
@@ -37,7 +36,6 @@ export const HomePage: React.FC = () => {
 
   return (
     <main className="space-y-10">
-      <HeroSection />
       <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-4 px-4">
         <StatsCard
           title="Gateways"

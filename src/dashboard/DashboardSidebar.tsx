@@ -22,7 +22,7 @@ const sidebarItems: SidebarItem[] = [
   {
     name: "Home",
     icon: "lucide:home",
-    path: "/home",
+    path: "/dashboard/home",
   },
   {
     name: "Dashboard",

@@ -33,6 +33,23 @@ export const StatsCard: React.FC<StatsCardProps> = ({
     }
   };
 
+  const getCardStyle = () => {
+    switch (color) {
+      case 'primary':
+        return 'bg-primary-50 border-primary-200';
+      case 'secondary':
+        return 'bg-secondary-50 border-secondary-200';
+      case 'success':
+        return 'bg-success-50 border-success-200';
+      case 'warning':
+        return 'bg-warning-50 border-warning-200';
+      case 'danger':
+        return 'bg-danger-50 border-danger-200';
+      default:
+        return 'bg-primary-50 border-primary-200';
+    }
+  };
+
   const getTrendIcon = () => {
     switch (trend) {
       case 'up': return 'lucide:trending-up';
@@ -50,7 +67,7 @@ export const StatsCard: React.FC<StatsCardProps> = ({
   };
 
   return (
-    <Card className="shadow-sm border border-default-200 hover:shadow-md transition-shadow">
+    <Card className={`shadow-sm border hover:shadow-md transition-shadow ${getCardStyle()}`}>
       <CardBody>
         <div className="flex items-start justify-between">
           <div>

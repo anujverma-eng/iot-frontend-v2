@@ -13,7 +13,7 @@ export default function PublicRoute() {
 
   if (status === 'auth') {
     // if they came here from a protected page, go back there
-    const redirect = location.state?.from?.pathname || '/home';
+    const redirect = location.state?.from?.pathname || '/dashboard/home';
     return <Navigate to={redirect} replace />;
   }
 
