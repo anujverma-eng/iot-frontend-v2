@@ -111,7 +111,6 @@ export const AnalyticsPage: React.FC = () => {
     return sensors.map((sensor) => ({
       ...sensor,
       id: sensor._id,
-      nickname: sensor.displayName,
       starred: sensor.isStarred,
     }));
   }, [sensors]);
@@ -123,7 +122,7 @@ export const AnalyticsPage: React.FC = () => {
     /* search */
     if (filters.search.trim()) {
       const q = filters.search.toLowerCase();
-      list = list.filter((s) => s.mac.toLowerCase().includes(q) || (s.nickname ?? "").toLowerCase().includes(q));
+      list = list.filter((s) => s.mac.toLowerCase().includes(q) || (s.displayName ?? "").toLowerCase().includes(q));
     }
 
     /* sensor type */
@@ -534,7 +533,7 @@ export const AnalyticsPage: React.FC = () => {
                       className={`w-2 h-2 rounded-full ${currentSensor.status === "live" ? "bg-success" : "bg-danger"}`}
                     />
                     <span className="text-sm font-medium truncate max-w-[120px]">
-                      {currentSensor.nickname || currentSensor.mac}
+                      {currentSensor.displayName || currentSensor.mac}
                     </span>
                   </div>
                 )}
@@ -731,7 +730,7 @@ export const AnalyticsPage: React.FC = () => {
               {selectedSensorsForCompare.map((sensor) => (
                 <div key={sensor._id} className="flex items-center gap-2 p-2 border border-divider rounded-lg">
                   <div className={`w-2 h-2 rounded-full ${sensor.status === "live" ? "bg-success" : "bg-danger"}`} />
-                  <span className="text-sm">{sensor.nickname || sensor.mac}</span>
+                  <span className="text-sm">{sensor.displayName || sensor.mac}</span>
                   <Button isIconOnly size="sm" variant="light" onPress={() => handleRemoveCompare(sensor._id)}>
                     <Icon icon="lucide:x" width={14} />
                   </Button>
@@ -789,7 +788,7 @@ export const AnalyticsPage: React.FC = () => {
 
               <div className="p-4 border-b border-divider">
                 <Input
-                  placeholder="Search by MAC or nickname"
+                  placeholder="Search by MAC or display name"
                   value={filters.search}
                   onValueChange={handleSearchChange}
                   startContent={<Icon icon="lucide:search" className="text-default-400" />}

@@ -55,7 +55,7 @@ export const SensorService = {
     return http.post(`/sensors/${mac}/star`).then((r) => r.data);
   },
 
-  updateSensorNickname(mac: string, displayName: string) {
+  updateSensorDisplayName(mac: string, displayName: string) {
     return http.patch(`/sensors/${mac}`, { displayName }).then((r) => r.data);
   },
   async getSensorById(id: string): Promise<Sensor> {

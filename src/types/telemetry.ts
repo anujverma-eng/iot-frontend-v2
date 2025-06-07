@@ -10,7 +10,7 @@ export interface TelemetryPoint {
 export interface SensorTelemetryResponse {
   /** Mongo/ObjectId or DB primary key for the sensor */
   sensorId: string;
-  /** MAC address (helps the UI when nicknames are blank) */
+  /** MAC address (helps the UI when display names are blank) */
   mac: string;
   /** e.g. “temperature”, “humidity”, … — must match <SensorType> union */
   type: "temperature" | "humidity" | "pressure" | "battery" | "co2" | "light" | "motion" | "unknown";

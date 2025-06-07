@@ -51,7 +51,7 @@ interface ChartContainerProps {
     mac: string;
     displayName?: string;
   };
-  onDisplayNameChange?: (nickname: string) => void;
+  onDisplayNameChange?: (displayName: string) => void;
   onToggleStar?: () => void;
   isStarred?: boolean;
   onOpenInNewTab?: () => void;

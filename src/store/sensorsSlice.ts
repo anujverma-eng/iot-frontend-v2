@@ -62,9 +62,9 @@ export const toggleSensorStar = createAsyncThunk("sensors/toggleStar", async (ma
 });
 
 export const updateSensorDisplayName = createAsyncThunk(
-  "sensors/updateNickname",
+  "sensors/updateDisplayName",
   async ({ mac, displayName }: { mac: string; displayName: string }) => {
-    const res = await SensorService.updateSensorNickname(mac, displayName);
+    const res = await SensorService.updateSensorDisplayName(mac, displayName);
     return { mac, displayName, success: res.success };
   }
 );
@@ -337,7 +337,7 @@ const sensorSlice = createSlice({
       }
     });
 
-    /* nickname update --------------------------------- */
+    /* display name update --------------------------------- */
     builder.addCase(updateSensorDisplayName.fulfilled, (s, a) => {
       if (!a.payload.success) return;
       const idx = s.data.findIndex((se) => se.mac === a.payload.mac);
