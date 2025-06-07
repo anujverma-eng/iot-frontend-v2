@@ -18,12 +18,10 @@ import { formatDistanceToNow } from "date-fns";
 import { motion } from "framer-motion";
 import React from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { AddGatewayModal } from "../components/gateways/AddGatewayModal";
 import { GatewayDetailModal } from "../components/gateways/GatewayDetailModal";
 import { StatsCard } from "../components/stats-card";
 import { AppDispatch, RootState } from "../store";
 import {
-  createGateway,
   fetchGateways,
   fetchGatewayStats,
   gatewaysIsBusy,
@@ -47,7 +45,6 @@ export const GatewaysPage: React.FC = () => {
   const [lastHeartbeat, setLastHeartbeat] = React.useState<Date | null>(null);
   const [avgSensorsPerGateway, setAvgSensorsPerGateway] = React.useState<number>(0);
   const { isOpen: isDetailOpen, onOpen: onDetailOpen, onClose: onDetailClose } = useDisclosure();
-  const { isOpen: isAddOpen, onOpen: onAddOpen, onClose: onAddClose } = useDisclosure();
   const lastUpdateRef = React.useRef<number>(Date.now());
   const error = useSelector((state: RootState) => state.gateways.error);
 
@@ -142,11 +139,6 @@ export const GatewaysPage: React.FC = () => {
     }
   };
 
-  const handleAddGateway = async (mac: string) => {
-    await dispatch(createGateway(mac));
-    fetchData();
-  };
-
   const handleGatewayClick = (gatewayId: string) => {
     setSelectedGateway(gatewayId);
     onDetailOpen();
@@ -201,9 +193,6 @@ export const GatewaysPage: React.FC = () => {
     >
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-semibold">Gateways</h1>
-        <Button color="primary" onPress={onAddOpen} startContent={<Icon icon="lucide:plus" />}>
-          Add Gateway
-        </Button>
       </div>
 
       {/* Enhanced stats cards */}
@@ -223,31 +212,12 @@ export const GatewaysPage: React.FC = () => {
               icon="lucide:radio"
               color="secondary"
             />
-            <Card className="w-full">
-              <CardBody className="flex gap-4">
-                <div className="rounded-lg bg-warning-100 p-3 dark:bg-warning-500/20">
-                  <Icon icon="lucide:clock" className="h-6 w-6 text-warning-500" />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <motion.span
-                    className="text-sm text-default-600"
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    Last Heartbeat
-                  </motion.span>
-                  <motion.span
-                    className="text-md font-semibold"
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: 0.1 }}
-                  >
-                    {lastHeartbeat ? formatDistanceToNow(lastHeartbeat, { addSuffix: true }) : "N/A"}
-                  </motion.span>
-                </div>
-              </CardBody>
-            </Card>
+            <StatsCard
+              title="Last Heartbeat"
+              value={lastHeartbeat ? formatDistanceToNow(lastHeartbeat, { addSuffix: true }) : "N/A"}
+              icon="lucide:clock"
+              color="warning"
+            />
           </>
         )}
       </div>
@@ -331,9 +301,6 @@ export const GatewaysPage: React.FC = () => {
           )}
         </CardBody>
       </Card>
-
-      <AddGatewayModal isOpen={isAddOpen} onClose={onAddClose} onAdd={handleAddGateway} />
-
       {selectedGateway && (
         <GatewayDetailModal isOpen={isDetailOpen} onClose={onDetailClose} gatewayId={selectedGateway} />
       )}
