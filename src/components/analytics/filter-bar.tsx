@@ -1,5 +1,7 @@
 import {
+  Badge,
   Button,
+  Divider,
   Dropdown,
   DropdownItem,
   DropdownMenu,
@@ -18,180 +20,148 @@ interface FilterBarProps {
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
   compact?: boolean;
-  selectedIndex?: number;
 }
 
-export const FilterBar: React.FC<FilterBarProps> = ({ 
-  filters, 
+export const FilterBar: React.FC<FilterBarProps> = ({
+  filters,
   onFiltersChange,
-  compact = false,
-  selectedIndex,
+  compact = false
 }) => {
-  const [selectedTimeRangeIndex, setSelectedTimeRangeIndex] = React.useState(selectedIndex ?? 1);
+  const [selectedTimeRangeIndex, setSelectedTimeRangeIndex] = React.useState(1); // default Today
   const [isCustomDateOpen, setIsCustomDateOpen] = React.useState(false);
-  
+  const [isFilterOpen, setIsFilterOpen] = React.useState(false);
+
   const handleTypeChange = (types: SensorType[]) => {
     onFiltersChange({ ...filters, types });
   };
-  
+
   const handleStatusChange = (status: SensorStatus | 'all') => {
     onFiltersChange({ ...filters, status });
   };
-  
+
   const handleTimeRangeChange = (index: number) => {
     setSelectedTimeRangeIndex(index);
     const newTimeRange = timeRangePresets[index].getValue();
-    
-    // Use setTimeout to ensure state updates before callback
     setTimeout(() => {
       onFiltersChange({ ...filters, timeRange: newTimeRange });
     }, 0);
-    
     if (index === timeRangePresets.length - 1) {
       setIsCustomDateOpen(true);
     }
   };
-  
+
   const handleCustomDateChange = (start: Date, end: Date) => {
-    // Ensure we're using a fresh copy of filters
-    setTimeout(() => {
-      onFiltersChange({ 
-        ...filters, 
-        timeRange: { start, end } 
-      });
-    }, 0);
+    onFiltersChange({ ...filters, timeRange: { start, end } });
   };
-  
+
   const formatTimeRange = () => {
     const { start, end } = filters.timeRange;
     const startStr = start.toLocaleDateString();
     const endStr = end.toLocaleDateString();
-    
-    if (startStr === endStr) {
-      return startStr;
-    }
-    
-    return `${startStr} - ${endStr}`;
+    return startStr === endStr ? startStr : `${startStr} - ${endStr}`;
   };
 
   return (
-    <div className={`w-full bg-content1 border-b border-divider ${compact ? 'px-4 py-2' : 'px-6 py-3'}`}>
-      <div className="flex flex-wrap items-center gap-3">
-        {/* Sensor Type Filter */}
-        <Dropdown>
-          <DropdownTrigger>
-            <Button 
-              variant="flat" 
-              size={compact ? "sm" : "md"}
-              endContent={<Icon icon="lucide:chevron-down" width={16} />}
-            >
-              {filters.types.length === 0 
-                ? "All Types" 
-                : filters.types.length === 1 
-                  ? sensorTypes.find(t => t.value === filters.types[0])?.label 
-                  : `${filters.types.length} Types`}
-            </Button>
-          </DropdownTrigger>
-          <DropdownMenu 
-            aria-label="Sensor Types"
-            closeOnSelect={false}
-            selectionMode="multiple"
-            selectedKeys={new Set(filters.types)}
-            onSelectionChange={(keys) => {
-              const selectedTypes = Array.from(keys) as SensorType[];
-              handleTypeChange(selectedTypes);
-            }}
+    <div className={`flex items-center ${compact ? 'gap-2' : 'gap-3'}`}>
+      <Dropdown isOpen={isFilterOpen} onOpenChange={setIsFilterOpen} placement="bottom-end">
+        <DropdownTrigger>
+          <Button
+            variant="flat"
+            size={compact ? 'sm' : 'md'}
+            startContent={<Icon icon="lucide:filter" width={16} />}
           >
-            {sensorTypes.map((type) => (
-              <DropdownItem key={type.value}>
-                {type.label}
-              </DropdownItem>
-            ))}
-          </DropdownMenu>
-        </Dropdown>
-        
-        {/* Status Filter */}
-        <Dropdown>
-          <DropdownTrigger>
-            <Button 
-              variant="flat" 
-              size={compact ? "sm" : "md"}
-              endContent={<Icon icon="lucide:chevron-down" width={16} />}
-            >
-              {statusOptions.find(s => s.value === filters.status)?.label || 'Status'}
-            </Button>
-          </DropdownTrigger>
-          <DropdownMenu 
-            aria-label="Status Filter"
-            onAction={(key) => handleStatusChange(key as SensorStatus | 'all')}
-          >
-            {statusOptions.map((status) => (
-              <DropdownItem 
-                key={status.value}
-                startContent={
-                  status.value === filters.status ? 
-                  <Icon icon="lucide:check" className="text-primary" /> : 
-                  <div className="w-4" />
-                }
-              >
-                {status.label}
-              </DropdownItem>
-            ))}
-          </DropdownMenu>
-        </Dropdown>
-        
-        {/* Time Range Filter */}
-        <Dropdown>
-          <DropdownTrigger>
-            <Button 
-              variant="flat" 
-              size={compact ? "sm" : "md"}
-              endContent={<Icon icon="lucide:chevron-down" width={16} />}
-              startContent={<Icon icon="lucide:calendar" width={16} />}
-            >
-              {selectedTimeRangeIndex === timeRangePresets.length - 1 
-                ? formatTimeRange() 
-                : timeRangePresets[selectedTimeRangeIndex].label}
-            </Button>
-          </DropdownTrigger>
-          <DropdownMenu 
-            aria-label="Time Range"
-            onAction={(key) => handleTimeRangeChange(Number(key))}
-          >
-            {timeRangePresets.map((preset, index) => (
-              <DropdownItem 
-                key={index}
-                startContent={
-                  index === selectedTimeRangeIndex ? 
-                  <Icon icon="lucide:check" className="text-primary" /> : 
-                  <div className="w-4" />
-                }
-              >
-                {preset.label}
-              </DropdownItem>
-            ))}
-          </DropdownMenu>
-        </Dropdown>
-        
-        {/* Custom Date Picker */}
-        <Popover 
-          isOpen={isCustomDateOpen} 
-          onOpenChange={setIsCustomDateOpen}
-          placement="bottom"
-        >
-          <PopoverTrigger>
-            <div className="hidden">Hidden Trigger</div>
-          </PopoverTrigger>
-          <PopoverContent className="p-4 z-50">
-            <Calendar 
-              startDate={filters.timeRange.start}
-              endDate={filters.timeRange.end}
-              onChange={handleCustomDateChange}
-              onClose={() => setIsCustomDateOpen(false)}
-            />
-          </PopoverContent>
-        </Popover>
-      </div>
+            Filter
+            {(filters.types.length > 0 || filters.status !== 'all') && (
+              <Badge color="primary" size="sm" className="ml-2">
+                {(filters.types.length > 0 ? 1 : 0) + (filters.status !== 'all' ? 1 : 0)}
+              </Badge>
+            )}
+          </Button>
+        </DropdownTrigger>
+        <DropdownMenu aria-label="Filter Options" className="w-[280px] p-3" onClose={() => setIsFilterOpen(false)}>
+          <DropdownItem className="p-0">
+            <div>
+              <p className="text-sm font-medium mb-2">Sensor Type</p>
+              <div className="flex flex-wrap gap-2">
+                {sensorTypes.map((type) => (
+                  <Button
+                    key={type.value}
+                    size="sm"
+                    variant={filters.types.includes(type.value) ? 'solid' : 'bordered'}
+                    color={filters.types.includes(type.value) ? 'primary' : 'default'}
+                    onPress={() => {
+                      const newTypes = filters.types.includes(type.value)
+                        ? filters.types.filter((t) => t !== type.value)
+                        : [...filters.types, type.value];
+                      handleTypeChange(newTypes);
+                    }}
+                  >
+                    {type.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </DropdownItem>
+          <DropdownItem className="p-0">
+            <Divider className="my-3" />
+          </DropdownItem>
+          <DropdownItem className="p-0">
+            <div className="mb-4">
+              <p className="text-sm font-medium mb-2">Status</p>
+              <div className="flex gap-2">
+                {statusOptions.map((status) => (
+                  <Button
+                    key={status.value}
+                    size="sm"
+                    variant={filters.status === status.value ? 'solid' : 'bordered'}
+                    color={filters.status === status.value ? 'primary' : 'default'}
+                    onPress={() => handleStatusChange(status.value as SensorStatus | 'all')}
+                  >
+                    {status.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </DropdownItem>
+          <DropdownItem className="p-0">
+            <Divider className="my-3" />
+          </DropdownItem>
+          <DropdownItem className="p-0">
+            <div className="mb-4">
+              <p className="text-sm font-medium mb-2">Time Range</p>
+              <div className="flex flex-col gap-2">
+                {timeRangePresets.map((preset, index) => (
+                  <Button
+                    key={index}
+                    size="sm"
+                    variant={selectedTimeRangeIndex === index ? 'solid' : 'bordered'}
+                    color={selectedTimeRangeIndex === index ? 'primary' : 'default'}
+                    onPress={() => handleTimeRangeChange(index)}
+                    className="justify-start"
+                    startContent={<Icon icon="lucide:calendar" width={16} />}
+                  >
+                    {preset.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </DropdownItem>
+        </DropdownMenu>
+      </Dropdown>
+
+      <Popover isOpen={isCustomDateOpen} onOpenChange={setIsCustomDateOpen} placement="bottom-end">
+        <PopoverTrigger>
+          <Button className="hidden">Hidden Trigger</Button>
+        </PopoverTrigger>
+        <PopoverContent className="p-4 z-50">
+          <Calendar
+            startDate={filters.timeRange.start}
+            endDate={filters.timeRange.end}
+            onChange={handleCustomDateChange}
+            onClose={() => setIsCustomDateOpen(false)}
+          />
+        </PopoverContent>
+      </Popover>
     </div>
   );
 };

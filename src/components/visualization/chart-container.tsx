@@ -54,7 +54,6 @@ interface ChartContainerProps {
   onDisplayNameChange?: (displayName: string) => void;
   onToggleStar?: () => void;
   isStarred?: boolean;
-  onOpenInNewTab?: () => void;
 }
 
 export const ChartContainer: React.FC<ChartContainerProps> = ({
@@ -65,8 +64,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   sensor,
   onDisplayNameChange,
   onToggleStar,
-  isStarred = false,
-  onOpenInNewTab,
+  isStarred = false
 }) => {
   const [isEditing, setIsEditing] = React.useState(false);
   const [displayName, setDisplayName] = React.useState(sensor?.displayName || "");
@@ -236,16 +234,6 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                   />
                 </Button>
 
-                {onOpenInNewTab && (
-                  <Button
-                    size="sm"
-                    variant="flat"
-                    onPress={onOpenInNewTab}
-                    startContent={<Icon icon="lucide:external-link" width={16} />}
-                  >
-                    Open in new tab
-                  </Button>
-                )}
               </div>
             </div>
           )}
@@ -304,16 +292,6 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                   />
                 </Button>
 
-                {onOpenInNewTab && (
-                  <Button
-                    size="sm"
-                    variant="flat"
-                    onPress={onOpenInNewTab}
-                    startContent={<Icon icon="lucide:external-link" width={16} />}
-                  >
-                    Open in new tab
-                  </Button>
-                )}
               </div>
             </div>
           )}
@@ -381,6 +359,14 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
           description: "Chart image has been downloaded as PNG",
         });
       }
+    }
+  };
+
+  const handleShowDetails = () => {
+    if (sensor) {
+      const url = new URL(`/dashboard/analytics/${sensor.id}`, window.location.origin);
+      url.searchParams.set('solo', 'true');
+      window.open(url.toString(), '_blank');
     }
   };
 
@@ -746,75 +732,56 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                 size="sm"
                 variant="flat"
                 color="primary"
-                onPress={onOpen}
+                onPress={handleShowDetails}
                 startContent={<Icon icon="lucide:maximize-2" width={16} />}
               >
                 Show Details
               </Button>
 
-              {onOpenInNewTab && (
-                <Button
-                  size="sm"
-                  variant="flat"
-                  onPress={onOpenInNewTab}
-                  startContent={<Icon icon="lucide:external-link" width={16} />}
-                >
-                  Open in new tab
-                </Button>
-              )}
             </div>
           </div>
         )}
       </div>
 
       <div className="p-4 h-[calc(100%-64px)]">
-        <div className="flex justify-between items-center mb-4 px-4">
-          <div className="flex items-center">{renderVisualizationOptions()}</div>
+        <Tabs
+          selectedKey={activeTab}
+          onSelectionChange={setActiveTab as any}
+          className="mb-4"
+          variant="underlined"
+          color="primary"
+        >
+          <Tab key="chart" title="Chart View">
+            <div className="h-[calc(100%-48px)]">
+              <LineChart config={config} isMultiSeries={isMultiSeries} onBrushChange={onBrushChange} />
+            </div>
+          </Tab>
+          <Tab key="table" title="Table View">
+            <div className="h-[calc(100%-48px)]">
+              <TableView config={config as ChartConfig} onDownloadCSV={onDownloadCSV} />
+            </div>
+          </Tab>
+        </Tabs>
+      </div>
 
-          <div className="flex items-center gap-2">
-            {isZoomed && (
-              <Button
-                size="sm"
-                variant="flat"
-                color="secondary"
-                onPress={handleResetZoom}
-                startContent={<Icon icon="lucide:zoom-out" width={16} />}
-              >
-                Reset Zoom
+      {isHistogramPopoverOpen && (
+        <div
+          className="fixed inset-0 bg-overlay/50 flex items-center justify-center z-50"
+          onClick={() => setIsHistogramPopoverOpen(false)}
+        >
+          <div className="bg-content1 p-4 rounded-lg w-full max-w-2xl shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-primary-600">Value Distribution</h3>
+              <Button isIconOnly size="sm" variant="light" onPress={() => setIsHistogramPopoverOpen(false)}>
+                <Icon icon="lucide:x" width={16} />
               </Button>
-            )}
-
-            <Tooltip content={`Download as ${downloadType.toUpperCase()}`}>
-              <Button size="sm" variant="light" color="primary" isIconOnly onPress={handleDownload}>
-                <Icon icon={downloadType === "csv" ? "lucide:download" : "lucide:image"} width={16} />
-              </Button>
-            </Tooltip>
-          </div>
-        </div>
-
-        <div className="h-[calc(100%-48px)] px-4 overflow-auto rounded-lg bg-white dark:bg-content1" ref={chartRef}>
-          {renderChart()}
-        </div>
-
-        {isHistogramPopoverOpen && (
-          <div
-            className="fixed inset-0 bg-overlay/50 flex items-center justify-center z-50"
-            onClick={() => setIsHistogramPopoverOpen(false)}
-          >
-            <div className="bg-content1 p-4 rounded-lg w-full max-w-2xl shadow-lg" onClick={(e) => e.stopPropagation()}>
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium text-primary-600">Value Distribution</h3>
-                <Button isIconOnly size="sm" variant="light" onPress={() => setIsHistogramPopoverOpen(false)}>
-                  <Icon icon="lucide:x" width={16} />
-                </Button>
-              </div>
-              <div className="h-64">
-                <HistogramChart config={config as ChartConfig} />
-              </div>
+            </div>
+            <div className="h-64">
+              <HistogramChart config={config as ChartConfig} />
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {isOpen && (
         <Modal isOpen={isOpen} onOpenChange={onOpenChange} size="5xl" scrollBehavior="inside">
