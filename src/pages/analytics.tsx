@@ -343,14 +343,6 @@ export const AnalyticsPage: React.FC = () => {
     }
   };
 
-  const handleOpenInNewTab = () => {
-    if (selectedSensor) {
-      // Open in new tab with solo=true parameter
-      const url = new URL(`/dashboard/analytics/${selectedSensor}`, window.location.origin);
-      url.searchParams.set("solo", "true");
-      window.open(url.toString(), "_blank");
-    }
-  };
 
   const handleToggleCompareSheet = () => {
     setIsMobileCompareSheetOpen(!isMobileCompareSheetOpen);
@@ -465,29 +457,24 @@ export const AnalyticsPage: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen m-0 p-0">
-      {!isMobile && (
-        <FilterBar
-          filters={filters}
-          onFiltersChange={handleFiltersChange} // Now this will work
-          compact={isSoloMode}
-          selectedIndex={selectedTimeRangeIndex}
-        />
-      )}
 
       <div className="flex flex-1 overflow-hidden">
         {!isSoloMode && !isMobile && (
           <div className="w-80 border-r border-divider flex flex-col">
             <div className="p-3 border-b border-divider flex justify-between items-center">
               <h3 className="text-sm font-medium">Sensors</h3>
-              <Button
-                size="sm"
-                variant={isCompareMode ? "solid" : "flat"}
-                color={isCompareMode ? "primary" : "default"}
-                onPress={toggleCompareMode}
-                startContent={<Icon icon="lucide:bar-chart-2" width={16} />}
-              >
-                {isCompareMode ? "Comparing" : "Compare"}
-              </Button>
+              <div className="flex items-center gap-2">
+                <FilterBar filters={filters} onFiltersChange={handleFiltersChange} compact={true} />
+                <Button
+                  size="sm"
+                  variant={isCompareMode ? 'solid' : 'flat'}
+                  color={isCompareMode ? 'primary' : 'default'}
+                  onPress={toggleCompareMode}
+                  startContent={<Icon icon="lucide:bar-chart-2" width={16} />}
+                >
+                  {isCompareMode ? 'Comparing' : 'Compare'}
+                </Button>
+              </div>
             </div>
 
             <SensorList
@@ -645,7 +632,6 @@ export const AnalyticsPage: React.FC = () => {
                     }}
                     onToggleStar={handleToggleStar}
                     isStarred={currentSensor.starred || currentSensor.isStarred}
-                    onOpenInNewTab={!isSoloMode ? handleOpenInNewTab : undefined}
                     onDisplayNameChange={handleDisplayNameChange}
                   />
                 </div>
