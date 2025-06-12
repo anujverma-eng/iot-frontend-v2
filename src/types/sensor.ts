@@ -112,12 +112,19 @@ export interface TimeRange {
   start: Date;
   end: Date;
 }
-export interface FilterState {
-  search: string;
+export type FilterState = {
   types: SensorType[];
   status: SensorStatus | "all";
-  timeRange: TimeRange;
-}
+  timeRange: {
+    start: Date;
+    end: Date;
+  };
+  sort?: {
+    field: string;
+    direction: "asc" | "desc";
+  };
+  search?: string;
+};
 
 /* ➜ 1-C  Extra helper shapes the mock charts used */
 export interface DataPoint {

@@ -1,197 +1,217 @@
-import {
-  Button,
-  Dropdown,
-  DropdownItem,
-  DropdownMenu,
-  DropdownTrigger,
-  Popover,
-  PopoverContent,
-  PopoverTrigger
-} from '@heroui/react';
-import { Icon } from '@iconify/react';
-import React from 'react';
-import { sensorTypes, statusOptions, timeRangePresets } from '../../data/analytics';
-import { FilterState, SensorStatus, SensorType } from '../../types/sensor';
-import { Calendar } from './calendar';
+// components/analytics/FilterBar.tsx
+import { Badge, Button, DateRangePicker, Divider, Popover, PopoverContent, PopoverTrigger } from "@heroui/react";
+import { Icon } from "@iconify/react";
+import { CalendarDate, DateValue, getLocalTimeZone } from "@internationalized/date";
+import React from "react";
+import { sensorTypes, statusOptions, timeRangePresets } from "../../data/analytics";
+import type { FilterState, SensorStatus, SensorType } from "../../types/sensor";
 
-interface FilterBarProps {
+type RangeValue<T> = { start: T | null; end: T | null };
+
+const toCal = (d: Date) => new CalendarDate(d.getFullYear(), d.getMonth() + 1, d.getDate());
+
+export const FilterBar: React.FC<{
   filters: FilterState;
-  onFiltersChange: (filters: FilterState) => void;
-  compact?: boolean;
-  selectedIndex?: number;
-}
+  onFiltersChange: (next: FilterState) => void;
+}> = ({ filters, onFiltersChange }) => {
+  const [open, setOpen] = React.useState(false);
+  const [rangeIdx, setRangeIdx] = React.useState(() => {
+    const currentStart = filters.timeRange.start;
+    const currentEnd = filters.timeRange.end;
+    
+    return timeRangePresets.findIndex((p, i) => {
+      if (i === timeRangePresets.length - 1) return false; // Skip custom
+      
+      const preset = p.getValue();
+      return (
+        preset.start.toDateString() === currentStart.toDateString() &&
+        preset.end.toDateString() === currentEnd.toDateString()
+      );
+    });
+  });
 
-export const FilterBar: React.FC<FilterBarProps> = ({ 
-  filters, 
-  onFiltersChange,
-  compact = false,
-  selectedIndex,
-}) => {
-  const [selectedTimeRangeIndex, setSelectedTimeRangeIndex] = React.useState(selectedIndex ?? 1);
-  const [isCustomDateOpen, setIsCustomDateOpen] = React.useState(false);
-  
-  const handleTypeChange = (types: SensorType[]) => {
-    onFiltersChange({ ...filters, types });
-  };
-  
-  const handleStatusChange = (status: SensorStatus | 'all') => {
-    onFiltersChange({ ...filters, status });
-  };
-  
-  const handleTimeRangeChange = (index: number) => {
-    setSelectedTimeRangeIndex(index);
-    const newTimeRange = timeRangePresets[index].getValue();
-    
-    // Use setTimeout to ensure state updates before callback
-    setTimeout(() => {
-      onFiltersChange({ ...filters, timeRange: newTimeRange });
-    }, 0);
-    
-    if (index === timeRangePresets.length - 1) {
-      setIsCustomDateOpen(true);
+  React.useEffect(() => {
+    const idx = timeRangePresets.findIndex((p) => {
+      const r = p.getValue();
+      return (
+        r.start.getTime() === filters.timeRange.start.getTime() && r.end.getTime() === filters.timeRange.end.getTime()
+      );
+    });
+    setRangeIdx(idx === -1 ? timeRangePresets.length - 1 : idx);
+  }, [filters.timeRange]);
+
+  const setTypes = (next: SensorType[]) => onFiltersChange({ ...filters, types: next });
+
+  const setStatus = (next: SensorStatus | "all") => onFiltersChange({ ...filters, status: next });
+
+  const choosePreset = (i: number) => {
+    setRangeIdx(i);
+    console.log({
+      label: timeRangePresets[i].label,
+      idx: i,
+      value: timeRangePresets[i].getValue(),
+    });
+    onFiltersChange({ ...filters, timeRange: timeRangePresets[i].getValue() });
+    if (i !== timeRangePresets.length - 1) {
+      setOpen(false); // slam the popover shut for non‑custom presets
     }
   };
-  
-  const handleCustomDateChange = (start: Date, end: Date) => {
-    // Ensure we're using a fresh copy of filters
-    setTimeout(() => {
-      onFiltersChange({ 
-        ...filters, 
-        timeRange: { start, end } 
-      });
-    }, 0);
-  };
-  
-  const formatTimeRange = () => {
-    const { start, end } = filters.timeRange;
-    const startStr = start.toLocaleDateString();
-    const endStr = end.toLocaleDateString();
-    
-    if (startStr === endStr) {
-      return startStr;
-    }
-    
-    return `${startStr} - ${endStr}`;
-  };
+
+  /* ─ UI -------------------------------------------------------------- */
 
   return (
-    <div className={`w-full bg-content1 border-b border-divider ${compact ? 'px-4 py-2' : 'px-6 py-3'}`}>
-      <div className="flex flex-wrap items-center gap-3">
-        {/* Sensor Type Filter */}
-        <Dropdown>
-          <DropdownTrigger>
-            <Button 
-              variant="flat" 
-              size={compact ? "sm" : "md"}
-              endContent={<Icon icon="lucide:chevron-down" width={16} />}
-            >
-              {filters.types.length === 0 
-                ? "All Types" 
-                : filters.types.length === 1 
-                  ? sensorTypes.find(t => t.value === filters.types[0])?.label 
-                  : `${filters.types.length} Types`}
-            </Button>
-          </DropdownTrigger>
-          <DropdownMenu 
-            aria-label="Sensor Types"
-            closeOnSelect={false}
-            selectionMode="multiple"
-            selectedKeys={new Set(filters.types)}
-            onSelectionChange={(keys) => {
-              const selectedTypes = Array.from(keys) as SensorType[];
-              handleTypeChange(selectedTypes);
-            }}
-          >
-            {sensorTypes.map((type) => (
-              <DropdownItem key={type.value}>
-                {type.label}
-              </DropdownItem>
-            ))}
-          </DropdownMenu>
-        </Dropdown>
-        
-        {/* Status Filter */}
-        <Dropdown>
-          <DropdownTrigger>
-            <Button 
-              variant="flat" 
-              size={compact ? "sm" : "md"}
-              endContent={<Icon icon="lucide:chevron-down" width={16} />}
-            >
-              {statusOptions.find(s => s.value === filters.status)?.label || 'Status'}
-            </Button>
-          </DropdownTrigger>
-          <DropdownMenu 
-            aria-label="Status Filter"
-            onAction={(key) => handleStatusChange(key as SensorStatus | 'all')}
-          >
-            {statusOptions.map((status) => (
-              <DropdownItem 
-                key={status.value}
-                startContent={
-                  status.value === filters.status ? 
-                  <Icon icon="lucide:check" className="text-primary" /> : 
-                  <div className="w-4" />
+    <Popover
+      isOpen={open}
+      onOpenChange={setOpen}
+      placement="bottom-start" // opens towards the list of sensors
+    >
+      {/* TRIGGER ‑ the small "Filters" pill */}
+      <PopoverTrigger>
+        <Button variant="flat" startContent={<Icon icon="lucide:filter" width={16} />}>
+          Filters
+          {(filters.types.length || filters.status !== "all") && (
+            <Badge size="sm" color="primary" className="ml-2">
+              {/*  a neat trick to coerce booleans → 0/1 */}
+              {+!!filters.types.length + +(filters.status !== "all")}
+            </Badge>
+          )}
+        </Button>
+      </PopoverTrigger>
+
+      {/* CONTENT ------------------------------------------------------ */}
+      {/* Max‑height + overflow gives a scroll bar on tiny viewports   */}
+      <PopoverContent className="p-4 w-[300px] max-h-[70vh] overflow-y-auto space-y-4">
+        {/* SENSOR TYPE SECTION */}
+        <section>
+          <h4 className="text-xs font-semibold text-default-600 mb-2 tracking-wide">Sensor type</h4>
+          <div className="flex flex-wrap gap-2">
+            {sensorTypes.map((t) => (
+              <Button
+                key={t.value}
+                size="sm"
+                variant={filters.types.includes(t.value as SensorType) ? "solid" : "bordered"}
+                color={filters.types.includes(t.value as SensorType) ? "primary" : "default"}
+                onPress={() =>
+                  setTypes(
+                    filters.types.includes(t.value as SensorType)
+                      ? filters.types.filter((v) => v !== (t.value as SensorType))
+                      : [...filters.types, t.value as SensorType]
+                  )
                 }
               >
-                {status.label}
-              </DropdownItem>
+                {t.label}
+              </Button>
             ))}
-          </DropdownMenu>
-        </Dropdown>
-        
-        {/* Time Range Filter */}
-        <Dropdown>
-          <DropdownTrigger>
-            <Button 
-              variant="flat" 
-              size={compact ? "sm" : "md"}
-              endContent={<Icon icon="lucide:chevron-down" width={16} />}
-              startContent={<Icon icon="lucide:calendar" width={16} />}
-            >
-              {selectedTimeRangeIndex === timeRangePresets.length - 1 
-                ? formatTimeRange() 
-                : timeRangePresets[selectedTimeRangeIndex].label}
-            </Button>
-          </DropdownTrigger>
-          <DropdownMenu 
-            aria-label="Time Range"
-            onAction={(key) => handleTimeRangeChange(Number(key))}
-          >
-            {timeRangePresets.map((preset, index) => (
-              <DropdownItem 
-                key={index}
-                startContent={
-                  index === selectedTimeRangeIndex ? 
-                  <Icon icon="lucide:check" className="text-primary" /> : 
-                  <div className="w-4" />
-                }
+          </div>
+        </section>
+
+        <Divider />
+
+        {/* STATUS SECTION */}
+        <section>
+          <h4 className="text-xs font-semibold text-default-600 mb-2 tracking-wide">Status</h4>
+          <div className="flex flex-wrap gap-2">
+            {statusOptions.map((s) => (
+              <Button
+                key={s.value}
+                size="sm"
+                variant={filters.status === s.value ? "solid" : "bordered"}
+                color={filters.status === s.value ? "primary" : "default"}
+                onPress={() => setStatus(s.value as SensorStatus | "all")}
               >
-                {preset.label}
-              </DropdownItem>
+                {s.label}
+              </Button>
             ))}
-          </DropdownMenu>
-        </Dropdown>
-        
-        {/* Custom Date Picker */}
-        <Popover 
-          isOpen={isCustomDateOpen} 
-          onOpenChange={setIsCustomDateOpen}
-          placement="bottom"
-        >
-          <PopoverTrigger>
-            <div className="hidden">Hidden Trigger</div>
-          </PopoverTrigger>
-          <PopoverContent className="p-4 z-50">
-            <Calendar 
-              startDate={filters.timeRange.start}
-              endDate={filters.timeRange.end}
-              onChange={handleCustomDateChange}
-              onClose={() => setIsCustomDateOpen(false)}
-            />
-          </PopoverContent>
-        </Popover>
-      </div>
-    </div>
+          </div>
+        </section>
+
+        <Divider />
+
+        {/* TIME RANGE SECTION */}
+        <section>
+          <h4 className="text-xs font-semibold text-default-600 mb-2 tracking-wide">Time range</h4>
+          <div className="grid grid-cols-2 gap-2">
+            {timeRangePresets.map((p, i) => (
+              <Button
+                key={p.label}
+                size="sm"
+                variant={rangeIdx === i ? "solid" : "bordered"}
+                color={rangeIdx === i ? "primary" : "default"}
+                startContent={<Icon icon="lucide:calendar" width={16} />}
+                onPress={() => choosePreset(i)}
+              >
+                {p.label}
+              </Button>
+            ))}
+          </div>
+
+          {/* Inline picker becomes visible only for the “Custom” preset */}
+          {rangeIdx === timeRangePresets.length - 1 && (
+            <div className="mt-3">
+              <DateRangePicker
+                aria-label="Custom range"
+                showMonthAndYearPickers
+                value={{
+                  start: toCal(filters.timeRange.start),
+                  end: toCal(filters.timeRange.end),
+                }}
+                onChange={(range: RangeValue<DateValue> | null) => {
+                  if (!range?.start || !range.end) return;
+
+                  const startJs = range.start.toDate(getLocalTimeZone());
+                  const endJs = range.end.toDate(getLocalTimeZone());
+                  
+                  // ADDED: Set end time to end of day for consistent range
+                  endJs.setHours(23, 59, 59, 999);
+
+                  console.log("Date range selected:", {
+                    start: startJs,
+                    end: endJs,
+                    startISO: startJs.toISOString(),
+                    endISO: endJs.toISOString()
+                  });
+
+                  onFiltersChange({
+                    ...filters,
+                    timeRange: { start: startJs, end: endJs },
+                  });
+                }}
+              />
+            </div>
+          )}
+        </section>
+
+        <Divider />
+
+        {/* SORT SECTION */}
+        <section>
+          <h4 className="text-xs font-semibold text-default-600 mb-2 tracking-wide">Sort by</h4>
+          {(
+            [
+              { lbl: "Name (A‑Z)", fld: "name", dir: "asc", ic: "lucide:arrow-up" },
+              { lbl: "Name (Z‑A)", fld: "name", dir: "desc", ic: "lucide:arrow-down" },
+              { lbl: "Starred first", fld: "starred", dir: "desc", ic: "lucide:star" },
+            ] as { lbl: string; fld: string; dir: "asc" | "desc"; ic: string }[]
+          ).map((o) => (
+            <Button
+              key={o.lbl}
+              size="sm"
+              className="mb-1 w-full justify-start"
+              variant={filters.sort?.field === o.fld && filters.sort?.direction === o.dir ? "solid" : "bordered"}
+              color={filters.sort?.field === o.fld && filters.sort?.direction === o.dir ? "primary" : "default"}
+              startContent={<Icon icon={o.ic} width={16} />}
+              onPress={() =>
+                onFiltersChange({
+                  ...filters,
+                  sort: { field: o.fld, direction: o.dir },
+                })
+              }
+            >
+              {o.lbl}
+            </Button>
+          ))}
+        </section>
+      </PopoverContent>
+    </Popover>
   );
 };

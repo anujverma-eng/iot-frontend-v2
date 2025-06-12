@@ -33,12 +33,17 @@ export const fetchTelemetry = createAsyncThunk<
   /* thunk API    */ { rejectValue: string }
 >("telemetry/fetchTelemetry", async (params, { rejectWithValue }) => {
   try {
+    console.log("API Request to fetch telemetry:", {
+      sensorIds: params.sensorIds,
+      timeRange: params.timeRange,
+    });
+
     const bucketSize = chooseBucketSize(params.timeRange.start, params.timeRange.end);
-    const res = await TelemetryService.query({ ...params, bucketSize });
+    const response = await TelemetryService.query({ ...params, bucketSize });
 
     /* map backend payload → UI-friendly structure */
     const mapped: Record<string, SensorData> = {};
-    res.forEach((s) => {
+    response.forEach((s) => {
       mapped[s.sensorId] = {
         id: s.sensorId,
         mac: s.mac,
@@ -73,6 +78,7 @@ interface State {
     start: Date;
     end: Date;
   };
+  lastUpdated?: string;
 }
 const initialState: State = {
   loading: false,
@@ -82,6 +88,7 @@ const initialState: State = {
     start: new Date(Date.now() - 24 * 60 * 60 * 1_000),
     end: new Date(),
   },
+  lastUpdated: undefined,
 };
 
 const telemetrySlice = createSlice({
@@ -113,19 +120,42 @@ const telemetrySlice = createSlice({
       //   s.loading = false;
       //   s.data = { ...s.data, ...a.payload };
       // })
-      .addCase(fetchTelemetry.fulfilled, (s, a) => {
-        s.loading = false;
+      .addCase(fetchTelemetry.fulfilled, (state, action) => {
+        state.loading = false;
 
-        Object.entries(a.payload).forEach(([sensorId, incoming]) => {
-          const current = s.data[sensorId];
-          /* only update if the newest sample changed */
-          const nextStamp = incoming.series[0]?.timestamp;
-          const currentStamp = current?.series[0]?.timestamp;
+        // Check if response is empty and handle appropriately
+        if (!action.payload || Object.keys(action.payload).length === 0) {
+          console.warn("API returned empty response for telemetry data");
 
-          if (!current || nextStamp !== currentStamp) {
-            s.data[sensorId] = incoming;
-          }
+          // IMPORTANT: Clear data for the requested sensors instead of keeping old data
+          // Extract sensorIds from the action.meta.arg
+          const requestedSensorIds = action.meta.arg.sensorIds || [];
+
+          // Clear data for these specific sensors
+          requestedSensorIds.forEach((id) => {
+            state.data[id] = {
+              id: id,
+              mac: state.data[id]?.mac || "",
+              type: state.data[id]?.type || "unknown",
+              unit: state.data[id]?.unit || "",
+              min: 0,
+              max: 0,
+              avg: 0,
+              current: 0,
+              series: [], // Empty the series array to reflect no data for this range
+            };
+          });
+
+          state.lastUpdated = new Date().toISOString();
+          return;
+        }
+
+        // Standard data update logic for non-empty responses
+        Object.entries(action.payload).forEach(([sensorId, data]) => {
+          state.data[sensorId] = data;
         });
+
+        state.lastUpdated = new Date().toISOString();
       });
   },
 });

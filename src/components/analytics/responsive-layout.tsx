@@ -137,7 +137,6 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
               onFiltersChange(newFilters);
               setIsMobileFilterOpen(false);
             }}
-            compact={false}
           />
         </div>
       </Drawer>

@@ -18,7 +18,6 @@ import { ChartConfig, MultiSeriesConfig } from "../../types/sensor";
 interface LineChartProps {
   config: ChartConfig | MultiSeriesConfig;
   isMultiSeries?: boolean;
-  onBrushChange?: (start: Date, end: Date) => void;
   onDownloadCSV?: () => void;
   onZoomChange?: (isZoomed: boolean) => void;
 }
@@ -26,10 +25,26 @@ interface LineChartProps {
 export const LineChart: React.FC<LineChartProps> = ({
   config,
   isMultiSeries = false,
-  onBrushChange,
   onDownloadCSV,
   onZoomChange,
 }) => {
+  console.log("Rendering LineChart with config:", config);
+
+  // Add clear check for empty data
+  const hasData = isMultiSeries ? config.series?.some((s: any) => s.data?.length > 0) : config.series?.length > 0;
+
+  console.log(config.series);
+
+  // If no data for the selected range, show a clear message
+  if (!hasData) {
+    return (
+      <div className="h-full w-full flex items-center justify-center flex-col">
+        <Icon icon="lucide:calendar-x" className="text-default-300 mb-2" width={32} height={32} />
+        <p className="text-default-500">No data available for the selected time range</p>
+      </div>
+    );
+  }
+
   const formatTooltipDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleString([], {
       month: "short",
@@ -183,7 +198,7 @@ export const LineChart: React.FC<LineChartProps> = ({
 
   console.log(dailyRangeData);
 
-   return (
+  return (
     <div className="w-full h-full flex flex-col">
       <div className="flex justify-between items-center mb-2">
         <div className="text-sm font-medium text-primary-600">
@@ -230,7 +245,7 @@ export const LineChart: React.FC<LineChartProps> = ({
                   fontSize: 12,
                   fontWeight: 500,
                 },
-                offset: -10
+                offset: -10,
               }}
             />
             <Tooltip
@@ -247,7 +262,7 @@ export const LineChart: React.FC<LineChartProps> = ({
                 borderRadius: "8px",
                 fontSize: "12px",
                 boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-                padding: "8px 12px"
+                padding: "8px 12px",
               }}
               itemStyle={{ color: "#4b5563" }}
               cursor={{ stroke: "#94a3b8", strokeWidth: 1, strokeDasharray: "4 4" }}
@@ -350,7 +365,7 @@ export const LineChart: React.FC<LineChartProps> = ({
               startIndex={0}
               endIndex={orderedData.length ? orderedData.length - 1 : 0}
               // y={10}
-              // style={{ 
+              // style={{
               //   fill: "#f3f4f6",
               //   fillOpacity: 0.8,
               //   stroke: "#d1d5db",

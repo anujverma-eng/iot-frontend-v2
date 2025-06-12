@@ -1,4 +1,4 @@
-import { addToast, Button, Checkbox, CheckboxGroup, Input, Spinner } from "@heroui/react";
+import { addToast, Button, Checkbox, CheckboxGroup, DateRangePicker, Input, Spinner } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import React from "react";
 import { useDispatch, useSelector } from "react-redux";
@@ -30,6 +30,11 @@ import {
 } from "../store/sensorsSlice";
 import { fetchTelemetry, selectTelemetryData, selectTelemetryLoading, setTimeRange } from "../store/telemetrySlice";
 import { ChartConfig, FilterState, MultiSeriesConfig, SensorStatus, SensorType } from "../types/sensor";
+import { CalendarDate, DateValue, getLocalTimeZone } from "@internationalized/date";
+
+type RangeValue<T> = { start: T | null; end: T | null };
+
+const toCal = (d: Date): CalendarDate => new CalendarDate(d.getFullYear(), d.getMonth() + 1, d.getDate());
 
 interface AnalyticsParams {
   [key: string]: string | undefined;
@@ -70,10 +75,42 @@ export const AnalyticsPage: React.FC = () => {
 
   const applyPendingFilters = () => {
     if (pendingFilters) {
+      // First update filters state
       dispatch(setFilters(pendingFilters));
+
+      // Explicitly set time range - this is critical!
+      dispatch(setTimeRange(pendingFilters.timeRange));
+
+      // Then trigger telemetry data fetch with the new time range
+      if (selectedSensor) {
+        dispatch(
+          fetchTelemetry({
+            sensorIds: [selectedSensor],
+            timeRange: {
+              start: toISO(pendingFilters.timeRange.start),
+              end: toISO(pendingFilters.timeRange.end),
+            },
+          })
+        );
+      }
+
+      // Also fetch data for comparison sensors if in compare mode
+      if (selectedSensorIds.length > 0) {
+        dispatch(
+          fetchTelemetry({
+            sensorIds: selectedSensorIds,
+            timeRange: {
+              start: toISO(pendingFilters.timeRange.start),
+              end: toISO(pendingFilters.timeRange.end),
+            },
+          })
+        );
+      }
+
+      // Clear pending filters and close drawer
       setPendingFilters(null);
+      setIsMobileFilterDrawerOpen(false);
     }
-    setIsMobileFilterDrawerOpen(false);
   };
 
   const dispatch = useDispatch<AppDispatch>();
@@ -93,6 +130,11 @@ export const AnalyticsPage: React.FC = () => {
   // Add state for compare mode
   const [isCompareMode, setIsCompareMode] = React.useState(false);
 
+  const syncTimeRange = (range: { start: Date; end: Date }) => {
+    dispatch(setFilters({ ...filters, timeRange: range })); // sensors slice
+    dispatch(setTimeRange(range)); // telemetry slice
+  };
+
   // Fetch sensors on component mount
   React.useEffect(() => {
     dispatch(
@@ -100,7 +142,7 @@ export const AnalyticsPage: React.FC = () => {
         page: 1,
         limit: 50,
         claimed: true,
-        search: filters.search,
+        search: filters.search || "",
         // TODO: add `type` & `status` here when the backend supports them
       })
     );
@@ -112,6 +154,7 @@ export const AnalyticsPage: React.FC = () => {
       ...sensor,
       id: sensor._id,
       starred: sensor.isStarred,
+      name: sensor.displayName || sensor.mac,
     }));
   }, [sensors]);
 
@@ -120,7 +163,7 @@ export const AnalyticsPage: React.FC = () => {
     let list = [...mappedSensors];
 
     /* search */
-    if (filters.search.trim()) {
+    if (filters?.search?.trim()) {
       const q = filters.search.toLowerCase();
       list = list.filter((s) => s.mac.toLowerCase().includes(q) || (s.displayName ?? "").toLowerCase().includes(q));
     }
@@ -134,10 +177,19 @@ export const AnalyticsPage: React.FC = () => {
     if (filters.status !== "all") {
       list = list.filter((s) => s.status === filters.status);
     }
+    /* sort */
+    if (filters.sort) {
+      const { field, direction } = filters.sort;
+      list = [...list].sort((a: any, b: any) => {
+        const av = a[field],
+          bv = b[field];
+        if (av === bv) return 0;
+        return (av > bv ? 1 : -1) * (direction === "asc" ? 1 : -1);
+      });
+    }
 
     return list;
   }, [mappedSensors, filters]);
-
 
   const [isCompareExpanded, setIsCompareExpanded] = React.useState(false);
   const [isMobileCompareSheetOpen, setIsMobileCompareSheetOpen] = React.useState(false);
@@ -148,6 +200,11 @@ export const AnalyticsPage: React.FC = () => {
 
   // Simulate initial page load
   React.useEffect(() => {
+    const idx = timeRangePresets.findIndex((p) => {
+      const presetRange = p.getValue();
+      return sameRange(presetRange, filters.timeRange);
+    });
+    if (idx !== -1) setSelectedTimeRangeIndex(idx);
     const timer = setTimeout(() => {
       setIsPageLoading(false);
     }, 1000);
@@ -169,20 +226,56 @@ export const AnalyticsPage: React.FC = () => {
     }
   }, [sensorId, filteredSensors, selectedSensor, dispatch, navigate]);
 
-  // Fetch telemetry data when selected sensor or time range changes
+  const toISO = (d: Date | string) => new Date(d).toISOString();
+
+  // Stringify time range for reliable dependency comparison
+  const timeRangeKey = React.useMemo(() => {
+    return `${filters.timeRange.start.getTime()}-${filters.timeRange.end.getTime()}`;
+  }, [filters.timeRange]);
+
+  // Add a ref to track the most recent time range request
+  const lastTimeRangeRequestRef = React.useRef<string>("");
+
+  // Modify your telemetry-fetching useEffect
   React.useEffect(() => {
     if (selectedSensor) {
-      dispatch(
-        fetchTelemetry({
-          sensorIds: [selectedSensor],
-          timeRange: {
-            start: filters.timeRange.start.toISOString(),
-            end: filters.timeRange.end.toISOString(),
-          },
-        })
-      );
+      // Create a request ID based on current parameters
+      const currentRequest = `${selectedSensor}-${timeRangeKey}`;
+      lastTimeRangeRequestRef.current = currentRequest;
+
+      // Ensure end time is set to end of day (just like in handleFiltersChange)
+      const adjustedTimeRange = {
+        start: new Date(filters.timeRange.start),
+        end: new Date(filters.timeRange.end),
+      };
+      adjustedTimeRange.end.setHours(23, 59, 59, 999);
+
+      console.log("Effect triggered: Fetching telemetry with time range:", {
+        start: adjustedTimeRange.start.toISOString(),
+        end: adjustedTimeRange.end.toISOString(),
+      });
+
+      // Slight delay to prevent race conditions with direct dispatch calls
+      setTimeout(() => {
+        // Only proceed if this is still the most recent request
+        if (lastTimeRangeRequestRef.current === currentRequest) {
+          dispatch(
+            fetchTelemetry({
+              sensorIds: [selectedSensor],
+              timeRange: {
+                start: toISO(adjustedTimeRange.start),
+                end: toISO(adjustedTimeRange.end),
+              },
+            })
+          );
+        }
+      }, 50);
     }
-  }, [selectedSensor, filters.timeRange, dispatch]);
+  }, [selectedSensor, timeRangeKey, dispatch]); // Use timeRangeKey instead of filters.timeRange
+
+  const sameRange = (a: { start: Date; end: Date }, b: { start: Date; end: Date }) =>
+    new Date(a.start).getTime() === new Date(b.start).getTime() &&
+    new Date(a.end).getTime() === new Date(b.end).getTime();
 
   // Fetch data for comparison sensors
   React.useEffect(() => {
@@ -191,8 +284,8 @@ export const AnalyticsPage: React.FC = () => {
         fetchTelemetry({
           sensorIds: selectedSensorIds,
           timeRange: {
-            start: filters.timeRange.start.toISOString(),
-            end: filters.timeRange.end.toISOString(),
+            start: toISO(filters.timeRange.start),
+            end: toISO(filters.timeRange.end),
           },
         })
       );
@@ -217,19 +310,52 @@ export const AnalyticsPage: React.FC = () => {
   };
 
   const handleFiltersChange = (newFilters: Partial<FilterState>) => {
-    dispatch(setFilters({ ...filters, ...newFilters }));
-  };
+    const merged = { ...filters, ...newFilters };
+    dispatch(setFilters(merged));
 
-  const handleTimeRangeChange = (index: number) => {
-    setSelectedTimeRangeIndex(index);
+    if (newFilters.timeRange) {
+      // 1. Ensure end date is set to end of day for consistency
+      const timeRange = {
+        start: new Date(newFilters.timeRange.start),
+        end: new Date(newFilters.timeRange.end),
+      };
 
-    // Get the time range from the preset
-    const newTimeRange = timeRangePresets[index].getValue();
+      // Ensure end time is end of day
+      timeRange.end.setHours(23, 59, 59, 999);
 
-    dispatch(setTimeRange(newTimeRange));
+      // 2. Update Redux state with the sanitized time range
+      dispatch(setTimeRange(timeRange));
 
-    if (index === timeRangePresets.length - 1) {
-      setIsCustomDateOpen(true);
+      console.log("Fetching telemetry with time range:", {
+        start: timeRange.start.toISOString(),
+        end: timeRange.end.toISOString(),
+      });
+
+      // 3. Force-fetch data with the new time range
+      if (selectedSensor) {
+        dispatch(
+          fetchTelemetry({
+            sensorIds: [selectedSensor],
+            timeRange: {
+              start: toISO(timeRange.start),
+              end: toISO(timeRange.end),
+            },
+          })
+        );
+      }
+
+      // Also fetch for comparison mode
+      if (selectedSensorIds.length > 0) {
+        dispatch(
+          fetchTelemetry({
+            sensorIds: selectedSensorIds,
+            timeRange: {
+              start: toISO(timeRange.start),
+              end: toISO(timeRange.end),
+            },
+          })
+        );
+      }
     }
   };
 
@@ -255,6 +381,14 @@ export const AnalyticsPage: React.FC = () => {
     }
   };
 
+  const handleMobileSortChange = (field: string, direction: "asc" | "desc") => {
+    if (isMobile) {
+      setPendingFilters((prev) => ({ ...(prev || filters), sort: { field, direction } }));
+    } else {
+      dispatch(setFilters({ ...filters, sort: { field, direction } }));
+    }
+  };
+
   const handleMobileTimeRangeChange = (index: number) => {
     setSelectedTimeRangeIndex(index);
 
@@ -267,22 +401,11 @@ export const AnalyticsPage: React.FC = () => {
         timeRange: newTimeRange,
       }));
     } else {
-      dispatch(setTimeRange(newTimeRange));
+      syncTimeRange(newTimeRange);
     }
 
     if (index === timeRangePresets.length - 1) {
       setIsCustomDateOpen(true);
-    }
-  };
-
-  const handleCustomDateChange = (start: Date, end: Date) => {
-    if (isMobile) {
-      setPendingFilters((prev) => ({
-        ...(prev || filters),
-        timeRange: { start, end },
-      }));
-    } else {
-      dispatch(setTimeRange({ start, end }));
     }
   };
 
@@ -325,7 +448,6 @@ export const AnalyticsPage: React.FC = () => {
   };
 
   const handleDisplayNameChange = (displayName: string) => {
-    console.log({ selectedSensor, displayName });
     if (selectedSensor) {
       dispatch(updateSensorDisplayName({ mac: selectedSensor, displayName }));
     }
@@ -368,8 +490,15 @@ export const AnalyticsPage: React.FC = () => {
   // Prepare chart config for selected sensor
   const chartConfig: ChartConfig | null = React.useMemo(() => {
     if (!selectedSensor || !telemetryData[selectedSensor]) return null;
-
     const sensorData = telemetryData[selectedSensor];
+    console.log("Chart data content:", {
+      sensorId: selectedSensor,
+      dataPoints: sensorData.series.length,
+      firstPoint: sensorData.series[0],
+      lastPoint: sensorData.series[sensorData.series.length - 1],
+      nonNullCount: sensorData.series.filter((point) => point && point.value !== null && point.value !== undefined)
+        .length,
+    });
 
     return {
       type: sensorData.type,
@@ -465,20 +594,22 @@ export const AnalyticsPage: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen m-0 p-0">
-      {!isMobile && (
+      {/* {!isMobile && (
         <FilterBar
           filters={filters}
           onFiltersChange={handleFiltersChange} // Now this will work
-          compact={isSoloMode}
-          selectedIndex={selectedTimeRangeIndex}
         />
-      )}
+      )} */}
 
       <div className="flex flex-1 overflow-hidden">
         {!isSoloMode && !isMobile && (
           <div className="w-80 border-r border-divider flex flex-col">
             <div className="p-3 border-b border-divider flex justify-between items-center">
               <h3 className="text-sm font-medium">Sensors</h3>
+              <FilterBar
+                filters={filters}
+                onFiltersChange={handleFiltersChange} // Now this will work
+              />
               <Button
                 size="sm"
                 variant={isCompareMode ? "solid" : "flat"}
@@ -496,7 +627,7 @@ export const AnalyticsPage: React.FC = () => {
               onSensorSelect={handleSensorSelect}
               onSensorToggleStar={handleToggleStar}
               onSearch={handleSearchChange}
-              searchText={filters.search}
+              searchText={filters?.search || ""}
               onMultiSelect={handleMultiSelect}
               isComparing={isCompareMode}
             />
@@ -521,7 +652,15 @@ export const AnalyticsPage: React.FC = () => {
                     size="sm"
                     variant="flat"
                     startContent={<Icon icon="lucide:filter" width={16} />}
-                    onPress={() => setIsMobileFilterDrawerOpen(true)}
+                    onPress={() => {
+                      setPendingFilters({ ...filters });
+                      const idx = timeRangePresets.findIndex((p) => {
+                        const presetRange = p.getValue();
+                        return sameRange(presetRange, filters.timeRange);
+                      });
+                      setSelectedTimeRangeIndex(idx === -1 ? timeRangePresets.length - 1 : idx);
+                      setIsMobileFilterDrawerOpen(true);
+                    }}
                   >
                     Filters
                   </Button>
@@ -586,10 +725,11 @@ export const AnalyticsPage: React.FC = () => {
 
                   <div className="px-3 py-1 bg-primary-100 text-primary rounded-full text-xs flex items-center gap-1">
                     <Icon icon="lucide:calendar" width={12} />
-                    {new Date(filters.timeRange.start).toLocaleDateString() ===
-                    new Date(filters.timeRange.end).toLocaleDateString()
-                      ? new Date(filters.timeRange.start).toLocaleDateString()
-                      : `${new Date(filters.timeRange.start).toLocaleDateString().split("/")[0]} - ${new Date(filters.timeRange.end).toLocaleDateString().split("/")[0]}`}
+                    {new Date(filters.timeRange.start).toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                    })}{" "}
+                    -{new Date(filters.timeRange.end).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
                   </div>
                 </div>
               )}
@@ -891,12 +1031,12 @@ export const AnalyticsPage: React.FC = () => {
                   <div>
                     <h4 className="text-sm font-medium mb-2">Sensor Type</h4>
                     <CheckboxGroup
-                      value={(pendingFilters || filters).types}
+                      value={(pendingFilters || filters).types as string[]}
                       onValueChange={(types) => handleMobileTypeChange(types as SensorType[])}
                       orientation="vertical"
                     >
                       {sensorTypes.map((type) => (
-                        <Checkbox key={type.value} value={type.value}>
+                        <Checkbox key={type.value} value={type.value as string}>
                           {type.label}
                         </Checkbox>
                       ))}
@@ -948,7 +1088,74 @@ export const AnalyticsPage: React.FC = () => {
                           {preset.label}
                         </Button>
                       ))}
+                      {selectedTimeRangeIndex === timeRangePresets.length - 1 && (
+                        <div className="mt-3">
+                          <DateRangePicker
+                            aria-label="Custom range"
+                            showMonthAndYearPickers
+                            value={{
+                              start: toCal((pendingFilters || filters).timeRange.start),
+                              end: toCal((pendingFilters || filters).timeRange.end),
+                            }}
+                            onChange={(range: RangeValue<DateValue> | null) => {
+                              // ignore the intermediate "only start picked" state
+                              if (!range || !range.start || !range.end) return;
+
+                              const startJs = range.start.toDate(getLocalTimeZone());
+                              const endJs = range.end.toDate(getLocalTimeZone());
+
+                              console.log("Mobile date range selected:", {
+                                start: startJs,
+                                end: endJs,
+                                startISO: startJs.toISOString(),
+                                endISO: endJs.toISOString(),
+                              });
+
+                              if (isMobile) {
+                                setPendingFilters((prev) => ({
+                                  ...(prev || filters),
+                                  timeRange: { start: startJs, end: endJs },
+                                }));
+                              } else {
+                                dispatch(setTimeRange({ start: startJs, end: endJs }));
+                              }
+                            }}
+                          />
+                        </div>
+                      )}
                     </div>
+                  </div>
+
+                  {/* Sort Filter (missing before) */}
+                  <div>
+                    <h4 className="text-sm font-medium mb-2">Sort By</h4>
+                    {[
+                      { lbl: "Name (A-Z)", fld: "name", dir: "asc", ic: "lucide:arrow-up" },
+                      { lbl: "Name (Z-A)", fld: "name", dir: "desc", ic: "lucide:arrow-down" },
+                      { lbl: "Starred First", fld: "starred", dir: "desc", ic: "lucide:star" },
+                    ].map((o) => (
+                      <Button
+                        key={o.lbl}
+                        size="sm"
+                        variant={
+                          (pendingFilters || filters).sort?.field === o.fld &&
+                          (pendingFilters || filters).sort?.direction === o.dir
+                            ? "solid"
+                            : "bordered"
+                        }
+                        color={
+                          (pendingFilters || filters).sort?.field === o.fld &&
+                          (pendingFilters || filters).sort?.direction === o.dir
+                            ? "primary"
+                            : "default"
+                        }
+                        className="justify-start"
+                        startContent={<Icon icon={o.ic} width={16} />}
+                        onPress={() => handleMobileSortChange(o.fld, o.dir as "asc" | "desc")}
+                      >
+                        {o.lbl}
+                      </Button>
+                    ))}
                   </div>
                 </div>
               </div>
