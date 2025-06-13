@@ -43,7 +43,6 @@ export const GenericChart: React.FC<GenericChartProps> = ({
       return (
         <LineChart 
           config={config}
-          onBrushChange={onBrushChange}
           onZoomChange={onZoomChange}
         />
       );

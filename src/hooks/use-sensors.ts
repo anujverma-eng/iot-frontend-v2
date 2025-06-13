@@ -42,7 +42,7 @@ export const useSensors = () => {
       page: 1,
       limit: 50,
       claimed: true,
-      search: filters.search,
+      search: filters.search || "",
       // type: filters.types,
       // status: filters.status === 'all' ? undefined : filters.status
     }));

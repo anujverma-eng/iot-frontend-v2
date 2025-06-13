@@ -73,7 +73,7 @@ export const ComparePage: React.FC = () => {
       page: 1,
       limit: 50,
       claimed: true,
-      search: filters.search,
+      search: filters.search || "",
       // type: filters.types,
       // status: filters.status === 'all' ? undefined : filters.status
     }));
@@ -357,7 +357,6 @@ export const ComparePage: React.FC = () => {
           <FilterBar 
             filters={filters} 
             onFiltersChange={handleFiltersChange}
-            compact={false}
           />
           
           {/* Chart */}
