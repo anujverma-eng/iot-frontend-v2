@@ -139,7 +139,7 @@ export const SoloView: React.FC = () => {
     if (filteredSensors.length && !selectedSensorData.data) {
       const firstId = filteredSensors[0].id;
       log("↪️ redirect to first sensor", firstId);
-      navigate(`/dashboard/analytics/${firstId}?solo=true`, { replace: true });
+      navigate(`/dashboard/sensors/${firstId}?solo=true`, { replace: true });
     }
   }, [sensorId, filteredIds, sensorsLoaded, selectedSensorData.data?._id, dispatch, navigate]);
 
@@ -291,7 +291,7 @@ export const SoloView: React.FC = () => {
 
   // Handlers
   const handleBackToAnalytics = () => {
-    navigate(`/dashboard/analytics/${sensorId}`);
+    navigate(`/dashboard/sensors/${sensorId}`);
   };
 
   const handleSearchChange = (text: string) => {
@@ -304,7 +304,7 @@ export const SoloView: React.FC = () => {
   };
 
   const handleSensorSelect = (id: string) => {
-    navigate(`/dashboard/analytics/${id}?solo=true`);
+    navigate(`/dashboard/sensors/${id}?solo=true`);
     setIsDropdownOpen(false);
     setSearchText("");
   };

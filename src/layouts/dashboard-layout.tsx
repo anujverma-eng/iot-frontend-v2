@@ -33,7 +33,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
   // If the page is "/dashboard/analytics", close the sidebar
   React.useEffect(() => {
-    if (location.pathname.includes("/dashboard/analytics")) {
+    if (location.pathname.includes("/dashboard/sensors")) {
       setIsSidebarOpen(false);
     }
   }, [location.pathname]);

@@ -20,9 +20,14 @@ const sidebarItems: SidebarItem[] = [
   //   badge: "New",
   // },
   {
+    name: "Home",
+    icon: "lucide:home",
+    path: "/dashboard/home",
+  },
+  {
     name: "Dashboard",
     icon: "lucide:bar-chart-2",
-    path: "/dashboard/analytics",
+    path: "/dashboard/panel",
   },
   {
     name: "Monitoring",

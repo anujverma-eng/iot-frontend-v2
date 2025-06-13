@@ -2,7 +2,6 @@
 import { BrowserRouter, Outlet, Route, Routes } from "react-router-dom";
 import { Unauthorized } from "./pages/403";
 import { NotFound } from "./pages/404";
-import Dashboard from "./pages/Dashboard";
 import Logout from "./pages/Logout";
 import { Terms } from "./pages/Terms";
 import { ForgotPassword } from "./pages/forgot-password";
@@ -20,6 +19,8 @@ import OnboardingPage from "./pages/OnboardingPage";
 import { GatewaysPage } from "./pages/GatewayPage";
 import { SensorsPage } from "./pages/SensorsPage";
 import { AnalyticsPage } from "./pages/analytics";
+import { DashboardHome } from "./pages/DashboardHome";
+import { PanelPage } from "./pages/PanelPage";
 
 export function AppRouter() {
   return (
@@ -49,10 +50,10 @@ export function AppRouter() {
                 </DashboardLayout>
               }
             >
-              <Route index element={<AnalyticsPage />} />
+              <Route path="home" element={<DashboardHome />} />
+              <Route path="panel" element={<PanelPage />} />
               <Route path="gateways" element={<GatewaysPage />} />
-              <Route path="sensors" element={<SensorsPage />} />
-              <Route path="analytics">
+              <Route path="sensors">
                 <Route index element={<AnalyticsPage />} />
                 <Route path=":sensorId" element={<AnalyticsPage />} />
               </Route>

@@ -250,7 +250,7 @@ export const AnalyticsPage: React.FC = () => {
       const firstSensorId = filteredSensors[0].id;
       dispatch(fetchSensorById(firstSensorId));
       setSelectedSensor(firstSensorId);
-      navigate(`/dashboard/analytics/${firstSensorId}`, { replace: true });
+      navigate(`/dashboard/sensors/${firstSensorId}`, { replace: true });
     }
   }, [sensorId, filteredSensors, selectedSensor, dispatch, navigate]);
 
@@ -322,7 +322,7 @@ export const AnalyticsPage: React.FC = () => {
 
   const handleSensorSelect = (id: string) => {
     setSelectedSensor(id);
-    navigate(`/dashboard/analytics/${id}`);
+    navigate(`/dashboard/sensors/${id}`);
   };
 
   const handleSearchChange = (txt: string) => setSearchQuery(txt);
@@ -507,7 +507,7 @@ export const AnalyticsPage: React.FC = () => {
   const handleOpenInNewTab = () => {
     if (selectedSensor) {
       // Open in new tab with solo=true parameter
-      const url = new URL(`/dashboard/analytics/${selectedSensor}`, window.location.origin);
+      const url = new URL(`/dashboard/sensors/${selectedSensor}`, window.location.origin);
       url.searchParams.set("solo", "true");
       window.open(url.toString(), "_blank");
     }
