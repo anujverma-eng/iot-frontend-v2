@@ -12,6 +12,9 @@ export interface Sensor {
   lastSeenBy?: string[];
   isStarred?: boolean;
   status?: "live" | "offline";
+  firstSeen: string;
+  name?: string; // Optional field for display name
+  id?: string; // Optional field for compatibility with some APIs
 }
 
 export interface SensorResponse {

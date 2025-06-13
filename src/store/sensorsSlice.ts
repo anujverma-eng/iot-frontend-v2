@@ -83,7 +83,8 @@ interface State {
   stats: {
     claimed: number;
     unclaimed: number;
-    avgReadingFrequency: number;
+    liveSensors: number;
+    offlineSensors: number;
   } | null;
   selectedSensorIds: string[];
   filters: FilterState;

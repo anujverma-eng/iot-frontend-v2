@@ -43,7 +43,7 @@ export const SensorService = {
   },
 
   /* ── stats & telemetry ───────────────────────────────────── */
-  getSensorStats(): Promise<{ claimed: number; unclaimed: number; avgReadingFrequency: number }> {
+  getSensorStats(): Promise<{ claimed: number; unclaimed: number; liveSensors: number; offlineSensors: number }> {
     return http.get("/sensors/stats").then((r) => r.data.data);
   },
 

@@ -190,12 +190,7 @@ export const SensorsPage: React.FC = () => {
           icon="lucide:radio-tower"
           color="warning"
         />
-        <StatsCard
-          title="Avg. Reading Frequency"
-          value={(stats?.avgReadingFrequency ?? 0).toString()}
-          icon="lucide:timer"
-          color="success"
-        />
+
       </div>
 
       {/* Search input */}

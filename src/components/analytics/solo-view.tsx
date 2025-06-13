@@ -111,7 +111,7 @@ export const SoloView: React.FC = () => {
         page: 1,
         limit: 50,
         claimed: true,
-        search: filters.search,
+        search: filters.search || "",
       })
     )
       .unwrap() // ← propagates real promise
@@ -411,7 +411,7 @@ export const SoloView: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2">
-              <FilterBar filters={filters} onFiltersChange={handleFiltersChange} compact={true} />
+              <FilterBar filters={filters} onFiltersChange={handleFiltersChange} />
             </div>
           </div>
 
@@ -479,32 +479,39 @@ export const SoloView: React.FC = () => {
 
                   {/* Stats cards */}
                   {stats && (
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-4">
+                    <div className="grid grid-cols-2 md:grid-cols-6 gap-2 mt-4">
                       <Card>
                         <CardBody className="p-3">
                           <p className="text-xs text-default-500">Latest</p>
-                          <p className="text-xl font-semibold">{stats.latest.toFixed(1)}</p>
+                          <p className="text-xl font-semibold text-success-800">{stats.latest.toFixed(1)}</p>
                           <p className="text-xs">{chartConfig?.unit}</p>
                         </CardBody>
                       </Card>
                       <Card>
                         <CardBody className="p-3">
                           <p className="text-xs text-default-500">Average</p>
-                          <p className="text-xl font-semibold">{stats.avg.toFixed(1)}</p>
+                          <p className="text-xl font-semibold text-primary-700">{stats.avg.toFixed(1)}</p>
                           <p className="text-xs">{chartConfig?.unit}</p>
                         </CardBody>
                       </Card>
                       <Card>
                         <CardBody className="p-3">
                           <p className="text-xs text-default-500">Minimum</p>
-                          <p className="text-xl font-semibold">{stats.min.toFixed(1)}</p>
+                          <p className="text-xl font-semibold text-danger-700">{stats.min.toFixed(1)}</p>
                           <p className="text-xs">{chartConfig?.unit}</p>
                         </CardBody>
                       </Card>
                       <Card>
                         <CardBody className="p-3">
                           <p className="text-xs text-default-500">Maximum</p>
-                          <p className="text-xl font-semibold">{stats.max.toFixed(1)}</p>
+                          <p className="text-xl font-semibold text-warning-700">{stats.max.toFixed(1)}</p>
+                          <p className="text-xs">{chartConfig?.unit}</p>
+                        </CardBody>
+                      </Card>
+                      <Card>
+                        <CardBody className="p-3">
+                          <p className="text-xs text-default-500">Max - Min</p>
+                          <p className="text-xl font-semibold text-sky-800">{(stats.max - stats.min).toFixed(1)}</p>
                           <p className="text-xs">{chartConfig?.unit}</p>
                         </CardBody>
                       </Card>
@@ -540,7 +547,7 @@ export const SoloView: React.FC = () => {
                   />
                 )}
               </Tab>
-              <Tab key="table" title="Table Viewss">
+              {/* <Tab key="table" title="Table Viewss">
                 <Card>
                   <CardBody>
                     <div className="flex justify-between items-center mb-4">
@@ -589,7 +596,7 @@ export const SoloView: React.FC = () => {
                     </div>
                   </CardBody>
                 </Card>
-              </Tab>
+              </Tab> */}
               <Tab key="analytics" title="Analytics">
                 <Card>
                   <CardBody>
@@ -619,7 +626,7 @@ export const SoloView: React.FC = () => {
                 </Card>
               </Tab>
 
-              <Tab key="dashboard" title="Dashboard">
+              <Tab key="multichart" title="Multi-Chart View">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Card className="shadow-sm">
                     <CardBody className="p-3">

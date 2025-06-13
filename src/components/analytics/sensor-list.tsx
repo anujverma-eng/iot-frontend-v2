@@ -48,7 +48,8 @@ export const SensorList: React.FC<SensorListProps> = ({
   };
   
   return (
-    <div className="flex flex-col h-full">
+    // <div className="flex flex-col h-full">
+    <div className="flex flex-col h-[calc(100%-80px)]">
       <div className="p-4 border-b border-divider">
         <Input
           placeholder="Search by MAC or display name"

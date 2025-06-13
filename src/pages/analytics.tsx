@@ -1,5 +1,6 @@
 import { addToast, Button, Checkbox, CheckboxGroup, DateRangePicker, Input, Spinner } from "@heroui/react";
 import { Icon } from "@iconify/react";
+import { CalendarDate, DateValue, getLocalTimeZone } from "@internationalized/date";
 import React from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -8,29 +9,36 @@ import { FilterBar } from "../components/analytics/filter-bar";
 import { SensorCard } from "../components/analytics/sensor-card";
 import { SensorList } from "../components/analytics/sensor-list";
 import { SoloView } from "../components/analytics/solo-view";
+import { ClaimSensorModal } from "../components/sensors/claim-sensor-modal";
+import { StatsCard } from "../components/stats-card";
 import { ChartContainer } from "../components/visualization/chart-container";
 import { GaugeChart } from "../components/visualization/gauge-chart";
 import { chartColors, sensorTypes, statusOptions, timeRangePresets } from "../data/analytics";
-import { AppDispatch } from "../store";
+import { AppDispatch, RootState } from "../store";
+import { fetchGateways, selectGateways } from "../store/gatewaySlice";
 import {
   addSelectedSensorId,
   clearSelectedSensorIds,
   fetchSensorById,
   fetchSensors,
+  fetchSensorStats,
   removeSelectedSensorId,
   selectFilters,
   selectSelectedSensor,
   selectSelectedSensorIds,
+  selectSensorPagination,
   selectSensors,
   selectSensorsLoading,
+  selectSensorStats,
+  setClaimModalOpen,
   setFilters,
+  setPage,
   setSelectedSensorIds,
   toggleSensorStar,
   updateSensorDisplayName,
 } from "../store/sensorsSlice";
 import { fetchTelemetry, selectTelemetryData, selectTelemetryLoading, setTimeRange } from "../store/telemetrySlice";
 import { ChartConfig, FilterState, MultiSeriesConfig, SensorStatus, SensorType } from "../types/sensor";
-import { CalendarDate, DateValue, getLocalTimeZone } from "@internationalized/date";
 
 type RangeValue<T> = { start: T | null; end: T | null };
 
@@ -69,9 +77,10 @@ export const AnalyticsPage: React.FC = () => {
   const [isMobileSensorDrawerOpen, setIsMobileSensorDrawerOpen] = React.useState(false);
   const [isMobileFilterDrawerOpen, setIsMobileFilterDrawerOpen] = React.useState(false);
   const [selectedTimeRangeIndex, setSelectedTimeRangeIndex] = React.useState(1);
-  const [isCustomDateOpen, setIsCustomDateOpen] = React.useState(false);
-
+  const stats = useSelector(selectSensorStats);
+  console.log("stats", stats);
   const [pendingFilters, setPendingFilters] = React.useState<FilterState | null>(null);
+  const gateways = useSelector(selectGateways);
 
   const applyPendingFilters = () => {
     if (pendingFilters) {
@@ -123,6 +132,21 @@ export const AnalyticsPage: React.FC = () => {
   const sensors = useSelector(selectSensors);
   const loading = useSelector(selectSensorsLoading);
   const selectedSensorData = useSelector(selectSelectedSensor);
+  const pagination = useSelector(selectSensorPagination);
+  // --- local search text (controlled input) ----------------------------
+  const [searchQuery, setSearchQuery] = React.useState(filters.search);
+
+  // keep local box in sync if an outside action changed the global filter
+  React.useEffect(() => setSearchQuery(filters.search), [filters.search]);
+
+  // when the user stops typing for 500 ms → sync to Redux + reset to page 1
+  React.useEffect(() => {
+    const id = setTimeout(() => {
+      dispatch(setPage(1));
+      dispatch(setFilters({ ...filters, search: searchQuery }));
+    }, 500);
+    return () => clearTimeout(id);
+  }, [searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Add state for selected sensor
   const [selectedSensor, setSelectedSensor] = React.useState<string | null>(null);
@@ -146,6 +170,8 @@ export const AnalyticsPage: React.FC = () => {
         // TODO: add `type` & `status` here when the backend supports them
       })
     );
+    dispatch(fetchSensorStats());
+    dispatch(fetchGateways({ page: 1, limit: 1000, search: "" }));
   }, [dispatch, filters.search, filters.types, filters.status]);
 
   // Map sensors to the format expected by components
@@ -197,6 +223,8 @@ export const AnalyticsPage: React.FC = () => {
 
   // Add loading state for skeleton
   const [isPageLoading, setIsPageLoading] = React.useState(true);
+
+  const claimModalOpen = useSelector((state: RootState) => state.sensors.claimModal.isOpen);
 
   // Simulate initial page load
   React.useEffect(() => {
@@ -297,8 +325,23 @@ export const AnalyticsPage: React.FC = () => {
     navigate(`/dashboard/analytics/${id}`);
   };
 
-  const handleSearchChange = (text: string) => {
-    dispatch(setFilters({ ...filters, search: text }));
+  const handleSearchChange = (txt: string) => setSearchQuery(txt);
+
+  const handleLoadMore = () => {
+    console.log({ pagination });
+    if (pagination.page >= pagination.totalPages || loading) return;
+    const next = pagination.page + 1;
+    dispatch(
+      fetchSensors({
+        page: next,
+        limit: 50,
+        claimed: true,
+        search: filters.search || "",
+        sort: filters.sort?.field,
+        dir: filters.sort?.direction,
+      })
+    );
+    dispatch(setPage(next));
   };
 
   const handleTypeChange = (types: SensorType[]) => {
@@ -402,10 +445,6 @@ export const AnalyticsPage: React.FC = () => {
       }));
     } else {
       syncTimeRange(newTimeRange);
-    }
-
-    if (index === timeRangePresets.length - 1) {
-      setIsCustomDateOpen(true);
     }
   };
 
@@ -594,18 +633,55 @@ export const AnalyticsPage: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen m-0 p-0">
-      {/* {!isMobile && (
-        <FilterBar
-          filters={filters}
-          onFiltersChange={handleFiltersChange} // Now this will work
-        />
-      )} */}
+      {/* ─────────────────────────  small header & cards  ───────────────────────── */}
+      <div className="px-6 pt-4 space-y-6">
+        {/* header row */}
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold">Sensors Analytics</h1>
+
+          <Button
+            color="primary"
+            onPress={() => dispatch(setClaimModalOpen(true))}
+            startContent={<Icon icon="lucide:plus" />}
+          >
+            Add Sensor
+          </Button>
+        </div>
+
+        {/* stats grid – re-use the component from SensorsPage */}
+        <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-4 gap-3">
+          <StatsCard
+            title="Total Sensors"
+            value={(stats?.claimed ?? 0).toString()}
+            icon="lucide:radio"
+            color="primary"
+          />
+          <StatsCard
+            title="Live Sensors"
+            value={(stats?.liveSensors ?? 0).toString()}
+            icon="lucide:wifi"
+            color="success"
+          />
+          <StatsCard
+            title="Offline Sensors"
+            value={(stats?.offlineSensors ?? 0).toString()}
+            icon="lucide:wifi-off"
+            color="danger"
+          />
+          <StatsCard
+            title="Low Battery Sensors"
+            value={(stats?.offlineSensors ?? 0).toString()}
+            icon="lucide:battery-warning"
+            color="warning"
+          />
+        </div>
+      </div>
 
       <div className="flex flex-1 overflow-hidden">
         {!isSoloMode && !isMobile && (
           <div className="w-80 border-r border-divider flex flex-col">
             <div className="p-3 border-b border-divider flex justify-between items-center">
-              <h3 className="text-sm font-medium">Sensors</h3>
+              {/* <h3 className="text-sm font-medium">My Sensors</h3> */}
               <FilterBar
                 filters={filters}
                 onFiltersChange={handleFiltersChange} // Now this will work
@@ -627,10 +703,23 @@ export const AnalyticsPage: React.FC = () => {
               onSensorSelect={handleSensorSelect}
               onSensorToggleStar={handleToggleStar}
               onSearch={handleSearchChange}
-              searchText={filters?.search || ""}
+              searchText={searchQuery || ""}
               onMultiSelect={handleMultiSelect}
               isComparing={isCompareMode}
             />
+            {pagination.page < pagination.totalPages && (
+              <div className="p-2 border-t border-divider">
+                <Button
+                  fullWidth
+                  variant="flat"
+                  isDisabled={loading}
+                  onPress={handleLoadMore}
+                  startContent={loading ? <Spinner size="sm" /> : <Icon icon="lucide:refresh-ccw" />}
+                >
+                  {loading ? "Loading…" : "Load more"}
+                </Button>
+              </div>
+            )}
           </div>
         )}
 
@@ -929,7 +1018,7 @@ export const AnalyticsPage: React.FC = () => {
               <div className="p-4 border-b border-divider">
                 <Input
                   placeholder="Search by MAC or display name"
-                  value={filters.search}
+                  value={searchQuery}
                   onValueChange={handleSearchChange}
                   startContent={<Icon icon="lucide:search" className="text-default-400" />}
                   isClearable
@@ -1169,6 +1258,24 @@ export const AnalyticsPage: React.FC = () => {
           </div>
         </div>
       )}
+      <ClaimSensorModal
+        isOpen={claimModalOpen}
+        onClose={() => dispatch(setClaimModalOpen(false))}
+        onSensorClaimed={() => {
+          dispatch(
+            fetchSensors({
+              page: pagination.page,
+              limit: pagination.limit,
+              claimed: true,
+              search: filters.search || "",
+              sort: filters.sort?.field,
+              dir: filters.sort?.direction,
+            })
+          );
+          dispatch(fetchSensorStats());
+        }}
+        gateways={gateways ?? []}
+      />
     </div>
   );
 };
