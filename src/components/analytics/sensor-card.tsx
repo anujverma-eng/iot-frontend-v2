@@ -1,5 +1,5 @@
 import React from "react";
-import { Card, CardBody, Checkbox, Badge, Tooltip } from "@heroui/react";
+import { Card, CardBody, Checkbox, Badge, Tooltip, Spinner } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { formatDistanceToNow } from "date-fns";
 import { Sensor } from "../../types/sensor";
@@ -8,7 +8,7 @@ interface SensorCardProps {
   sensor: Sensor;
   isSelected: boolean;
   onSelect: () => void;
-  onToggleStar: () => void;
+  onToggleStar: (mac: string) => Promise<void> | void;
   isComparing: boolean;
   isChecked: boolean;
   onCheckChange: (checked: boolean) => void;
@@ -23,6 +23,8 @@ export const SensorCard: React.FC<SensorCardProps> = ({
   isChecked,
   onCheckChange,
 }) => {
+  const [starLoading, setStarLoading] = React.useState(false);
+
   const getTypeIcon = (type: string) => {
     switch (type) {
       case "temperature":
@@ -43,7 +45,6 @@ export const SensorCard: React.FC<SensorCardProps> = ({
     return lastSeen.toDateString() === today.toDateString();
   };
 
-
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleString("en-US", {
@@ -53,6 +54,16 @@ export const SensorCard: React.FC<SensorCardProps> = ({
       hour: "2-digit",
       minute: "2-digit",
     });
+  };
+
+  const handleStarClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setStarLoading(true);
+    try {
+      await onToggleStar(sensor.mac);
+    } finally {
+      setStarLoading(false);
+    }
   };
 
   return (
@@ -73,14 +84,14 @@ export const SensorCard: React.FC<SensorCardProps> = ({
           <div className="flex items-center gap-2">
             {isComparing ? (
               <Checkbox isSelected={isChecked} onValueChange={onCheckChange} size="sm" />
+            ) : starLoading ? (
+              <Spinner size="sm" />
             ) : (
               <Icon
-                icon="lucide:star"
-                className={`cursor-pointer ${sensor.claimed ? "text-warning fill-warning" : "text-default-400"}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleStar();
-                }}
+                icon={sensor.favorite ? "mdi:star" : "mdi:star-outline"}
+                className={`cursor-pointer ${sensor.favorite ? "text-warning" : "text-default-400"}`}
+                style={sensor.favorite ? { color: "#fbbf24" } : {}}
+                onClick={handleStarClick}
               />
             )}
           </div>
@@ -91,7 +102,7 @@ export const SensorCard: React.FC<SensorCardProps> = ({
             {sensor.lastValue.toFixed(1)} {sensor.unit}
           </Badge>
           <span className="text-xs text-default-500">
-            {formatDistanceToNow(new Date(sensor.lastSeen), { addSuffix: true })}
+            {new Date(sensor.lastSeen).toLocaleString()}
           </span>
         </div>
 
@@ -99,17 +110,6 @@ export const SensorCard: React.FC<SensorCardProps> = ({
           <Tooltip content={`First seen: ${formatDate(sensor.firstSeen)}`}>
             <span>{formatDistanceToNow(new Date(sensor.firstSeen), { addSuffix: false })}</span>
           </Tooltip>
-          {sensor.lastSeenBy && sensor.lastSeenBy.length > 0 ? (
-            <Tooltip content={`Last seen by: ${sensor.lastSeenBy.join(", ")}`}>
-              <Badge variant="flat" color="secondary" size="sm">
-                {sensor.lastSeenBy.length} GW
-              </Badge>
-            </Tooltip>
-          ) : (
-            <Badge variant="flat" color="secondary" size="sm">
-              No GW
-            </Badge>
-          )}
         </div>
 
         {sensor.ignored && (

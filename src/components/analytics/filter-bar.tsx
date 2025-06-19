@@ -31,14 +31,21 @@ export const FilterBar: React.FC<{
   });
 
   React.useEffect(() => {
-    const idx = timeRangePresets.findIndex((p) => {
-      const r = p.getValue();
-      return (
-        r.start.getTime() === filters.timeRange.start.getTime() && r.end.getTime() === filters.timeRange.end.getTime()
-      );
-    });
-    setRangeIdx(idx === -1 ? timeRangePresets.length - 1 : idx);
-  }, [filters.timeRange]);
+  const isSameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+
+  const idx = timeRangePresets.findIndex((p, i) => {
+    if (i === timeRangePresets.length - 1) return false; // skip custom
+    const r = p.getValue();
+    return (
+      isSameDay(r.start, filters.timeRange.start) &&
+      isSameDay(r.end, filters.timeRange.end)
+    );
+  });
+  setRangeIdx(idx === -1 ? timeRangePresets.length - 1 : idx);
+}, [filters.timeRange]);
 
   const setTypes = (next: SensorType[]) => onFiltersChange({ ...filters, types: next });
 
@@ -53,7 +60,7 @@ export const FilterBar: React.FC<{
     });
     onFiltersChange({ ...filters, timeRange: timeRangePresets[i].getValue() });
     if (i !== timeRangePresets.length - 1) {
-      setOpen(false); // slam the popover shut for non‑custom presets
+      // setOpen(false); // slam the popover shut for non‑custom presets
     }
   };
 

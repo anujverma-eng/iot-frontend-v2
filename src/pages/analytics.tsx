@@ -179,7 +179,7 @@ export const AnalyticsPage: React.FC = () => {
     return sensors.map((sensor) => ({
       ...sensor,
       id: sensor._id,
-      starred: sensor.isStarred,
+      favorite: typeof sensor.favorite === "boolean" ? sensor.favorite : false, // ensure favorite is always boolean
       name: sensor.displayName || sensor.mac,
     }));
   }, [sensors]);
@@ -207,6 +207,12 @@ export const AnalyticsPage: React.FC = () => {
     if (filters.sort) {
       const { field, direction } = filters.sort;
       list = [...list].sort((a: any, b: any) => {
+        if(field === "starred" || field === "favorite") {
+          const af = a.favorite ? 1 : 0;
+          const bf = b.favorite ? 1 : 0;
+          if (af === bf) return 0;
+          return (af > bf ? 1 : -1) * (direction === "asc" ? 1 : -1);
+        }
         const av = a[field],
           bv = b[field];
         if (av === bv) return 0;
@@ -492,14 +498,13 @@ export const AnalyticsPage: React.FC = () => {
     }
   };
 
-  const handleToggleStar = () => {
-    if (selectedSensor) {
-      dispatch(toggleSensorStar(selectedSensor));
-
-      // Show toast confirmation
+  const handleToggleStar = async (mac: string) => {
+    try {
+      await dispatch(toggleSensorStar(mac)).unwrap();
+    } catch (e) {
       addToast({
-        title: currentSensor?.isStarred ? "Removed from favorites" : "Added to favorites",
-        description: `Sensor ${currentSensor?.mac} ${currentSensor?.isStarred ? "removed from" : "added to"} favorites`,
+        title: "Failed to update favorite",
+        description: typeof e === "string" ? e : "Please try again.",
       });
     }
   };
@@ -637,7 +642,7 @@ export const AnalyticsPage: React.FC = () => {
       <div className="px-6 pt-4 space-y-6">
         {/* header row */}
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Sensors Analytics</h1>
+          <h1 className="text-2xl font-semibold">Sensors</h1>
 
           <Button
             color="primary"
@@ -699,7 +704,7 @@ export const AnalyticsPage: React.FC = () => {
 
             <SensorList
               sensors={filteredSensors}
-              selectedSensorIds={isCompareMode ? selectedSensorIds : selectedSensor ? [selectedSensor] : []}
+              selectedSensorIds={selectedSensorIds}
               onSensorSelect={handleSensorSelect}
               onSensorToggleStar={handleToggleStar}
               onSearch={handleSearchChange}
@@ -873,8 +878,6 @@ export const AnalyticsPage: React.FC = () => {
                       displayName: currentSensor.displayName,
                     }}
                     onToggleStar={handleToggleStar}
-                    isStarred={currentSensor.starred || currentSensor.isStarred}
-                    onOpenInNewTab={!isSoloMode ? handleOpenInNewTab : undefined}
                     onDisplayNameChange={handleDisplayNameChange}
                   />
                 </div>
@@ -1059,8 +1062,8 @@ export const AnalyticsPage: React.FC = () => {
                           dispatch(toggleSensorStar(sensor._id));
                           // Show toast confirmation
                           addToast({
-                            title: sensor.isStarred ? "Removed from favorites" : "Added to favorites",
-                            description: `Sensor ${sensor.mac} ${sensor.isStarred ? "removed from" : "added to"} favorites`,
+                            title: sensor.favorite ? "Removed from favorites" : "Added to favorites",
+                            description: `Sensor ${sensor.mac} ${sensor.favorite ? "removed from" : "added to"} favorites`,
                           });
                         }}
                         isComparing={isCompareMode}
@@ -1221,7 +1224,7 @@ export const AnalyticsPage: React.FC = () => {
                     {[
                       { lbl: "Name (A-Z)", fld: "name", dir: "asc", ic: "lucide:arrow-up" },
                       { lbl: "Name (Z-A)", fld: "name", dir: "desc", ic: "lucide:arrow-down" },
-                      { lbl: "Starred First", fld: "starred", dir: "desc", ic: "lucide:star" },
+                      { lbl: "Starred First", fld: "favorite", dir: "desc", ic: "lucide:star" },
                     ].map((o) => (
                       <Button
                         key={o.lbl}

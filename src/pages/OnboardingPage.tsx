@@ -14,7 +14,7 @@ export default function OnboardingPage() {
 
   // Redirect to dashboard if user already has an organization
   if (profile.loaded && profile.data?.orgId) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/dashboard/home" replace />;
   }
   
   const [isOpen, setIsOpen] = React.useState(false);
@@ -144,7 +144,7 @@ export default function OnboardingPage() {
                 color="primary"
                 onPress={() => {
                   setSuccess(false);
-                  window.location.assign("/dashboard");
+                  window.location.assign("/dashboard/home");
                   return;
                 }}
               >

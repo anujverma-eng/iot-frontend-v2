@@ -28,7 +28,7 @@ interface ChartContainerProps {
     displayName?: string;
   };
   onDisplayNameChange?: (displayName: string) => void;
-  onToggleStar?: () => void;
+  onToggleStar?: (mac: string) => void;
   isStarred?: boolean;
   onOpenInNewTab?: () => void;
 }
@@ -139,16 +139,6 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
     setIsEditing(false);
   };
 
-  const handleToggleStar = () => {
-    if (onToggleStar) {
-      onToggleStar();
-      addToast({
-        title: isStarred ? "Removed from favorites" : "Added to favorites",
-        description: `Sensor ${sensor?.mac} ${isStarred ? "removed from" : "added to"} favorites`,
-      });
-    }
-  };
-
   // Update URL hash when visualization type changes
   React.useEffect(() => {
     if (sensor) {
@@ -216,12 +206,12 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
               </div>
 
               <div className="flex items-center gap-2">
-                <Button isIconOnly size="sm" variant="light" onPress={handleToggleStar} className="text-warning">
+                {/* <Button isIconOnly size="sm" variant="light" onPress={handleToggleStar} className="text-warning">
                   <Icon
                     icon={isStarred ? "lucide:star" : "lucide:star"}
                     className={isStarred ? "text-warning fill-warning" : "text-default-400"}
                   />
-                </Button>
+                </Button> */}
 
                 {onOpenInNewTab && (
                   <Button
@@ -284,12 +274,12 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
               </div>
 
               <div className="flex items-center gap-2">
-                <Button isIconOnly size="sm" variant="light" onPress={handleToggleStar} className="text-warning">
+                {/* <Button isIconOnly size="sm" variant="light" onPress={handleToggleStar} className="text-warning">
                   <Icon
                     icon={isStarred ? "lucide:star" : "lucide:star"}
                     className={isStarred ? "text-warning fill-warning" : "text-default-400"}
                   />
-                </Button>
+                </Button> */}
 
                 {onOpenInNewTab && (
                   <Button
@@ -452,12 +442,12 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              <Button isIconOnly size="sm" variant="light" onPress={handleToggleStar} className="text-warning">
+              {/* <Button isIconOnly size="sm" variant="light" onPress={handleToggleStar} className="text-warning">
                 <Icon
                   icon={isStarred ? "lucide:star" : "lucide:star"}
                   className={isStarred ? "text-warning fill-warning" : "text-default-400"}
                 />
-              </Button>
+              </Button> */}
 
               <Tooltip content={`Download as ${downloadType.toUpperCase()}`}>
                 <Button size="sm" variant="light" color="primary" isIconOnly onPress={handleDownload}>

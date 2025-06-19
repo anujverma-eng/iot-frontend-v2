@@ -8,7 +8,7 @@ interface SensorListProps {
   sensors: Sensor[];
   selectedSensorIds: string[];
   onSensorSelect: (id: string) => void;
-  onSensorToggleStar: (id: string) => void;
+  onSensorToggleStar: (mac: string) => void;
   onSearch: (text: string) => void;
   searchText: string;
   onMultiSelect: (ids: string[]) => void;
@@ -21,7 +21,7 @@ export const SensorList: React.FC<SensorListProps> = ({
   onSensorSelect,
   onSensorToggleStar,
   onSearch,
-  searchText,
+  searchText = "", // default to empty string
   onMultiSelect,
   isComparing
 }) => {
@@ -74,7 +74,7 @@ export const SensorList: React.FC<SensorListProps> = ({
                 sensor={sensor}
                 isSelected={selectedSensorIds.includes(sensor._id)}
                 onSelect={() => onSensorSelect(sensor._id)}
-                onToggleStar={() => onSensorToggleStar(sensor._id)}
+                onToggleStar={() => onSensorToggleStar(sensor.mac)}
                 isComparing={isComparing}
                 isChecked={selectedIds.has(sensor._id)}
                 onCheckChange={(checked) => handleCheckboxChange(sensor._id, checked)}

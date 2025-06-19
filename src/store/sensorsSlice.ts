@@ -204,9 +204,7 @@ const sensorSlice = createSlice({
     builder.addCase(fetchSensors.fulfilled, (s, a) => {
       s.loading = false;
       s.loaded = true;
-      // If the API returns the array directly, assign it directly
-      // s.data = a.payload;
-      // If the API returns an object, destructure as needed
+      let sensors: Sensor[] = [];
       if (
         typeof a.payload === "object" &&
         a.payload !== null &&
@@ -216,13 +214,17 @@ const sensorSlice = createSlice({
         (a.payload as any).pagination !== null &&
         "totalPages" in (a.payload as any).pagination
       ) {
-        s.data = (a.payload as { data: Sensor[]; pagination: { totalPages: number } }).data;
+        sensors = (a.payload as { data: Sensor[]; pagination: { totalPages: number } }).data;
         s.pagination.totalPages = (a.payload as { data: Sensor[]; pagination: { totalPages: number } }).pagination.totalPages;
       } else {
-        // fallback: assign payload directly if it's an array
-        s.data = Array.isArray(a.payload) ? (a.payload as Sensor[]) : [];
+        sensors = Array.isArray(a.payload) ? (a.payload as Sensor[]) : [];
         s.pagination.totalPages = 1;
       }
+      // Ensure favorite is always boolean
+      s.data = sensors.map((sensor) => ({
+        ...sensor,
+        favorite: typeof sensor.favorite === "boolean" ? sensor.favorite : false,
+      }));
     });
 
     /* fetch stats ------------------------------------- */
@@ -331,10 +333,10 @@ const sensorSlice = createSlice({
       if (!a.payload.success) return;
       const idx = s.data.findIndex((se) => se.mac === a.payload.mac);
       if (idx !== -1) {
-        s.data[idx].isStarred = !s.data[idx].isStarred;
+        s.data[idx].favorite = !s.data[idx].favorite;
       }
       if (s.detail.sensor?.mac === a.payload.mac) {
-        s.detail.sensor.isStarred = !s.detail.sensor.isStarred;
+        s.detail.sensor.favorite = !s.detail.sensor.favorite;
       }
     });
 

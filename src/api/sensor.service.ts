@@ -52,7 +52,7 @@ export const SensorService = {
   },
 
   toggleSensorStar(mac: string) {
-    return http.post(`/sensors/${mac}/star`).then((r) => r.data);
+    return http.post(`/sensors/${mac}/favorite`).then((r) => r.data);
   },
 
   updateSensorDisplayName(mac: string, displayName: string) {

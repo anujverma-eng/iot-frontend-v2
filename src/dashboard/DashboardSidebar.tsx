@@ -230,7 +230,7 @@ function NavItem({
           }
           onPress={() => {
             if (!isDesktop || isOpen) {
-              onSelect();
+              // onSelect();
             }
           }}
         >

@@ -15,6 +15,7 @@ export interface Sensor {
   firstSeen: string;
   name?: string; // Optional field for display name
   id?: string; // Optional field for compatibility with some APIs
+  favorite?: boolean; // Add favorite field, optional for backward compatibility
 }
 
 export interface SensorResponse {
