@@ -78,6 +78,7 @@ export const SensorList: React.FC<SensorListProps> = ({
                 isComparing={isComparing}
                 isChecked={selectedIds.has(sensor._id)}
                 onCheckChange={(checked) => handleCheckboxChange(sensor._id, checked)}
+                onSensorUpdated={() => {}} // Provide a no-op or suitable callback
               />
             ))}
           </div>
