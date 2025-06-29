@@ -78,7 +78,7 @@ export const PressureChart: React.FC<PressureChartProps> = ({
             </div>
           </div>
         </div>
-        
+{/*         
         <Button
           size="sm"
           variant="light"
@@ -87,7 +87,7 @@ export const PressureChart: React.FC<PressureChartProps> = ({
           title="Download CSV"
         >
           <Icon icon="lucide:download" width={16} />
-        </Button>
+        </Button> */}
       </div>
       
       <div className="flex-1 min-h-[300px]">

@@ -205,11 +205,11 @@ export const LineChart: React.FC<LineChartProps> = ({
           {isMultiSeries ? "Comparison Chart" : `${config.type.charAt(0).toUpperCase() + config.type.slice(1)} Data`}
           <span className="text-sm text-gray-500 ml-2">{config.unit}</span>
         </div>
-        {onDownloadCSV && (
+        {/* {onDownloadCSV && (
           <Button size="sm" variant="light" isIconOnly onPress={handleDownloadCSV} title="Download CSV">
             <Icon icon="lucide:download" width={16} className="text-primary-500" />
           </Button>
-        )}
+        )} */}
       </div>
 
       <div className="flex-1 min-h-[300px]">
