@@ -379,7 +379,7 @@ export const ClaimSensorModal: React.FC<ClaimSensorModalProps> = ({ isOpen, onCl
                       <TableHeader>
                         <TableColumn key="mac" onClick={() => handleSort("mac")} className="cursor-pointer">
                           <div className="flex items-center gap-2">
-                            MAC ADDRESS
+                            SENSOR
                             {sortColumn === "mac" && (
                               <Icon
                                 icon={sortDirection === "asc" ? "lucide:chevron-up" : "lucide:chevron-down"}

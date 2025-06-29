@@ -169,8 +169,12 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
       case "mac":
         return (
           <div className="flex flex-col">
-            <p className="text-bold text-small">{sensor.mac}</p>
-            {sensor.displayName && <p className="text-bold text-tiny text-default-400">{sensor.displayName}</p>}
+            <p className="text-bold text-small">{sensor.displayName || sensor.mac}</p>
+            {sensor.mac && sensor.displayName ? (
+              <p className="text-bold text-tiny text-default-400">{sensor.mac}</p>
+            ) : (
+              <p className="text-bold text-tiny text-default-400">{sensor.displayName}</p>
+            )}
           </div>
         );
       case "type":
@@ -379,7 +383,7 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
                         <TableHeader>
                           <TableColumn key="mac" onClick={() => handleSort("mac")} className="cursor-pointer">
                             <div className="flex items-center gap-2">
-                              MAC ADDRESS
+                              SENSOR
                               {sortColumn === "mac" && (
                                 <Icon
                                   icon={sortDirection === "asc" ? "lucide:chevron-up" : "lucide:chevron-down"}
