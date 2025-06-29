@@ -215,7 +215,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ config }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
             <StatsCard
               title="Average"
-              value={stats.avg.toFixed(2)}
+              value={stats.avg.toFixed(4)}
               unit={config.unit}
               icon="lucide:bar-chart-2"
               trend={stats.trend as 'up' | 'down' | 'neutral'}
@@ -224,7 +224,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ config }) => {
             
             <StatsCard
               title="Min / Max"
-              value={`${stats.min.toFixed(2)} - ${stats.max.toFixed(2)}`}
+              value={`${stats.min.toFixed(4)} - ${stats.max.toFixed(4)}`}
               unit={config.unit}
               icon="lucide:arrow-up-down"
               color="secondary"
@@ -235,7 +235,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ config }) => {
               value={stats.count.toString()}
               icon="lucide:database"
               color="success"
-              subtitle={`Median: ${stats.median.toFixed(2)} ${config.unit}`}
+              subtitle={`Median: ${stats.median.toFixed(4)} ${config.unit}`}
             />
           </div>
           
@@ -246,7 +246,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ config }) => {
                 <div>
                   <div className="flex justify-between text-sm mb-1">
                     <span>25th Percentile</span>
-                    <span className="font-medium">{percentiles.p25.toFixed(2)} {config.unit}</span>
+                    <span className="font-medium">{percentiles.p25.toFixed(4)} {config.unit}</span>
                   </div>
                   <Progress 
                     value={((percentiles.p25 - stats.min) / (stats.max - stats.min)) * 100} 
@@ -261,7 +261,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ config }) => {
                 <div>
                   <div className="flex justify-between text-sm mb-1">
                     <span>Median (50th)</span>
-                    <span className="font-medium">{percentiles.p50.toFixed(2)} {config.unit}</span>
+                    <span className="font-medium">{percentiles.p50.toFixed(4)} {config.unit}</span>
                   </div>
                   <Progress 
                     value={((percentiles.p50 - stats.min) / (stats.max - stats.min)) * 100} 
@@ -276,7 +276,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ config }) => {
                 <div>
                   <div className="flex justify-between text-sm mb-1">
                     <span>75th Percentile</span>
-                    <span className="font-medium">{percentiles.p75.toFixed(2)} {config.unit}</span>
+                    <span className="font-medium">{percentiles.p75.toFixed(4)} {config.unit}</span>
                   </div>
                   <Progress 
                     value={((percentiles.p75 - stats.min) / (stats.max - stats.min)) * 100} 
@@ -291,7 +291,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ config }) => {
                 <div>
                   <div className="flex justify-between text-sm mb-1">
                     <span>95th Percentile</span>
-                    <span className="font-medium">{percentiles.p95.toFixed(2)} {config.unit}</span>
+                    <span className="font-medium">{percentiles.p95.toFixed(4)} {config.unit}</span>
                   </div>
                   <Progress 
                     value={((percentiles.p95 - stats.min) / (stats.max - stats.min)) * 100} 
@@ -334,7 +334,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ config }) => {
                             {new Date(point.timestamp).toLocaleString()}
                           </td>
                           <td className="px-4 py-2 text-sm font-medium">
-                            {point.value.toFixed(2)} {config.unit}
+                            {point.value.toFixed(4)} {config.unit}
                           </td>
                           <td className="px-4 py-2 text-sm">
                             {point.isHigh ? (

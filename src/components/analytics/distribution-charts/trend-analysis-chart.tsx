@@ -278,9 +278,9 @@ export const TrendAnalysisChart: React.FC<TrendAnalysisChartProps> = ({ config, 
               />
               <Tooltip
                 formatter={(value: number, name: string) => {
-                  if (name === 'ma') return [`${value.toFixed(2)} ${config.unit}`, 'Moving Avg'];
-                  if (name === 'value') return [`${value.toFixed(2)} ${config.unit}`, 'Value'];
-                  return [`${value.toFixed(2)} ${config.unit}`, name];
+                  if (name === 'ma') return [`${value.toFixed(4)} ${config.unit}`, 'Moving Avg'];
+                  if (name === 'value') return [`${value.toFixed(4)} ${config.unit}`, 'Value'];
+                  return [`${value.toFixed(4)} ${config.unit}`, name];
                 }}
                 labelFormatter={(timestamp) => new Date(timestamp).toLocaleString()}
                 contentStyle={{

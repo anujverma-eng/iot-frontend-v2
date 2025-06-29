@@ -129,7 +129,7 @@ export const SensorsPage: React.FC = () => {
           </Chip>
         );
       case "lastValue":
-        return `${sensor?.lastValue?.toFixed(1)} ${sensor?.unit?.toLowerCase() || ""}`;
+        return `${sensor?.lastValue?.toFixed(4)} ${sensor?.unit?.toLowerCase() || ""}`;
       case "lastSeen":
         return formatDistanceToNow(new Date(sensor.lastSeen), { addSuffix: true });
       case "seenBy":

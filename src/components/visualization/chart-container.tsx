@@ -492,7 +492,19 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
 
         {activeTab === "table" && (
           <div className="flex-1 overflow-auto">
-            <TableView config={config as ChartConfig} onDownloadCSV={onDownloadCSV} />
+            <TableView
+              config={{
+                ...config,
+                series: (config as ChartConfig).series?.map((s: any) => ({
+                  ...s,
+                  data: s.data?.map((d: any) => ({
+                    ...d,
+                    value: typeof d.value === "number" ? Number(d.value).toFixed(4) : d.value,
+                  })) ?? [],
+                })) ?? [],
+              }}
+              onDownloadCSV={onDownloadCSV}
+            />
           </div>
         )}
       </div>

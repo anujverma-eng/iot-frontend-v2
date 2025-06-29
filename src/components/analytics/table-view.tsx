@@ -243,20 +243,20 @@ export const TableView: React.FC<TableViewProps> = ({ config, onDownloadCSV }) =
       case 'value':
         return (
           <Badge color="primary" variant="flat">
-            {item.value.toFixed(2)} {config.unit}
+            {item.value.toFixed(4)} {config.unit}
           </Badge>
         );
       case 'min':
         return item.min !== undefined ? (
-          <span className="text-danger">{item.min.toFixed(2)} {config.unit}</span>
+          <span className="text-danger">{item.min.toFixed(4)} {config.unit}</span>
         ) : null;
       case 'max':
         return item.max !== undefined ? (
-          <span className="text-success">{item.max.toFixed(2)} {config.unit}</span>
+          <span className="text-success">{item.max.toFixed(4)} {config.unit}</span>
         ) : null;
       case 'avg':
         return item.avg !== undefined ? (
-          <span>{item.avg.toFixed(2)} {config.unit}</span>
+          <span>{item.avg.toFixed(4)} {config.unit}</span>
         ) : null;
       case 'count':
         return item.count !== undefined ? (

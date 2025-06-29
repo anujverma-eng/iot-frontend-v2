@@ -251,7 +251,7 @@ export const LineChart: React.FC<LineChartProps> = ({
             <Tooltip
               formatter={(value: number, name: string) => {
                 if (name === "movingAverage") {
-                  return [`${value.toFixed(1)} ${config.unit} (MA)`, "Moving Avg"];
+                  return [`${value.toFixed(4)} ${config.unit} (MA)`, "Moving Avg"];
                 }
                 return [`${value} ${config.unit}`, ""];
               }}
@@ -424,7 +424,7 @@ export const LineChart: React.FC<LineChartProps> = ({
             <Tooltip
               formatter={(value: number, name: string) => {
                 if (name === "movingAverage") {
-                  return [`${value.toFixed(1)} ${config.unit} (MA)`, "Moving Avg"];
+                  return [`${value.toFixed(4)} ${config.unit} (MA)`, "Moving Avg"];
                 }
                 return [`${value} ${config.unit}`, ""];
               }}

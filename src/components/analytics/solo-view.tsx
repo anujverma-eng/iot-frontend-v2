@@ -483,42 +483,42 @@ export const SoloView: React.FC = () => {
                       <Card>
                         <CardBody className="p-3">
                           <p className="text-xs text-default-500">Latest</p>
-                          <p className="text-xl font-semibold text-success-800">{stats.latest.toFixed(1)}</p>
+                          <p className="text-xl font-semibold text-success-800">{stats.latest.toFixed(4)}</p>
                           <p className="text-xs">{chartConfig?.unit}</p>
                         </CardBody>
                       </Card>
                       <Card>
                         <CardBody className="p-3">
                           <p className="text-xs text-default-500">Average</p>
-                          <p className="text-xl font-semibold text-primary-700">{stats.avg.toFixed(1)}</p>
+                          <p className="text-xl font-semibold text-primary-700">{stats.avg.toFixed(4)}</p>
                           <p className="text-xs">{chartConfig?.unit}</p>
                         </CardBody>
                       </Card>
                       <Card>
                         <CardBody className="p-3">
                           <p className="text-xs text-default-500">Minimum</p>
-                          <p className="text-xl font-semibold text-danger-700">{stats.min.toFixed(1)}</p>
+                          <p className="text-xl font-semibold text-danger-700">{stats.min.toFixed(4)}</p>
                           <p className="text-xs">{chartConfig?.unit}</p>
                         </CardBody>
                       </Card>
                       <Card>
                         <CardBody className="p-3">
                           <p className="text-xs text-default-500">Maximum</p>
-                          <p className="text-xl font-semibold text-warning-700">{stats.max.toFixed(1)}</p>
+                          <p className="text-xl font-semibold text-warning-700">{stats.max.toFixed(4)}</p>
                           <p className="text-xs">{chartConfig?.unit}</p>
                         </CardBody>
                       </Card>
                       <Card>
                         <CardBody className="p-3">
                           <p className="text-xs text-default-500">Max - Min</p>
-                          <p className="text-xl font-semibold text-sky-800">{(stats.max - stats.min).toFixed(1)}</p>
+                          <p className="text-xl font-semibold text-sky-800">{(stats.max - stats.min).toFixed(4)}</p>
                           <p className="text-xs">{chartConfig?.unit}</p>
                         </CardBody>
                       </Card>
                       <Card>
                         <CardBody className="p-3">
                           <p className="text-xs text-default-500">Std Dev</p>
-                          <p className="text-xl font-semibold">{stats.stdDev.toFixed(1)}</p>
+                          <p className="text-xl font-semibold">{stats.stdDev.toFixed(4)}</p>
                           <p className="text-xs">{chartConfig?.unit}</p>
                         </CardBody>
                       </Card>

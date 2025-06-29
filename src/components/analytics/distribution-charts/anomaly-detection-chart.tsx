@@ -158,8 +158,8 @@ export const AnomalyDetectionChart: React.FC<AnomalyDetectionChartProps> = ({ co
               <ZAxis dataKey="zScore" range={[20, 200]} name="Z-score" />
               <Tooltip
                 formatter={(value: number, name: string) => {
-                  if (name === 'Value') return [`${value.toFixed(2)} ${config.unit}`, name];
-                  if (name === 'Z-score') return [`${value.toFixed(2)}`, name];
+                  if (name === 'Value') return [`${value.toFixed(4)} ${config.unit}`, name];
+                  if (name === 'Z-score') return [`${value.toFixed(4)}`, name];
                   return [`${value}`, name];
                 }}
                 labelFormatter={(timestamp) => new Date(timestamp).toLocaleString()}
@@ -254,10 +254,10 @@ export const AnomalyDetectionChart: React.FC<AnomalyDetectionChartProps> = ({ co
                             {new Date(anomaly.timestamp).toLocaleString()}
                           </td>
                           <td className="px-3 py-2 whitespace-nowrap text-xs font-medium">
-                            {anomaly.value.toFixed(2)} {config.unit}
+                            {anomaly.value.toFixed(4)} {config.unit}
                           </td>
                           <td className="px-3 py-2 whitespace-nowrap text-xs">
-                            {anomaly.zScore.toFixed(2)}
+                            {anomaly.zScore.toFixed(4)}
                           </td>
                           <td className="px-3 py-2 whitespace-nowrap">
                             <Chip 

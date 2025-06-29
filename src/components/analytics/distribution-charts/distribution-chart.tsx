@@ -48,7 +48,7 @@ export const DistributionChart: React.FC<DistributionChartProps> = ({ config, co
       const lowerBound = min + i * binSize;
       const upperBound = min + (i + 1) * binSize;
       return {
-        range: `${lowerBound.toFixed(1)} - ${upperBound.toFixed(1)}`,
+        range: `${lowerBound.toFixed(4)} - ${upperBound.toFixed(4)}`,
         lowerBound,
         upperBound,
         count: 0,
@@ -112,7 +112,7 @@ export const DistributionChart: React.FC<DistributionChartProps> = ({ config, co
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-default-500">Mean</p>
-                    <p className="text-lg font-semibold">{histogramData.stats.mean.toFixed(2)}</p>
+                    <p className="text-lg font-semibold">{histogramData.stats.mean.toFixed(4)}</p>
                     <p className="text-xs text-default-400">{config.unit}</p>
                   </div>
                   <div className="p-2 rounded-lg bg-primary-50 text-primary">
@@ -127,7 +127,7 @@ export const DistributionChart: React.FC<DistributionChartProps> = ({ config, co
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-default-500">Std Deviation</p>
-                    <p className="text-lg font-semibold">{histogramData.stats.stdDev.toFixed(2)}</p>
+                    <p className="text-lg font-semibold">{histogramData.stats.stdDev.toFixed(4)}</p>
                     <p className="text-xs text-default-400">{config.unit}</p>
                   </div>
                   <div className="p-2 rounded-lg bg-secondary-50 text-secondary">
@@ -142,7 +142,7 @@ export const DistributionChart: React.FC<DistributionChartProps> = ({ config, co
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-default-500">Minimum</p>
-                    <p className="text-lg font-semibold">{histogramData.stats.min.toFixed(2)}</p>
+                    <p className="text-lg font-semibold">{histogramData.stats.min.toFixed(4)}</p>
                     <p className="text-xs text-default-400">{config.unit}</p>
                   </div>
                   <div className="p-2 rounded-lg bg-danger-50 text-danger">
@@ -157,7 +157,7 @@ export const DistributionChart: React.FC<DistributionChartProps> = ({ config, co
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-default-500">Maximum</p>
-                    <p className="text-lg font-semibold">{histogramData.stats.max.toFixed(2)}</p>
+                    <p className="text-lg font-semibold">{histogramData.stats.max.toFixed(4)}</p>
                     <p className="text-xs text-default-400">{config.unit}</p>
                   </div>
                   <div className="p-2 rounded-lg bg-success-50 text-success">

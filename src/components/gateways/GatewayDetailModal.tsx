@@ -185,7 +185,7 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
           </Chip>
         );
       case "lastValue":
-        return sensor.lastValue ? `${sensor.lastValue.toFixed(1)} ${sensor.lastUnit}` : "N/A";
+        return sensor.lastValue ? `${sensor.lastValue.toFixed(4)} ${sensor.lastUnit}` : "N/A";
       case "lastSeen":
         return sensor.lastSeen ? formatDistanceToNow(new Date(sensor.lastSeen), { addSuffix: true }) : "Never";
       default:

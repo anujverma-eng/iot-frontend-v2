@@ -181,7 +181,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
             <Tooltip
               formatter={(value: number, name: string) => {
                 if (name === 'movingAverage') {
-                  return [`${value.toFixed(1)} ${config.unit}`, 'Moving Avg'];
+                  return [`${value.toFixed(4)} ${config.unit}`, 'Moving Avg'];
                 }
                 if (name === 'high-low') {
                   return [`${value} ${config.unit}`, ''];

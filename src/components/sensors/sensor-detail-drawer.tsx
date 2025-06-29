@@ -192,7 +192,7 @@ export const SensorDetailDrawer: React.FC<SensorDetailDrawerProps> = ({
                         <Divider />
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-default-500">Last Value</span>
-                          <span className="font-medium">{sensor?.lastValue?.toFixed(1)} {sensor.lastUnit}</span>
+                          <span className="font-medium">{sensor?.lastValue?.toFixed(4)} {sensor.lastUnit}</span>
                         </div>
                         <Divider />
                         <div className="flex justify-between items-center">

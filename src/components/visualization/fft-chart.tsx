@@ -61,7 +61,7 @@ export const FFTChart: React.FC<FFTChartProps> = ({
           domain={[0, 1]}
         />
         <Tooltip
-          formatter={(value: number) => [`${value.toFixed(3)}`, 'Amplitude']}
+          formatter={(value: number) => [`${value.toFixed(4)}`, 'Amplitude']}
           labelFormatter={(label: number) => `${label} Hz`}
           contentStyle={{
             backgroundColor: 'var(--heroui-content1)',

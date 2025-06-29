@@ -237,8 +237,8 @@ export const BatteryChart: React.FC<BatteryChartProps> = ({
                   />
                   <Tooltip
                     formatter={(value: number, name: string) => {
-                      if (name === 'rate') return [`${value.toFixed(2)}% / hour`, 'Current'];
-                      return [`${value.toFixed(2)}% / hour`, 'Average'];
+                      if (name === 'rate') return [`${value.toFixed(4)}% / hour`, 'Current'];
+                      return [`${value.toFixed(4)}% / hour`, 'Average'];
                     }}
                     labelFormatter={(label: number) => formatTooltipDate(label)}
                     contentStyle={{

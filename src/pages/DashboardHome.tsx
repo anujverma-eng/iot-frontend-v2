@@ -260,7 +260,7 @@ console.log("gatewayStats",{gatewayStats})
                       </Chip>
                     </TableCell>
                     <TableCell>
-                      {sensor.lastValue?.toFixed(1)} {sensor.lastUnit}
+                      {sensor.lastValue?.toFixed(4)} {sensor.lastUnit}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -368,7 +368,7 @@ console.log("gatewayStats",{gatewayStats})
                       </Chip>
                     </div>
                     <div className="text-2xl font-bold mb-2">
-                      {sensor.lastValue?.toFixed(1)} {sensor.lastUnit}
+                      {sensor.lastValue?.toFixed(4)} {sensor.lastUnit}
                     </div>
                     <div className="text-sm text-default-400">
                       Last updated: {formatDistanceToNow(new Date(sensor.lastSeen), { addSuffix: true })}
