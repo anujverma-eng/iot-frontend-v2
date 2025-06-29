@@ -1,6 +1,8 @@
-import { addToast, Button, ButtonGroup, Card, Input, Tab, Tabs, Tooltip, useDisclosure } from "@heroui/react";
+import { addToast, Button, ButtonGroup, Card, Input, Tab, Tabs, Tooltip, useDisclosure, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import React from "react";
+import html2canvas from "html2canvas";
+import { saveAs } from "file-saver";
 import { ChartConfig, MultiSeriesConfig, VisualizationType } from "../../types/sensor";
 import { TableView } from "../analytics/table-view";
 import { AreaChart } from "./area-chart";
@@ -49,7 +51,6 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   const [visualizationType, setVisualizationType] = React.useState<VisualizationType>("line");
   const [showMovingAverage, setShowMovingAverage] = React.useState(false);
   const [showDailyRange, setShowDailyRange] = React.useState(false);
-  const [downloadType, setDownloadType] = React.useState<"csv" | "png">("csv");
   const chartRef = React.useRef<HTMLDivElement>(null);
 
   const memoizedConfig = React.useMemo(
@@ -307,23 +308,106 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   }
 
   const handleDownloadTypeToggle = () => {
-    setDownloadType(downloadType === "csv" ? "png" : "csv");
+    // This function is no longer needed
   };
 
-  const handleDownload = () => {
-    if (downloadType === "csv") {
+  const handleDownload = async (type: "csv" | "png") => {
+    if (type === "csv") {
       if (onDownloadCSV) {
         onDownloadCSV();
+      } else {
+        // Generate CSV data from config
+        await downloadCSV();
       }
     } else {
       // Download chart as PNG
-      if (chartRef.current) {
-        // In a real implementation, we would use dom-to-image or html2canvas
-        addToast({
-          title: "Chart downloaded",
-          description: "Chart image has been downloaded as PNG",
-        });
+      await downloadPNG();
+    }
+  };
+
+  const downloadCSV = async () => {
+    try {
+      let csvContent = "";
+      
+      if (isMultiSeries) {
+        const multiConfig = config as MultiSeriesConfig;
+        // Header
+        csvContent = "Timestamp," + multiConfig.series.map(s => s.name).join(",") + "\n";
+        
+        // Assuming all series have the same timestamps, use first series as reference
+        if (multiConfig.series.length > 0 && multiConfig.series[0].data) {
+          multiConfig.series[0].data.forEach((dataPoint, index) => {
+            const timestamp = new Date(dataPoint.timestamp).toISOString();
+            const values = multiConfig.series.map(s => 
+              s.data && s.data[index] ? s.data[index].value : ""
+            ).join(",");
+            csvContent += `${timestamp},${values}\n`;
+          });
+        }
+      } else {
+        const singleConfig = config as ChartConfig;
+        csvContent = "Timestamp,Value\n";
+        
+        if (singleConfig.series && Array.isArray(singleConfig.series)) {
+          singleConfig.series.forEach(dataPoint => {
+            const timestamp = new Date(dataPoint.timestamp).toISOString();
+            csvContent += `${timestamp},${dataPoint.value}\n`;
+          });
+        }
       }
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const filename = sensor ? 
+        `${sensor.displayName || sensor.mac}_data.csv` : 
+        `sensor_data_${new Date().toISOString().split('T')[0]}.csv`;
+      
+      saveAs(blob, filename);
+      
+      addToast({
+        title: "CSV Downloaded",
+        description: "Chart data has been downloaded as CSV",
+      });
+    } catch (error) {
+      console.error("Error downloading CSV:", error);
+      addToast({
+        title: "Download Failed",
+        description: "Failed to download CSV data",
+      });
+    }
+  };
+
+  const downloadPNG = async () => {
+    try {
+      if (chartRef.current) {
+        const canvas = await html2canvas(chartRef.current, {
+          useCORS: true,
+          allowTaint: false,
+          logging: false,
+          width: chartRef.current.offsetWidth,
+          height: chartRef.current.offsetHeight,
+        });
+        
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const filename = sensor ? 
+              `${sensor.displayName || sensor.mac}_chart.png` : 
+              `sensor_chart_${new Date().toISOString().split('T')[0]}.png`;
+            
+            saveAs(blob, filename);
+            
+            addToast({
+              title: "Chart Downloaded",
+              description: "Chart image has been downloaded as PNG",
+            });
+          }
+        }, 'image/png');
+      }
+    } catch (error) {
+      console.error("Error downloading PNG:", error);
+      addToast({
+        title: "Download Failed",
+        description: "Failed to download chart image",
+      });
     }
   };
 
@@ -449,11 +533,29 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                 />
               </Button> */}
 
-              <Tooltip content={`Download as ${downloadType.toUpperCase()}`}>
-                <Button size="sm" variant="light" color="primary" isIconOnly onPress={handleDownload}>
-                  <Icon icon={downloadType === "csv" ? "lucide:download" : "lucide:image"} width={16} />
-                </Button>
-              </Tooltip>
+              <Dropdown>
+                <DropdownTrigger>
+                  <Button size="sm" variant="light" color="primary" isIconOnly>
+                    <Icon icon="lucide:download" width={16} />
+                  </Button>
+                </DropdownTrigger>
+                <DropdownMenu aria-label="Download options">
+                  <DropdownItem
+                    key="csv"
+                    startContent={<Icon icon="lucide:download" width={16} />}
+                    onPress={() => handleDownload("csv")}
+                  >
+                    Download as CSV
+                  </DropdownItem>
+                  <DropdownItem
+                    key="png"
+                    startContent={<Icon icon="lucide:image" width={16} />}
+                    onPress={() => handleDownload("png")}
+                  >
+                    Download as PNG
+                  </DropdownItem>
+                </DropdownMenu>
+              </Dropdown>
 
               {onOpenInNewTab && (
                 <Button

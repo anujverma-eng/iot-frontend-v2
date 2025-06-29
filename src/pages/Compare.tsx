@@ -181,6 +181,8 @@ export const ComparePage: React.FC = () => {
   const handleDownloadCSV = () => {
     // In a real app, this would generate and download a CSV file
     console.log('Downloading CSV for selected sensors');
+    // For now, show a basic toast
+    console.log('CSV download functionality needs proper implementation based on available data structure');
   };
   
   // Handle clear all selected sensors

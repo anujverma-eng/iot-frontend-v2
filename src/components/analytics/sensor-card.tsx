@@ -121,7 +121,14 @@ export const SensorCard: React.FC<SensorCardProps> = ({
               {sensor.lastValue.toFixed(4)} {sensor.unit}
             </Badge>
             <span className="text-xs text-default-500">
-              {new Date(sensor.lastSeen).toLocaleString()}
+              {new Date(sensor.lastSeen).toLocaleString("en-US", {
+                month: "numeric",
+                day: "numeric",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit"
+              })}
             </span>
           </div>
 

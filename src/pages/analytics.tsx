@@ -486,10 +486,50 @@ export const AnalyticsPage: React.FC = () => {
   };
 
   const handleDownloadCSV = () => {
-    addToast({
-      title: "CSV Downloaded",
-      description: "Sensor data has been downloaded as CSV",
-    });
+    try {
+      if (!chartConfig || !chartConfig.series) {
+        addToast({
+          title: "Download Failed",
+          description: "No data available to download",
+        });
+        return;
+      }
+
+      let csvContent = "Timestamp,Value\n";
+      
+      chartConfig.series.forEach(dataPoint => {
+        const timestamp = new Date(dataPoint.timestamp).toISOString();
+        csvContent += `${timestamp},${dataPoint.value}\n`;
+      });
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const currentSensorData = sensors.find(s => s._id === selectedSensor);
+      const filename = currentSensorData ? 
+        `${currentSensorData.displayName || currentSensorData.mac}_data.csv` : 
+        `sensor_data_${new Date().toISOString().split('T')[0]}.csv`;
+      
+      // Create download link
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      addToast({
+        title: "CSV Downloaded",
+        description: "Sensor data has been downloaded as CSV",
+      });
+    } catch (error) {
+      console.error("Error downloading CSV:", error);
+      addToast({
+        title: "Download Failed",
+        description: "Failed to download CSV data",
+      });
+    }
   };
 
   const handleDisplayNameChange = (displayName: string) => {
