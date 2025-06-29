@@ -374,7 +374,7 @@ export const SoloView: React.FC = () => {
                 <Icon icon="lucide:arrow-left" width={16} />
               </Button>
 
-              <div className="relative w-full max-w-xs">
+              {/* <div className="relative w-full max-w-xs">
                 <Input
                   placeholder="Search sensors"
                   value={searchText}
@@ -407,7 +407,7 @@ export const SoloView: React.FC = () => {
                     ))}
                   </div>
                 )}
-              </div>
+              </div> */}
             </div>
 
             <div className="flex items-center gap-2">

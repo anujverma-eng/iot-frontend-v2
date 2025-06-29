@@ -1,8 +1,9 @@
 import React from "react";
-import { Card, CardBody, Checkbox, Badge, Tooltip, Spinner } from "@heroui/react";
+import { Card, CardBody, Checkbox, Badge, Tooltip, Spinner, useDisclosure } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { formatDistanceToNow } from "date-fns";
 import { Sensor } from "../../types/sensor";
+import { SensorDetailDrawer } from "../sensors/sensor-detail-drawer";
 
 interface SensorCardProps {
   sensor: Sensor;
@@ -12,6 +13,7 @@ interface SensorCardProps {
   isComparing: boolean;
   isChecked: boolean;
   onCheckChange: (checked: boolean) => void;
+  onSensorUpdated: () => void; // Added prop
 }
 
 export const SensorCard: React.FC<SensorCardProps> = ({
@@ -22,8 +24,11 @@ export const SensorCard: React.FC<SensorCardProps> = ({
   isComparing,
   isChecked,
   onCheckChange,
+  onSensorUpdated, // Added prop
 }) => {
   const [starLoading, setStarLoading] = React.useState(false);
+  const { isOpen: isDrawerOpen, onOpen: onDrawerOpen, onClose: onDrawerClose } = useDisclosure();
+  const [drawerSensor, setDrawerSensor] = React.useState<string | null>(null);
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -66,58 +71,84 @@ export const SensorCard: React.FC<SensorCardProps> = ({
     }
   };
 
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDrawerSensor(sensor.mac);
+    onDrawerOpen();
+  };
+
   return (
-    <Card
-      isPressable={!isComparing}
-      onPress={isComparing ? undefined : onSelect}
-      className={`w-full ${isSelected ? "border-primary border-2" : ""}`}
-    >
-      <CardBody className="p-3">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            <Icon icon={getTypeIcon(sensor.type)} className="text-primary-500" width={24} />
-            <div>
-              <h3 className="text-sm font-semibold">{sensor.displayName || sensor.name}</h3>
-              <p className="text-xs text-default-500">{sensor.mac}</p>
+    <>
+      <Card
+        isPressable={!isComparing}
+        onPress={isComparing ? undefined : onSelect}
+        className={`w-full ${isSelected ? "border-primary border-2" : ""}`}
+      >
+        <CardBody className="p-3">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-2">
+              <Icon icon={getTypeIcon(sensor.type)} className="text-primary-500" width={24} />
+              <div>
+                <h3 className="text-sm font-semibold">{sensor.displayName || sensor.name}</h3>
+                <p className="text-xs text-default-500">{sensor.mac}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {isComparing ? (
+                <Checkbox isSelected={isChecked} onValueChange={onCheckChange} size="sm" />
+              ) : starLoading ? (
+                <Spinner size="sm" />
+              ) : (
+                <>
+                  <Icon
+                    icon={sensor.favorite ? "mdi:star" : "mdi:star-outline"}
+                    className={`cursor-pointer ${sensor.favorite ? "text-warning" : "text-default-400"}`}
+                    style={sensor.favorite ? { color: "#fbbf24" } : {}}
+                    onClick={handleStarClick}
+                  />
+                  <Icon
+                    icon="lucide:trash"
+                    className="cursor-pointer text-danger"
+                    onClick={handleDeleteClick}
+                  />
+                </>
+              )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {isComparing ? (
-              <Checkbox isSelected={isChecked} onValueChange={onCheckChange} size="sm" />
-            ) : starLoading ? (
-              <Spinner size="sm" />
-            ) : (
-              <Icon
-                icon={sensor.favorite ? "mdi:star" : "mdi:star-outline"}
-                className={`cursor-pointer ${sensor.favorite ? "text-warning" : "text-default-400"}`}
-                style={sensor.favorite ? { color: "#fbbf24" } : {}}
-                onClick={handleStarClick}
-              />
-            )}
+
+          <div className="mt-2 flex items-center justify-between">
+            <Badge color="primary" variant="flat">
+              {sensor.lastValue.toFixed(1)} {sensor.unit}
+            </Badge>
+            <span className="text-xs text-default-500">
+              {new Date(sensor.lastSeen).toLocaleString()}
+            </span>
           </div>
-        </div>
 
-        <div className="mt-2 flex items-center justify-between">
-          <Badge color="primary" variant="flat">
-            {sensor.lastValue.toFixed(1)} {sensor.unit}
-          </Badge>
-          <span className="text-xs text-default-500">
-            {new Date(sensor.lastSeen).toLocaleString()}
-          </span>
-        </div>
+          <div className="mt-2 flex items-center justify-between text-xs text-default-500">
+            <Tooltip content={`First seen: ${formatDate(sensor.firstSeen)}`}>
+              <span>{formatDistanceToNow(new Date(sensor.firstSeen), { addSuffix: false })}</span>
+            </Tooltip>
+          </div>
 
-        <div className="mt-2 flex items-center justify-between text-xs text-default-500">
-          <Tooltip content={`First seen: ${formatDate(sensor.firstSeen)}`}>
-            <span>{formatDistanceToNow(new Date(sensor.firstSeen), { addSuffix: false })}</span>
-          </Tooltip>
-        </div>
-
-        {sensor.ignored && (
-          <Badge color="danger" variant="flat" className="mt-2">
-            Ignored
-          </Badge>
-        )}
-      </CardBody>
-    </Card>
+          {sensor.ignored && (
+            <Badge color="danger" variant="flat" className="mt-2">
+              Ignored
+            </Badge>
+          )}
+        </CardBody>
+      </Card>
+      {drawerSensor && (
+        <SensorDetailDrawer
+          isOpen={isDrawerOpen}
+          onClose={() => {
+            onDrawerClose();
+            setDrawerSensor(null);
+          }}
+          sensorMac={drawerSensor}
+          onSensorUpdated={onSensorUpdated}
+        />
+      )}
+    </>
   );
 };

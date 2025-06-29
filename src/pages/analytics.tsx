@@ -879,6 +879,7 @@ export const AnalyticsPage: React.FC = () => {
                     }}
                     onToggleStar={handleToggleStar}
                     onDisplayNameChange={handleDisplayNameChange}
+                    onOpenInNewTab={!isSoloMode ? handleOpenInNewTab : undefined}
                   />
                 </div>
 
@@ -1075,6 +1076,7 @@ export const AnalyticsPage: React.FC = () => {
                             dispatch(removeSelectedSensorId(sensor._id));
                           }
                         }}
+                        onSensorUpdated={() => {}}
                       />
                     ))}
                   </div>
