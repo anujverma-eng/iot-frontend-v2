@@ -252,7 +252,12 @@ export const ClaimSensorModal: React.FC<ClaimSensorModalProps> = ({ isOpen, onCl
           return (
             <div className="flex items-center gap-2">
               <div className="flex flex-col">
-                <p className="text-bold text-small">{sensor.mac}</p>
+                <p className="text-bold text-small">{sensor.displayName || sensor.mac}</p>
+                {sensor.mac && sensor.displayName ? (
+                  <p className="text-bold text-tiny text-default-400">{sensor.mac}</p>
+                ) : (
+                  <p className="text-bold text-tiny text-default-400">{sensor.displayName}</p>
+                )}
               </div>
               <Tooltip content="Copy MAC address">
                 <Button isIconOnly size="sm" variant="light" onPress={(e: any) => copyToClipboard(sensor.mac, e)}>
