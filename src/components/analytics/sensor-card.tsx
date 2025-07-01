@@ -1,9 +1,12 @@
 import React from "react";
-import { Card, CardBody, Checkbox, Badge, Tooltip, Spinner, useDisclosure } from "@heroui/react";
+import { Card, CardBody, Checkbox, Badge, Tooltip, Spinner, useDisclosure, addToast } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { formatDistanceToNow } from "date-fns";
+import { useDispatch } from "react-redux";
 import { Sensor } from "../../types/sensor";
-import { SensorDetailDrawer } from "../sensors/sensor-detail-drawer";
+import { DeleteSensorModal } from "../DeleteSensorModal";
+import { AppDispatch } from "../../store";
+import { unclaimSensor } from "../../store/sensorsSlice";
 
 interface SensorCardProps {
   sensor: Sensor;
@@ -26,9 +29,10 @@ export const SensorCard: React.FC<SensorCardProps> = ({
   onCheckChange,
   onSensorUpdated, // Added prop
 }) => {
+  const dispatch = useDispatch<AppDispatch>();
   const [starLoading, setStarLoading] = React.useState(false);
-  const { isOpen: isDrawerOpen, onOpen: onDrawerOpen, onClose: onDrawerClose } = useDisclosure();
-  const [drawerSensor, setDrawerSensor] = React.useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = React.useState(false);
+  const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -73,8 +77,29 @@ export const SensorCard: React.FC<SensorCardProps> = ({
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setDrawerSensor(sensor.mac);
-    onDrawerOpen();
+    onDeleteOpen();
+  };
+
+  const handleDeleteConfirm = async () => {
+    setDeleteLoading(true);
+    try {
+      await dispatch(unclaimSensor(sensor.mac)).unwrap();
+      addToast({
+        title: "Sensor unclaimed",
+        description: `Sensor ${sensor.displayName || sensor.mac} has been successfully unclaimed.`,
+        color: "success",
+      });
+      onDeleteClose();
+      onSensorUpdated();
+    } catch (error: any) {
+      addToast({
+        title: "Unclaim failed",
+        description: error.message || "Failed to unclaim sensor. Please try again.",
+        color: "danger",
+      });
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   return (
@@ -145,17 +170,14 @@ export const SensorCard: React.FC<SensorCardProps> = ({
           )}
         </CardBody>
       </Card>
-      {drawerSensor && (
-        <SensorDetailDrawer
-          isOpen={isDrawerOpen}
-          onClose={() => {
-            onDrawerClose();
-            setDrawerSensor(null);
-          }}
-          sensorMac={drawerSensor}
-          onSensorUpdated={onSensorUpdated}
-        />
-      )}
+      <DeleteSensorModal
+        isOpen={isDeleteOpen}
+        onClose={onDeleteClose}
+        onConfirm={handleDeleteConfirm}
+        sensorName={sensor.displayName || sensor.mac}
+        sensorMac={sensor.mac}
+        isLoading={deleteLoading}
+      />
     </>
   );
 };

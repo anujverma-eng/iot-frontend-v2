@@ -32,7 +32,8 @@ import {
   selectGatewayStats,
   selectDeleteLoadingIds,
   setPage,
-  deleteGateway
+  deleteGateway,
+  refreshGatewayData
 } from "../store/gatewaySlice";
 import type { Gateway } from "../types/gateway";
 
@@ -57,17 +58,11 @@ export const GatewaysPage: React.FC = () => {
 
   const fetchData = React.useCallback(async () => {
     try {
-      const [gatewaysResult, statsResult] = await Promise.all([
-        dispatch(
-          fetchGateways({
-            page: pagination.page,
-            limit: 20,
-            search: ""
-          })
-        ),
-        dispatch(fetchGatewayStats())
-      ]);
-      console.log('Gateway stats result:', statsResult);
+      await dispatch(refreshGatewayData({
+        page: pagination.page,
+        limit: 20,
+        search: ""
+      })).unwrap();
     } catch (error) {
       console.error('Error fetching data:', error);
     }
@@ -78,6 +73,7 @@ export const GatewaysPage: React.FC = () => {
   }, [fetchData]);
 
   React.useEffect(() => {
+    // Calculate local stats when gateways array changes
     if (gateways.length > 0) {
       // Calculate average sensors per gateway
       const totalSensors = gateways.reduce((sum: number, gateway: any) => {
@@ -99,6 +95,10 @@ export const GatewaysPage: React.FC = () => {
       );
 
       setLastHeartbeat(latestHeartbeat);
+    } else {
+      // Reset stats when no gateways
+      setAvgSensorsPerGateway(0);
+      setLastHeartbeat(null);
     }
   }, [gateways]);
 
@@ -131,9 +131,8 @@ export const GatewaysPage: React.FC = () => {
   );
 
   React.useEffect(() => {
-    if (gateways.length > 0) {
-      applyFilters(gateways);
-    }
+    // Apply filters when gateways array changes
+    applyFilters(gateways);
   }, [gateways, sortColumn, sortDirection, applyFilters]);
 
 
@@ -172,8 +171,11 @@ export const GatewaysPage: React.FC = () => {
       });
       onDeleteClose();
       setGatewayToDelete(null);
-      // Refetch data to update the list
-      fetchData();
+      
+      // Refresh data to ensure UI is in sync with backend
+      setTimeout(() => {
+        fetchData();
+      }, 200);
     } catch (error: any) {
       addToast({
         title: "Delete failed",
@@ -263,11 +265,11 @@ export const GatewaysPage: React.FC = () => {
           </div>
         ) : (
           <>
-            <StatsCard title="Total Gateways" value={String(stats?.totalGateways || 0)} icon="lucide:cpu" color="primary" />
-            <StatsCard title="Live Gateways" value={String(stats?.liveGateways || 0)} icon="lucide:activity" color="success" />
+            <StatsCard title="Total Gateways" value={String(stats?.totalGateways ?? 0)} icon="lucide:cpu" color="primary" />
+            <StatsCard title="Live Gateways" value={String(stats?.liveGateways ?? 0)} icon="lucide:activity" color="success" />
             <StatsCard
               title="Avg. Sensors per Gateway"
-              value={Math.ceil(avgSensorsPerGateway).toString()}
+              value={gateways.length > 0 ? Math.ceil(avgSensorsPerGateway).toString() : "0"}
               icon="lucide:radio"
               color="secondary"
             />
@@ -358,10 +360,15 @@ export const GatewaysPage: React.FC = () => {
                 />
               </div>
             </div>
-          ) : (
+          ) : gateways.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 gap-4">
               <Icon icon="lucide:database" className="w-12 h-12 text-default-400" />
               <p className="text-default-400">No gateways found</p>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-64 gap-4">
+              <Icon icon="lucide:search" className="w-12 h-12 text-default-400" />
+              <p className="text-default-400">No gateways match your filters</p>
             </div>
           )}
         </CardBody>
@@ -375,7 +382,7 @@ export const GatewaysPage: React.FC = () => {
           onClose={handleDeleteCancel}
           onConfirm={handleDeleteConfirm}
           title="Delete Gateway"
-          message={`Are you sure you want to delete the gateway "${gatewayToDelete.label || gatewayToDelete.mac}"? This action cannot be undone.`}
+          message={`Are you sure you want to delete the gateway "${gatewayToDelete.label || gatewayToDelete.mac}"?`}
           confirmText="Delete"
           cancelText="Cancel"
           confirmColor="danger"

@@ -69,6 +69,18 @@ export const deleteGateway = createAsyncThunk(
   }
 );
 
+export const refreshGatewayData = createAsyncThunk(
+  'gateways/refreshData',
+  async ({ page, limit, search }: { page: number; limit: number; search: string }, { dispatch }) => {
+    // Fetch both gateways and stats together
+    const [gatewaysResult, statsResult] = await Promise.all([
+      dispatch(fetchGateways({ page, limit, search })),
+      dispatch(fetchGatewayStats())
+    ]);
+    return { gateways: gatewaysResult.payload, stats: statsResult.payload };
+  }
+);
+
 /* ─────────────────  state  ─────────────────── */
 interface State {
   loading: boolean;
@@ -255,7 +267,35 @@ const gatewaySlice = createSlice({
     builder.addCase(deleteGateway.fulfilled, (state, action) => {
       const gatewayId = action.payload.id;
       state.deleteLoadingIds = state.deleteLoadingIds.filter(id => id !== gatewayId);
+      
+      // Find the gateway being deleted to update stats optimistically
+      const deletedGateway = state.data.find(gateway => gateway._id === gatewayId);
+      
+      // Remove gateway from the list
       state.data = state.data.filter(gateway => gateway._id !== gatewayId);
+      
+      // Optimistically update stats if they exist
+      if (state.stats && deletedGateway) {
+        state.stats.totalGateways = Math.max(0, state.stats.totalGateways - 1);
+        // Only decrease liveGateways if the deleted gateway was active
+        if (deletedGateway.status === 'active') {
+          state.stats.liveGateways = Math.max(0, state.stats.liveGateways - 1);
+        }
+      }
+    });
+
+    /* refresh gateway data ------------------------------------- */
+    builder.addCase(refreshGatewayData.pending, (state) => {
+      state.loading = true;
+      state.error = null;
+    });
+    builder.addCase(refreshGatewayData.rejected, (state, action) => {
+      state.loading = false;
+      state.error = action.error.message ?? 'Error refreshing data';
+    });
+    builder.addCase(refreshGatewayData.fulfilled, (state) => {
+      state.loading = false;
+      // Data is already updated by the individual thunks
     });
   },
 });

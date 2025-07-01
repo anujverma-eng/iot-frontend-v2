@@ -13,6 +13,7 @@ interface SensorListProps {
   searchText: string;
   onMultiSelect: (ids: string[]) => void;
   isComparing: boolean;
+  onSensorUpdated?: () => void;
 }
 
 export const SensorList: React.FC<SensorListProps> = ({
@@ -23,7 +24,8 @@ export const SensorList: React.FC<SensorListProps> = ({
   onSearch,
   searchText = "", // default to empty string
   onMultiSelect,
-  isComparing
+  isComparing,
+  onSensorUpdated
 }) => {
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
   
@@ -78,7 +80,7 @@ export const SensorList: React.FC<SensorListProps> = ({
                 isComparing={isComparing}
                 isChecked={selectedIds.has(sensor._id)}
                 onCheckChange={(checked) => handleCheckboxChange(sensor._id, checked)}
-                onSensorUpdated={() => {}} // Provide a no-op or suitable callback
+                onSensorUpdated={onSensorUpdated || (() => {})}
               />
             ))}
           </div>

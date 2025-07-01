@@ -65,7 +65,7 @@ export const DashboardNavbar = ({ onMenuToggle, className }: DashboardNavbarProp
         </Button>
       </NavbarContent>
 
-      <NavbarContent className="hidden sm:flex flex-1" justify="center">
+      {/* <NavbarContent className="hidden sm:flex flex-1" justify="center">
         <Input
           classNames={{
             base: "max-w-full sm:max-w-[30rem] h-10",
@@ -79,7 +79,7 @@ export const DashboardNavbar = ({ onMenuToggle, className }: DashboardNavbarProp
           startContent={<Icon icon="lucide:search" className="text-default-400" />}
           type="search"
         />
-      </NavbarContent>
+      </NavbarContent> */}
 
       <NavbarContent justify="end" className="gap-3">
         {/* <Button isIconOnly variant="light" size="sm" className="text-default-500">

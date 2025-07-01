@@ -1,11 +1,4 @@
-import {
-  Button,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-} from "@heroui/react";
+import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import React from "react";
 
@@ -35,38 +28,34 @@ export const DeleteGatewayConfirmationModal: React.FC<ConfirmationModalProps> = 
   icon = "lucide:alert-triangle",
 }) => {
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="sm">
+    <Modal isOpen={isOpen} onClose={onClose} size="md">
       <ModalContent>
         <ModalHeader className="flex flex-col gap-1">
           <div className="flex items-center gap-3">
-            <Icon 
-              icon={icon} 
+            <Icon
+              icon={icon}
               className={`w-6 h-6 ${
-                confirmColor === "danger" ? "text-danger" : 
-                confirmColor === "warning" ? "text-warning" : 
-                "text-primary"
-              }`} 
+                confirmColor === "danger" ? "text-danger" : confirmColor === "warning" ? "text-warning" : "text-primary"
+              }`}
             />
             <span>{title}</span>
           </div>
         </ModalHeader>
         <ModalBody>
-          <p className="text-default-600">{message}</p>
+          <p className="mb-3">{message}</p>
+          <p className="mb-2">This action will:</p>
+          <ul className="list-disc pl-6 space-y-1 text-sm">
+            <li>Remove all historical data for corresponding sensors</li>
+            <li>Mark the sensor as ignored</li>
+            <li>Make it available for others to claim</li>
+          </ul>
+          <p className="mt-3 font-medium text-danger-600">This action cannot be undone.</p>
         </ModalBody>
         <ModalFooter>
-          <Button 
-            variant="light" 
-            onPress={onClose}
-            disabled={isLoading}
-          >
+          <Button variant="light" onPress={onClose} disabled={isLoading}>
             {cancelText}
           </Button>
-          <Button 
-            color={confirmColor} 
-            onPress={onConfirm}
-            isLoading={isLoading}
-            disabled={isLoading}
-          >
+          <Button color={confirmColor} onPress={onConfirm} isLoading={isLoading} disabled={isLoading}>
             {confirmText}
           </Button>
         </ModalFooter>

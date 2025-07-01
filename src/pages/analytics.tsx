@@ -174,6 +174,21 @@ export const AnalyticsPage: React.FC = () => {
     dispatch(fetchGateways({ page: 1, limit: 1000, search: "" }));
   }, [dispatch, filters.search, filters.types, filters.status]);
 
+  // Refresh sensor data (for use after sensor updates/deletions)
+  const refreshSensorData = React.useCallback(() => {
+    dispatch(
+      fetchSensors({
+        page: pagination.page,
+        limit: pagination.limit,
+        claimed: true,
+        search: filters.search || "",
+        sort: filters.sort?.field,
+        dir: filters.sort?.direction,
+      })
+    );
+    dispatch(fetchSensorStats());
+  }, [dispatch, pagination.page, pagination.limit, filters.search, filters.sort]);
+
   // Map sensors to the format expected by components
   const mappedSensors = React.useMemo(() => {
     return sensors.map((sensor) => ({
@@ -715,7 +730,7 @@ export const AnalyticsPage: React.FC = () => {
           />
           <StatsCard
             title="Low Battery Sensors"
-            value={(stats?.offlineSensors ?? 0).toString()}
+            value="0"
             icon="lucide:battery-warning"
             color="warning"
           />
@@ -751,6 +766,7 @@ export const AnalyticsPage: React.FC = () => {
               searchText={searchQuery || ""}
               onMultiSelect={handleMultiSelect}
               isComparing={isCompareMode}
+              onSensorUpdated={refreshSensorData}
             />
             {pagination.page < pagination.totalPages && (
               <div className="p-2 border-t border-divider">
@@ -1116,7 +1132,7 @@ export const AnalyticsPage: React.FC = () => {
                             dispatch(removeSelectedSensorId(sensor._id));
                           }
                         }}
-                        onSensorUpdated={() => {}}
+                        onSensorUpdated={refreshSensorData}
                       />
                     ))}
                   </div>
