@@ -61,6 +61,14 @@ export const updateGatewayLabel = createAsyncThunk(
   }
 );
 
+export const deleteGateway = createAsyncThunk(
+  'gateways/delete',
+  async (id: string) => {
+    await GatewayService.deleteGateway(id);
+    return { id };
+  }
+);
+
 /* ─────────────────  state  ─────────────────── */
 interface State {
   loading: boolean;
@@ -68,6 +76,7 @@ interface State {
   error: string | null;
   data: Gateway[];
   stats: GatewayStats | null;
+  deleteLoadingIds: string[];
   pagination: {
     page: number;
     totalPages: number;
@@ -95,6 +104,7 @@ const initial: State = {
   error: null,
   data: [],
   stats: null,
+  deleteLoadingIds: [],
   pagination: {
     page: 1,
     totalPages: 1
@@ -230,6 +240,23 @@ const gatewaySlice = createSlice({
         };
       }
     });
+
+    /* delete gateway ------------------------------------- */
+    builder.addCase(deleteGateway.pending, (state, action) => {
+      const gatewayId = action.meta.arg;
+      state.deleteLoadingIds.push(gatewayId);
+      state.error = null;
+    });
+    builder.addCase(deleteGateway.rejected, (state, action) => {
+      const gatewayId = action.meta.arg;
+      state.deleteLoadingIds = state.deleteLoadingIds.filter(id => id !== gatewayId);
+      state.error = action.error.message ?? 'Error deleting gateway';
+    });
+    builder.addCase(deleteGateway.fulfilled, (state, action) => {
+      const gatewayId = action.payload.id;
+      state.deleteLoadingIds = state.deleteLoadingIds.filter(id => id !== gatewayId);
+      state.data = state.data.filter(gateway => gateway._id !== gatewayId);
+    });
   },
 });
 
@@ -249,6 +276,7 @@ export const selectGateways = (st: RootState) => st.gateways.data;
 export const selectGatewayStats = (st: RootState) => st.gateways.stats;
 export const selectGatewayPagination = (st: RootState) => st.gateways.pagination;
 export const gatewaysIsBusy = (st: RootState) => st.gateways.loading;
+export const selectDeleteLoadingIds = (st: RootState) => st.gateways.deleteLoadingIds;
 
 // Detail selectors
 export const selectGatewayDetail = (st: RootState) => st.gateways.detail.gateway;
@@ -261,4 +289,4 @@ export const selectGatewayDetailFilters = (st: RootState) => ({
   sortDirection: st.gateways.detail.sortDirection
 });
 export const gatewayDetailIsBusy = (st: RootState) => st.gateways.detail.loading;
-export const gatewaySensorsIsBusy = (st: RootState) => st.gateways.detail.sensorsLoading; 
+export const gatewaySensorsIsBusy = (st: RootState) => st.gateways.detail.sensorsLoading;

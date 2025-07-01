@@ -12,6 +12,7 @@ import {
   TableHeader,
   TableRow,
   useDisclosure,
+  addToast,
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { formatDistanceToNow } from "date-fns";
@@ -19,6 +20,7 @@ import { motion } from "framer-motion";
 import React from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { GatewayDetailModal } from "../components/gateways/GatewayDetailModal";
+import { DeleteGatewayConfirmationModal } from "../components/DeleteGatewayConfirmationModal";
 import { StatsCard } from "../components/stats-card";
 import { AppDispatch, RootState } from "../store";
 import {
@@ -28,7 +30,9 @@ import {
   selectGatewayPagination,
   selectGateways,
   selectGatewayStats,
-  setPage
+  selectDeleteLoadingIds,
+  setPage,
+  deleteGateway
 } from "../store/gatewaySlice";
 import type { Gateway } from "../types/gateway";
 
@@ -38,13 +42,16 @@ export const GatewaysPage: React.FC = () => {
   const stats = useSelector(selectGatewayStats);
   const pagination = useSelector(selectGatewayPagination);
   const isLoading = useSelector(gatewaysIsBusy);
+  const deleteLoadingIds = useSelector(selectDeleteLoadingIds);
   const [selectedGateway, setSelectedGateway] = React.useState<string | null>(null);
+  const [gatewayToDelete, setGatewayToDelete] = React.useState<Gateway | null>(null);
   const [sortColumn, setSortColumn] = React.useState<string | null>(null);
   const [sortDirection, setSortDirection] = React.useState<"asc" | "desc">("asc");
   const [filteredGateways, setFilteredGateways] = React.useState<Gateway[]>([]);
   const [lastHeartbeat, setLastHeartbeat] = React.useState<Date | null>(null);
   const [avgSensorsPerGateway, setAvgSensorsPerGateway] = React.useState<number>(0);
   const { isOpen: isDetailOpen, onOpen: onDetailOpen, onClose: onDetailClose } = useDisclosure();
+  const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const lastUpdateRef = React.useRef<number>(Date.now());
   const error = useSelector((state: RootState) => state.gateways.error);
 
@@ -148,6 +155,39 @@ export const GatewaysPage: React.FC = () => {
     dispatch(setPage(page));
   };
 
+  const handleDeleteClick = (gateway: Gateway) => {
+    setGatewayToDelete(gateway);
+    onDeleteOpen();
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!gatewayToDelete) return;
+
+    try {
+      await dispatch(deleteGateway(gatewayToDelete._id)).unwrap();
+      addToast({
+        title: "Gateway deleted",
+        description: `Gateway ${gatewayToDelete.label || gatewayToDelete.mac} has been successfully deleted.`,
+        color: "success",
+      });
+      onDeleteClose();
+      setGatewayToDelete(null);
+      // Refetch data to update the list
+      fetchData();
+    } catch (error: any) {
+      addToast({
+        title: "Delete failed",
+        description: error.message || "Failed to delete gateway. Please try again.",
+        color: "danger",
+      });
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    onDeleteClose();
+    setGatewayToDelete(null);
+  };
+
   const renderCell = React.useCallback((gateway: Gateway, columnKey: string) => {
     switch (columnKey) {
       case "mac":
@@ -180,10 +220,29 @@ export const GatewaysPage: React.FC = () => {
             {claimed} / {total}
           </Chip>
         );
+      case "actions":
+        console.log('Rendering actions for gateway:', gateway.mac);
+        const isDeleting = deleteLoadingIds.includes(gateway._id);
+        return (
+          <div className="flex items-center gap-2">
+            <Button
+              isIconOnly
+              size="sm"
+              variant="light"
+              color="danger"
+              onPress={() => handleDeleteClick(gateway)}
+              isLoading={isDeleting}
+              disabled={isDeleting}
+              className="min-w-unit-8 w-unit-8 h-unit-8"
+            >
+              {!isDeleting && <Icon icon="lucide:trash-2" className="w-4 h-4" />}
+            </Button>
+          </div>
+        );
       default:
         return String(gateway[columnKey as keyof Gateway] || "");
     }
-  }, []);
+  }, [deleteLoadingIds, handleDeleteClick]);
 
   return (
     <motion.div
@@ -208,7 +267,7 @@ export const GatewaysPage: React.FC = () => {
             <StatsCard title="Live Gateways" value={String(stats?.liveGateways || 0)} icon="lucide:activity" color="success" />
             <StatsCard
               title="Avg. Sensors per Gateway"
-              value={avgSensorsPerGateway.toFixed(1)}
+              value={Math.ceil(avgSensorsPerGateway).toString()}
               icon="lucide:radio"
               color="secondary"
             />
@@ -269,16 +328,22 @@ export const GatewaysPage: React.FC = () => {
                     </div>
                   </TableColumn>
                   <TableColumn key="sensors">SENSORS</TableColumn>
+                  <TableColumn key="actions" className="text-center">ACTIONS</TableColumn>
                 </TableHeader>
                 <TableBody>
                   {filteredGateways.map((gateway) => (
                     <TableRow
                       key={gateway._id}
                       className={gateway.status === "offline" ? "opacity-60" : ""}
-                      onClick={() => handleGatewayClick(gateway._id)}
-                      style={{ cursor: "pointer" }}
                     >
-                      {(columnKey) => <TableCell>{renderCell(gateway, columnKey.toString())}</TableCell>}
+                      {(columnKey) => (
+                        <TableCell 
+                          className={columnKey === "actions" ? "" : "cursor-pointer"}
+                          onClick={columnKey === "actions" ? undefined : () => handleGatewayClick(gateway._id)}
+                        >
+                          {renderCell(gateway, columnKey.toString())}
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -303,6 +368,19 @@ export const GatewaysPage: React.FC = () => {
       </Card>
       {selectedGateway && (
         <GatewayDetailModal isOpen={isDetailOpen} onClose={onDetailClose} gatewayId={selectedGateway} />
+      )}
+      {gatewayToDelete && (
+        <DeleteGatewayConfirmationModal
+          isOpen={isDeleteOpen}
+          onClose={handleDeleteCancel}
+          onConfirm={handleDeleteConfirm}
+          title="Delete Gateway"
+          message={`Are you sure you want to delete the gateway "${gatewayToDelete.label || gatewayToDelete.mac}"? This action cannot be undone.`}
+          confirmText="Delete"
+          cancelText="Cancel"
+          confirmColor="danger"
+          isLoading={deleteLoadingIds.includes(gatewayToDelete._id)}
+        />
       )}
     </motion.div>
   );

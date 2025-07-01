@@ -49,7 +49,7 @@ export const TableView: React.FC<TableViewProps> = ({ config, onDownloadCSV }) =
       const date = new Date(timestamp);
       return {
         date: date.toLocaleDateString(),
-        time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
       };
     };
 
@@ -333,7 +333,7 @@ export const TableView: React.FC<TableViewProps> = ({ config, onDownloadCSV }) =
             </DropdownMenu>
           </Dropdown>
 
-          <Tooltip content="Download as CSV">
+          {/* <Tooltip content="Download as CSV">
             <Button
               size="sm"
               variant="flat"
@@ -343,7 +343,7 @@ export const TableView: React.FC<TableViewProps> = ({ config, onDownloadCSV }) =
             >
               Export
             </Button>
-          </Tooltip>
+          </Tooltip> */}
         </div>
       </div>
 

@@ -15,6 +15,8 @@ import {
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import React from "react";
+import html2canvas from "html2canvas";
+import { saveAs } from "file-saver";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, useParams } from "react-router-dom";
 import { chartColors } from "../../data/analytics";
@@ -32,7 +34,7 @@ import {
 } from "../../store/sensorsSlice";
 import { fetchTelemetry, selectTelemetryData, selectTelemetryLoading } from "../../store/telemetrySlice";
 import { ChartConfig } from "../../types/sensor";
-import { ChartContainer } from "../visualization/chart-container";
+import { LineChart } from "../visualization/line-chart";
 import { AnomalyDetectionChart } from "./distribution-charts/anomaly-detection-chart";
 import { CorrelationAnalysisChart } from "./distribution-charts/correlation-analysis-chart";
 import { DistributionChart } from "./distribution-charts/distribution-chart";
@@ -68,6 +70,8 @@ export const SoloView: React.FC = () => {
   // const [rowsPerPage, setRowsPerPage] = React.useState(10);
   // const [sortDescriptor, setSortDescriptor] = React.useState({ column: "timestamp", direction: "descending" });
   const [groupBy, setGroupBy] = React.useState<"none" | "hourly" | "daily" | "weekly">("none");
+  const [starLoading, setStarLoading] = React.useState(false);
+  const chartRef = React.useRef<HTMLDivElement>(null);
 
   const sensorsLoaded = useSelector((s: RootState) => s.sensors.loaded);
   const sensorsLoading = useSelector(selectSensorsLoading);
@@ -78,7 +82,7 @@ export const SoloView: React.FC = () => {
       ...sensor,
       id: sensor._id,
       displayName: sensor.displayName,
-      starred: sensor.isStarred,
+      starred: sensor.favorite,
     }));
   }, [sensors]);
 
@@ -333,28 +337,28 @@ export const SoloView: React.FC = () => {
       }
 
       let csvContent = "Timestamp,Value\n";
-      
-      chartConfig.series.forEach(dataPoint => {
+
+      chartConfig.series.forEach((dataPoint) => {
         const timestamp = new Date(dataPoint.timestamp).toISOString();
         csvContent += `${timestamp},${dataPoint.value}\n`;
       });
 
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const filename = currentSensor ? 
-        `${currentSensor.displayName || currentSensor.mac}_data.csv` : 
-        `sensor_data_${new Date().toISOString().split('T')[0]}.csv`;
-      
+      const filename = currentSensor
+        ? `${currentSensor.displayName || currentSensor.mac}_data.csv`
+        : `sensor_data_${new Date().toISOString().split("T")[0]}.csv`;
+
       // Create download link
       const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', filename);
-      link.style.visibility = 'hidden';
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", filename);
+      link.style.visibility = "hidden";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      
+
       addToast({
         title: "CSV Downloaded",
         description: "Sensor data has been downloaded as CSV",
@@ -365,6 +369,49 @@ export const SoloView: React.FC = () => {
         title: "Download Failed",
         description: "Failed to download CSV data",
       });
+    }
+  };
+
+  const downloadPNG = async () => {
+    try {
+      if (chartRef.current) {
+        const canvas = await html2canvas(chartRef.current, {
+          useCORS: true,
+          allowTaint: false,
+          logging: false,
+          width: chartRef.current.offsetWidth,
+          height: chartRef.current.offsetHeight,
+        });
+
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const filename = currentSensor
+              ? `${currentSensor.displayName || currentSensor.mac}_chart.png`
+              : `sensor_chart_${new Date().toISOString().split("T")[0]}.png`;
+
+            saveAs(blob, filename);
+
+            addToast({
+              title: "Chart Downloaded",
+              description: "Chart image has been downloaded as PNG",
+            });
+          }
+        }, "image/png");
+      }
+    } catch (error) {
+      console.error("Error downloading PNG:", error);
+      addToast({
+        title: "Download Failed",
+        description: "Failed to download chart image",
+      });
+    }
+  };
+
+  const handleDownload = async (type: "csv" | "png") => {
+    if (type === "csv") {
+      handleDownloadCSV();
+    } else {
+      await downloadPNG();
     }
   };
 
@@ -384,9 +431,20 @@ export const SoloView: React.FC = () => {
     }
   };
 
-  const handleToggleStar = () => {
-    if (sensorId) {
-      dispatch(toggleSensorStar(sensorId));
+  const handleToggleStar = async () => {
+    setStarLoading(true);
+    try {
+      console.log("🔄 handleToggleStar", currentSensor?.mac);
+      if (currentSensor?.mac) {
+        await dispatch(toggleSensorStar(currentSensor.mac)).unwrap();
+      }
+    } catch (e) {
+      addToast({
+        title: "Failed to update favorite",
+        description: typeof e === "string" ? e : "Please try again.",
+      });
+    } finally {
+      setStarLoading(false);
     }
   };
 
@@ -506,12 +564,39 @@ export const SoloView: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <Button isIconOnly size="sm" variant="light" onPress={handleToggleStar}>
+                      {starLoading ? (
+                        <Spinner size="sm" />
+                      ) : (
                         <Icon
-                          icon="lucide:star"
-                          className={currentSensor.starred ? "text-warning fill-warning" : "text-default-400"}
+                          icon={currentSensor.starred ? "mdi:star" : "mdi:star-outline"}
+                          className={`cursor-pointer ${currentSensor.starred ? "text-warning" : "text-default-400"}`}
+                          style={currentSensor.starred ? { color: "#fbbf24" } : {}}
+                          onClick={handleToggleStar}
                         />
-                      </Button>
+                      )}
+                      <Dropdown>
+                        <DropdownTrigger>
+                          <Button size="sm" variant="light" color="primary" isIconOnly>
+                            <Icon icon="lucide:download" width={16} />
+                          </Button>
+                        </DropdownTrigger>
+                        <DropdownMenu aria-label="Download options">
+                          <DropdownItem
+                            key="csv"
+                            startContent={<Icon icon="lucide:download" width={16} />}
+                            onPress={() => handleDownload("csv")}
+                          >
+                            Download as CSV
+                          </DropdownItem>
+                          <DropdownItem
+                            key="png"
+                            startContent={<Icon icon="lucide:image" width={16} />}
+                            onPress={() => handleDownload("png")}
+                          >
+                            Download as PNG
+                          </DropdownItem>
+                        </DropdownMenu>
+                      </Dropdown>
                     </div>
                   </div>
                   <p className="text-small text-default-500 mt-1">{currentSensor.mac}</p>
@@ -571,20 +656,13 @@ export const SoloView: React.FC = () => {
             <Tabs selectedKey={selectedTab} onSelectionChange={setSelectedTab as any} className="mb-4">
               <Tab key="chart" title="Chart View">
                 {chartConfig && (
-                  <ChartContainer
-                    config={chartConfig}
-                    onBrushChange={handleBrushChange}
-                    onDownloadCSV={handleDownloadCSV}
-                    sensor={{
-                      id: currentSensor._id,
-                      mac: currentSensor.mac,
-                      displayName: currentSensor.displayName,
-                    }}
-                    onDisplayNameChange={handleDisplayNameChange}
-                    onToggleStar={handleToggleStar}
-                    isStarred={currentSensor.starred}
-                  />
+                  <div className="w-full h-[400px] rounded-lg bg-white dark:bg-content1 p-4" ref={chartRef}>
+                    <LineChart config={chartConfig} />
+                  </div>
                 )}
+              </Tab>
+              <Tab key="table" title="Table View">
+                {chartConfig && <TableView config={chartConfig} onDownloadCSV={handleDownloadCSV} />}
               </Tab>
               {/* <Tab key="table" title="Table Viewss">
                 <Card>

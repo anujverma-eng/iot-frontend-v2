@@ -33,6 +33,8 @@ export const GatewayService = {
       params: { claimed, page, limit, search, sort, dir },
     }),
 
-    updateGateway: (id: string, data: { label?: string }) =>
+  updateGateway: (id: string, data: { label?: string }) =>
     http.patch(`/gateways/${id}`, data),
+
+  deleteGateway: (id: string) => http.delete(`/gateways/${id}`),
 };
