@@ -379,7 +379,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ config }) => {
         
         <Tab key="anomaly" title="Anomaly Detection">
           <div className="h-[500px] border border-default-200 rounded-lg p-4 bg-white dark:bg-gray-900 shadow-sm">
-            <AnomalyDetectionChart config={filteredConfig} />
+            <AnomalyDetectionChart config={filteredConfig} showCards/>
           </div>
         </Tab>
         

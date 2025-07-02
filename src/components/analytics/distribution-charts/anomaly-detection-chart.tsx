@@ -17,11 +17,11 @@ import { ChartConfig } from "../../../types/sensor";
 
 interface AnomalyDetectionChartProps {
   config: ChartConfig;
-  showChart: boolean;
+  showChart?: boolean;
   showCards?: boolean;
 }
 
-export const AnomalyDetectionChart: React.FC<AnomalyDetectionChartProps> = ({ config, showChart, showCards }) => {
+export const AnomalyDetectionChart: React.FC<AnomalyDetectionChartProps> = ({ config, showChart = false, showCards=false }) => {
   // Calculate anomalies using Z-score method
   const anomalyData = React.useMemo(() => {
     if (!config.series || config.series.length < 10) return null;
