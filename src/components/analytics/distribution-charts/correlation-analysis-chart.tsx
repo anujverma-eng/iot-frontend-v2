@@ -16,13 +16,15 @@ import { ChartConfig } from '../../../types/sensor';
 interface CorrelationAnalysisChartProps {
   config: ChartConfig;
   secondaryConfig?: ChartConfig;
-  compact?: boolean;
+  showCards?: boolean;
+  showChart?: boolean;
 }
 
 export const CorrelationAnalysisChart: React.FC<CorrelationAnalysisChartProps> = ({ 
   config, 
   secondaryConfig,
-  compact = false 
+  showCards,
+  showChart,
 }) => {
   // If no secondary config is provided, we'll analyze autocorrelation
   // (correlation between current values and lagged values)
@@ -184,12 +186,12 @@ export const CorrelationAnalysisChart: React.FC<CorrelationAnalysisChartProps> =
   };
   
   return (
-    <div className={`w-full ${compact ? 'h-full' : ''}`}>
+    <div className={`w-full ${showChart ? 'h-full' : ''}`}>
       <div className="flex flex-col h-full">
         {correlationData.type === 'cross' ? (
           // Cross-correlation between two sensors
           <>
-            {!compact && (
+            {showCards && (
               <div className="mb-4">
                 <Card className="shadow-sm">
                   <CardBody className="p-4">
@@ -224,7 +226,8 @@ export const CorrelationAnalysisChart: React.FC<CorrelationAnalysisChartProps> =
               </div>
             )}
             
-            <div className={`flex-1 ${compact ? 'h-full' : 'min-h-[300px]'}`}>
+            {showChart && 
+            <div className={`flex-1 ${showChart ? 'h-full' : 'min-h-[300px]'}`}>
               <ResponsiveContainer width="100%" height="100%">
                 <ScatterChart
                   margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
@@ -305,12 +308,12 @@ export const CorrelationAnalysisChart: React.FC<CorrelationAnalysisChartProps> =
                   />
                 </ScatterChart>
               </ResponsiveContainer>
-            </div>
+            </div>}
           </>
         ) : (
           // Autocorrelation analysis
           <>
-            {!compact && (
+            {showCards && (
               <div className="mb-4">
                 <Card className="shadow-sm">
                   <CardBody className="p-4">
@@ -369,7 +372,7 @@ export const CorrelationAnalysisChart: React.FC<CorrelationAnalysisChartProps> =
               </div>
             )}
             
-            <div className={`flex-1 ${compact ? 'h-full' : 'min-h-[300px]'}`}>
+            <div className={`flex-1 ${showChart ? 'h-full mt-5' : 'min-h-[300px]'}`}>
               <ResponsiveContainer width="100%" height="100%">
                 <ScatterChart
                   margin={{ top: 20, right: 30, left: 20, bottom: 20 }}

@@ -588,13 +588,13 @@ export const SoloView: React.FC = () => {
                           >
                             Download as CSV
                           </DropdownItem>
-                          <DropdownItem
+                          {/* <DropdownItem
                             key="png"
                             startContent={<Icon icon="lucide:image" width={16} />}
                             onPress={() => handleDownload("png")}
                           >
                             Download as PNG
-                          </DropdownItem>
+                          </DropdownItem> */}
                         </DropdownMenu>
                       </Dropdown>
                     </div>
@@ -720,22 +720,22 @@ export const SoloView: React.FC = () => {
                     <Tabs aria-label="Analytics tabs" color="primary" variant="underlined" className="mb-4">
                       <Tab key="distribution" title="Distribution">
                         <div className="h-[400px] mt-4">
-                          {chartConfig && <DistributionChart config={chartConfig} />}
+                          {chartConfig && <DistributionChart config={chartConfig} showCards showChart />}
                         </div>
                       </Tab>
                       <Tab key="trend" title="Trend Analysis">
                         <div className="h-[400px] mt-4">
-                          {chartConfig && <TrendAnalysisChart config={chartConfig} />}
+                          {chartConfig && <TrendAnalysisChart config={chartConfig} showCards showChart />}
                         </div>
                       </Tab>
                       <Tab key="anomaly" title="Anomaly Detection">
                         <div className="h-[400px] mt-4">
-                          {chartConfig && <AnomalyDetectionChart config={chartConfig} />}
+                          {chartConfig && <AnomalyDetectionChart config={chartConfig} showCards showChart/>}
                         </div>
                       </Tab>
                       <Tab key="correlation" title="Correlation">
                         <div className="h-[400px] mt-4">
-                          {chartConfig && <CorrelationAnalysisChart config={chartConfig} />}
+                          {chartConfig && <CorrelationAnalysisChart config={chartConfig} showCards showChart />}
                         </div>
                       </Tab>
                     </Tabs>
@@ -749,7 +749,7 @@ export const SoloView: React.FC = () => {
                     <CardBody className="p-3">
                       <h3 className="text-sm font-medium mb-2 text-primary-600">Value Distribution</h3>
                       <div className="h-[250px]">
-                        {chartConfig && <DistributionChart config={chartConfig} compact />}
+                        {chartConfig && <DistributionChart config={chartConfig} showChart />}
                       </div>
                     </CardBody>
                   </Card>
@@ -758,7 +758,7 @@ export const SoloView: React.FC = () => {
                     <CardBody className="p-3">
                       <h3 className="text-sm font-medium mb-2 text-secondary-600">Trend Analysis</h3>
                       <div className="h-[250px]">
-                        {chartConfig && <TrendAnalysisChart config={chartConfig} compact />}
+                        {chartConfig && <TrendAnalysisChart config={chartConfig} showChart />}
                       </div>
                     </CardBody>
                   </Card>
@@ -767,7 +767,7 @@ export const SoloView: React.FC = () => {
                     <CardBody className="p-3">
                       <h3 className="text-sm font-medium mb-2 text-danger-600">Anomaly Detection</h3>
                       <div className="h-[250px]">
-                        {chartConfig && <AnomalyDetectionChart config={chartConfig} compact />}
+                        {chartConfig && <AnomalyDetectionChart config={chartConfig} showChart />}
                       </div>
                     </CardBody>
                   </Card>
@@ -776,7 +776,7 @@ export const SoloView: React.FC = () => {
                     <CardBody className="p-3">
                       <h3 className="text-sm font-medium mb-2 text-success-600">Correlation Analysis</h3>
                       <div className="h-[250px]">
-                        {chartConfig && <CorrelationAnalysisChart config={chartConfig} compact />}
+                        {chartConfig && <CorrelationAnalysisChart config={chartConfig} showChart />}
                       </div>
                     </CardBody>
                   </Card>

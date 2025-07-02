@@ -547,13 +547,13 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                   >
                     Download as CSV
                   </DropdownItem>
-                  <DropdownItem
+                  {/* <DropdownItem
                     key="png"
                     startContent={<Icon icon="lucide:image" width={16} />}
                     onPress={() => handleDownload("png")}
                   >
                     Download as PNG
-                  </DropdownItem>
+                  </DropdownItem> */}
                 </DropdownMenu>
               </Dropdown>
 

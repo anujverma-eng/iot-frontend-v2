@@ -16,10 +16,17 @@ import { ChartConfig } from '../../../types/sensor';
 
 interface DistributionChartProps {
   config: ChartConfig;
-  compact?: boolean;
+  showCards?: boolean;
+  showChart?: boolean;
 }
 
-export const DistributionChart: React.FC<DistributionChartProps> = ({ config, compact = false }) => {
+export const DistributionChart: React.FC<DistributionChartProps> = ({ 
+  config, 
+  showCards, 
+  showChart,
+}) => {
+  const displayCards = showCards
+  const displayChart = showChart
   // Generate histogram data
   const histogramData = React.useMemo(() => {
     if (!config.series || config.series.length === 0) {
@@ -103,9 +110,9 @@ export const DistributionChart: React.FC<DistributionChartProps> = ({ config, co
   }
   
   return (
-    <div className={`w-full ${compact ? 'h-full' : ''}`}>
+    <div className={`w-full ${displayChart ? 'h-full' : ''}`}>
       <div className="flex flex-col h-full">
-        {!compact && (
+        {displayCards && (
           <div className="mb-4 grid grid-cols-1 md:grid-cols-5 gap-4">
             <Card className="shadow-sm">
               <CardBody className="p-3">
@@ -184,8 +191,9 @@ export const DistributionChart: React.FC<DistributionChartProps> = ({ config, co
           </div>
         )}
         
-        <div className={`flex-1 ${compact ? 'h-full' : 'min-h-[300px]'}`}>
-          <ResponsiveContainer width="100%" height="100%">
+        {displayChart && (
+          <div className={`flex-1 ${displayChart ? 'h-full mt-5' : 'min-h-[300px]'}`}>
+            <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={histogramData.bins}
               margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
@@ -272,6 +280,7 @@ export const DistributionChart: React.FC<DistributionChartProps> = ({ config, co
             </BarChart>
           </ResponsiveContainer>
         </div>
+        )}
       </div>
     </div>
   );
