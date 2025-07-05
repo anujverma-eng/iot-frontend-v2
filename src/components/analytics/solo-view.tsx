@@ -719,22 +719,22 @@ export const SoloView: React.FC = () => {
                   <CardBody>
                     <Tabs aria-label="Analytics tabs" color="primary" variant="underlined" className="mb-4">
                       <Tab key="distribution" title="Distribution">
-                        <div className="h-[400px] mt-4">
+                        <div className="h-[700px] mt-4">
                           {chartConfig && <DistributionChart config={chartConfig} showCards showChart />}
                         </div>
                       </Tab>
                       <Tab key="trend" title="Trend Analysis">
-                        <div className="h-[400px] mt-4">
+                        <div className="h-[700px] mt-4">
                           {chartConfig && <TrendAnalysisChart config={chartConfig} showCards showChart />}
                         </div>
                       </Tab>
                       <Tab key="anomaly" title="Anomaly Detection">
-                        <div className="h-[400px] mt-4">
+                        <div className="h-[700px] mt-4">
                           {chartConfig && <AnomalyDetectionChart config={chartConfig} showCards showChart/>}
                         </div>
                       </Tab>
                       <Tab key="correlation" title="Correlation">
-                        <div className="h-[400px] mt-4">
+                        <div className="h-[700px] mt-4">
                           {chartConfig && <CorrelationAnalysisChart config={chartConfig} showCards showChart />}
                         </div>
                       </Tab>

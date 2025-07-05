@@ -3,10 +3,12 @@ import { Icon } from '@iconify/react';
 import React from 'react';
 import { Sensor } from '../../types/sensor';
 import { SensorCard } from './sensor-card';
+import { useDebouncedSensorSelection } from '../../hooks/useDebouncedSensorSelection';
 
 interface SensorListProps {
   sensors: Sensor[];
   selectedSensorIds: string[];
+  currentSelectedSensor: string | null; // Current single selected sensor
   onSensorSelect: (id: string) => void;
   onSensorToggleStar: (mac: string) => void;
   onSearch: (text: string) => void;
@@ -14,20 +16,32 @@ interface SensorListProps {
   onMultiSelect: (ids: string[]) => void;
   isComparing: boolean;
   onSensorUpdated?: () => void;
+  isDataLoading?: boolean; // Loading state for better UX
+  isSensorLoading?: (sensorId: string) => boolean; // Individual sensor loading check
+  isCompareLoading?: boolean; // Compare mode loading state
+  shouldShowComparison?: (count: number) => boolean; // Check if comparison should be shown
 }
 
 export const SensorList: React.FC<SensorListProps> = ({
   sensors,
   selectedSensorIds,
+  currentSelectedSensor, // Add current selected sensor
   onSensorSelect,
   onSensorToggleStar,
   onSearch,
   searchText = "", // default to empty string
   onMultiSelect,
   isComparing,
-  onSensorUpdated
+  onSensorUpdated,
+  isDataLoading = false, // Loading state
+  isSensorLoading = () => false, // Individual sensor loading check
+  isCompareLoading = false, // Compare mode loading state
+  shouldShowComparison = () => true // Should show comparison check
 }) => {
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
+  
+  // Use debounced sensor selection to prevent race conditions
+  const { debouncedSelect } = useDebouncedSensorSelection(onSensorSelect, 150);
   
   // Reset selection when comparing mode changes
   React.useEffect(() => {
@@ -74,13 +88,18 @@ export const SensorList: React.FC<SensorListProps> = ({
               <SensorCard
                 key={sensor._id}
                 sensor={sensor}
-                isSelected={selectedSensorIds.includes(sensor._id)}
-                onSelect={() => onSensorSelect(sensor._id)}
+                isSelected={currentSelectedSensor === sensor._id} // Use current selected sensor for accurate state
+                onSelect={() => debouncedSelect(sensor._id)} // Use debounced selection
                 onToggleStar={() => onSensorToggleStar(sensor.mac)}
                 isComparing={isComparing}
                 isChecked={selectedIds.has(sensor._id)}
                 onCheckChange={(checked) => handleCheckboxChange(sensor._id, checked)}
                 onSensorUpdated={onSensorUpdated || (() => {})}
+                isDataLoading={
+                  isComparing 
+                    ? isSensorLoading(sensor._id) // Show loading for individual sensors in compare mode
+                    : isDataLoading && currentSelectedSensor === sensor._id // Show loading for current sensor only in single mode
+                }
               />
             ))}
           </div>

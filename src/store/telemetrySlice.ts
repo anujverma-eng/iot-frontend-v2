@@ -38,7 +38,11 @@ export const fetchTelemetry = createAsyncThunk<
       timeRange: params.timeRange,
     });
 
-    const bucketSize = chooseBucketSize(params.timeRange.start, params.timeRange.end);
+    // Detect if mobile for optimized bucket sizing
+    const isMobile = window.innerWidth < 768;
+    const bucketSize = chooseBucketSize(params.timeRange.start, params.timeRange.end, 400, isMobile);
+    console.log(`Using bucket size: ${bucketSize} (mobile: ${isMobile})`);
+    
     const response = await TelemetryService.query({ ...params, bucketSize });
 
     /* map backend payload → UI-friendly structure */

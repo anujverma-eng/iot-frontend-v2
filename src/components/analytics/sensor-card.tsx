@@ -17,9 +17,10 @@ interface SensorCardProps {
   isChecked: boolean;
   onCheckChange: (checked: boolean) => void;
   onSensorUpdated: () => void; // Added prop
+  isDataLoading?: boolean; // Add loading state prop
 }
 
-export const SensorCard: React.FC<SensorCardProps> = ({
+export const SensorCard: React.FC<SensorCardProps> = React.memo(({
   sensor,
   isSelected,
   onSelect,
@@ -28,14 +29,55 @@ export const SensorCard: React.FC<SensorCardProps> = ({
   isChecked,
   onCheckChange,
   onSensorUpdated, // Added prop
+  isDataLoading = false, // Add loading state with default
 }) => {
   const dispatch = useDispatch<AppDispatch>();
   const [starLoading, setStarLoading] = React.useState(false);
   const [deleteLoading, setDeleteLoading] = React.useState(false);
+  const [isLocallyChecked, setIsLocallyChecked] = React.useState(isChecked); // Local state for immediate feedback
+  const [showDataLoading, setShowDataLoading] = React.useState(false); // Delayed loading state
+  const loadingTimeoutRef = React.useRef<NodeJS.Timeout>();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
 
-  const getTypeIcon = (type: string) => {
-    switch (type) {
+  // Sync local state with prop when it changes
+  React.useEffect(() => {
+    setIsLocallyChecked(isChecked);
+  }, [isChecked]);
+
+  // Handle delayed loading overlay to prevent UI blocking
+  React.useEffect(() => {
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+    }
+
+    if (isDataLoading) {
+      // Only show loading overlay after a delay to allow UI to render selection feedback first
+      loadingTimeoutRef.current = setTimeout(() => {
+        setShowDataLoading(true);
+      }, 300); // 300ms delay before showing loading overlay
+    } else {
+      setShowDataLoading(false);
+    }
+
+    return () => {
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+    };
+  }, [isDataLoading]);
+
+  // Cleanup on unmount
+  React.useEffect(() => {
+    return () => {
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Memoize type icon to prevent recalculation
+  const typeIcon = React.useMemo(() => {
+    switch (sensor.type) {
       case "temperature":
         return "lucide:thermometer";
       case "humidity":
@@ -47,25 +89,38 @@ export const SensorCard: React.FC<SensorCardProps> = ({
       default:
         return "lucide:sensor";
     }
-  };
-  const isLive = () => {
-    const lastSeen = new Date(sensor.lastSeen);
-    const today = new Date();
-    return lastSeen.toDateString() === today.toDateString();
-  };
+  }, [sensor.type]);
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleString("en-US", {
+  // Memoize formatted dates to prevent recalculation
+  const formattedDates = React.useMemo(() => ({
+    lastSeen: new Date(sensor.lastSeen).toLocaleString("en-US", {
+      month: "numeric",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit"
+    }),
+    firstSeenTooltip: new Date(sensor.firstSeen).toLocaleString("en-US", {
       month: "short",
       day: "numeric",
       year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
-    });
-  };
+    }),
+    firstSeenDistance: formatDistanceToNow(new Date(sensor.firstSeen), { addSuffix: false })
+  }), [sensor.lastSeen, sensor.firstSeen]);
 
-  const handleStarClick = async (e: React.MouseEvent) => {
+  // Optimize card styling with memoization
+  const cardClassName = React.useMemo(() => {
+    const baseClasses = "w-full";
+    const borderClasses = isSelected || (isComparing && isLocallyChecked) ? "border-primary border-2" : "";
+    const loadingClasses = showDataLoading ? "opacity-70" : "";
+    return `${baseClasses} ${borderClasses} ${loadingClasses}`.trim();
+  }, [isSelected, isComparing, isLocallyChecked, showDataLoading]);
+
+  // Use useCallback for event handlers to prevent unnecessary re-renders
+  const handleStarClick = React.useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
     setStarLoading(true);
     try {
@@ -73,14 +128,14 @@ export const SensorCard: React.FC<SensorCardProps> = ({
     } finally {
       setStarLoading(false);
     }
-  };
+  }, [onToggleStar, sensor.mac]);
 
-  const handleDeleteClick = (e: React.MouseEvent) => {
+  const handleDeleteClick = React.useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     onDeleteOpen();
-  };
+  }, [onDeleteOpen]);
 
-  const handleDeleteConfirm = async () => {
+  const handleDeleteConfirm = React.useCallback(async () => {
     setDeleteLoading(true);
     try {
       await dispatch(unclaimSensor(sensor.mac)).unwrap();
@@ -100,19 +155,34 @@ export const SensorCard: React.FC<SensorCardProps> = ({
     } finally {
       setDeleteLoading(false);
     }
-  };
+  }, [dispatch, sensor.mac, sensor.displayName, onDeleteClose, onSensorUpdated]);
+
+  // Optimize checkbox change handler with immediate local feedback
+  const handleCheckboxChange = React.useCallback((checked: boolean) => {
+    // Update local state immediately for instant visual feedback
+    setIsLocallyChecked(checked);
+    
+    // Use setTimeout to ensure UI updates before any heavy operations
+    setTimeout(() => onCheckChange(checked), 0);
+  }, [onCheckChange]);
 
   return (
     <>
       <Card
         isPressable={!isComparing}
         onPress={isComparing ? undefined : onSelect}
-        className={`w-full ${isSelected ? "border-primary border-2" : ""}`}
+        className={cardClassName}
       >
-        <CardBody className="p-3">
+        <CardBody className="p-3 relative">
+          {/* Only show loading overlay after delay and when data is actually loading */}
+          {showDataLoading && (
+            <div className="absolute inset-0 bg-background/30 backdrop-blur-[1px] flex items-center justify-center z-10 rounded-lg">
+              <Spinner size="sm" color="primary" />
+            </div>
+          )}
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-2">
-              <Icon icon={getTypeIcon(sensor.type)} className="text-primary-500" width={24} />
+              <Icon icon={typeIcon} className="text-primary-500" width={24} />
               <div>
                 <h3 className="text-sm font-semibold">{sensor.displayName || sensor.name}</h3>
                 <p className="text-xs text-default-500">{sensor.mac}</p>
@@ -120,7 +190,12 @@ export const SensorCard: React.FC<SensorCardProps> = ({
             </div>
             <div className="flex items-center gap-2">
               {isComparing ? (
-                <Checkbox isSelected={isChecked} onValueChange={onCheckChange} size="sm" />
+                <Checkbox 
+                  isSelected={isLocallyChecked} // Use local state for immediate feedback
+                  onValueChange={handleCheckboxChange} 
+                  size="sm"
+                  className="z-20" // Ensure checkbox is above loading overlay
+                />
               ) : starLoading ? (
                 <Spinner size="sm" />
               ) : (
@@ -158,8 +233,8 @@ export const SensorCard: React.FC<SensorCardProps> = ({
           </div>
 
           <div className="mt-2 flex items-center justify-between text-xs text-default-500">
-            <Tooltip content={`First seen: ${formatDate(sensor.firstSeen)}`}>
-              <span>{formatDistanceToNow(new Date(sensor.firstSeen), { addSuffix: false })}</span>
+            <Tooltip content={`First seen: ${formattedDates.firstSeenTooltip}`}>
+              <span>{formattedDates.firstSeenDistance}</span>
             </Tooltip>
           </div>
 
@@ -180,4 +255,7 @@ export const SensorCard: React.FC<SensorCardProps> = ({
       />
     </>
   );
-};
+});
+
+// Add display name for debugging
+SensorCard.displayName = 'SensorCard';

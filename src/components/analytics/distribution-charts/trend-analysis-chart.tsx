@@ -1,7 +1,17 @@
 import { Card, CardBody, Chip } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import React from "react";
-import { CartesianGrid, Line, LineChart, ReferenceArea, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { 
+  CartesianGrid, 
+  Line, 
+  LineChart, 
+  ReferenceArea, 
+  ResponsiveContainer, 
+  Tooltip, 
+  XAxis, 
+  YAxis,
+  Brush
+} from "recharts";
 import { ChartConfig } from "../../../types/sensor";
 
 interface TrendAnalysisChartProps {
@@ -11,6 +21,7 @@ interface TrendAnalysisChartProps {
 }
 
 export const TrendAnalysisChart: React.FC<TrendAnalysisChartProps> = ({ config, showCards, showChart }) => {
+  const [brushDomain, setBrushDomain] = React.useState<[number, number] | null>(null);
   // Calculate trend data
   const trendData = React.useMemo(() => {
     if (!config.series || config.series.length < 2) return null;
@@ -247,9 +258,17 @@ export const TrendAnalysisChart: React.FC<TrendAnalysisChartProps> = ({ config, 
                   axisLine={{ stroke: "#94a3b8" }}
                   fontSize={12}
                   tickMargin={10}
-                  tickFormatter={(timestamp) => new Date(timestamp).toLocaleDateString()}
+                  tickFormatter={(timestamp) => {
+                    const date = new Date(timestamp);
+                    return date.toLocaleDateString("en-US", { 
+                      month: "short", 
+                      day: "numeric",
+                      ...(brushDomain ? { hour: "2-digit", minute: "2-digit" } : {})
+                    });
+                  }}
                   type="number"
-                  domain={["dataMin", "dataMax"]}
+                  scale="time"
+                  domain={brushDomain || ["dataMin", "dataMax"]}
                 />
                 <YAxis
                   stroke="#374151"
@@ -277,7 +296,13 @@ export const TrendAnalysisChart: React.FC<TrendAnalysisChartProps> = ({ config, 
                     if (name === "value") return [`${value.toFixed(4)} ${config.unit}`, "Value"];
                     return [`${value.toFixed(4)} ${config.unit}`, name];
                   }}
-                  labelFormatter={(timestamp) => new Date(timestamp).toLocaleString()}
+                  labelFormatter={(timestamp) => new Date(timestamp).toLocaleString("en-US", {
+                    month: "short",
+                    day: "numeric", 
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit"
+                  })}
                   contentStyle={{
                     backgroundColor: "#ffffff",
                     border: "1px solid #e5e7eb",
@@ -321,6 +346,32 @@ export const TrendAnalysisChart: React.FC<TrendAnalysisChartProps> = ({ config, 
                     fillOpacity={0.3}
                   />
                 ))}
+
+                {/* Add brush for interactive time selection */}
+                <Brush 
+                  dataKey="timestamp" 
+                  height={30}
+                  stroke="#4f46e5"
+                  fill="rgba(79, 70, 229, 0.1)"
+                  tickFormatter={(timestamp) => {
+                    const date = new Date(timestamp);
+                    return date.toLocaleDateString("en-US", { 
+                      month: "short", 
+                      day: "numeric" 
+                    });
+                  }}
+                  onChange={(brushData) => {
+                    if (brushData?.startIndex !== undefined && brushData?.endIndex !== undefined) {
+                      const startTimestamp = trendData.movingAvg[brushData.startIndex]?.timestamp;
+                      const endTimestamp = trendData.movingAvg[brushData.endIndex]?.timestamp;
+                      if (startTimestamp && endTimestamp) {
+                        setBrushDomain([startTimestamp, endTimestamp]);
+                      }
+                    } else {
+                      setBrushDomain(null);
+                    }
+                  }}
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>

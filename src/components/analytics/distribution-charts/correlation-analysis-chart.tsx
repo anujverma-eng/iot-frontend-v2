@@ -9,7 +9,11 @@ import {
   ScatterChart,
   Tooltip,
   XAxis,
-  YAxis
+  YAxis,
+  Brush,
+  BarChart,
+  Bar,
+  Cell
 } from 'recharts';
 import { ChartConfig } from '../../../types/sensor';
 
@@ -26,6 +30,7 @@ export const CorrelationAnalysisChart: React.FC<CorrelationAnalysisChartProps> =
   showCards,
   showChart,
 }) => {
+  const [brushDomain, setBrushDomain] = React.useState<[number, number] | null>(null);
   // If no secondary config is provided, we'll analyze autocorrelation
   // (correlation between current values and lagged values)
   const correlationData = React.useMemo(() => {
@@ -306,6 +311,15 @@ export const CorrelationAnalysisChart: React.FC<CorrelationAnalysisChartProps> =
                     line={{ stroke: '#ef4444', strokeWidth: 2 }}
                     lineType="fitting"
                   />
+
+                  {/* Add brush for data point selection */}
+                  <Brush 
+                    dataKey="primaryValue" 
+                    height={30}
+                    stroke="#6366f1"
+                    fill="rgba(99, 102, 241, 0.1)"
+                    tickFormatter={(value) => value.toFixed(2)}
+                  />
                 </ScatterChart>
               </ResponsiveContainer>
             </div>}
@@ -374,12 +388,12 @@ export const CorrelationAnalysisChart: React.FC<CorrelationAnalysisChartProps> =
             
             <div className={`flex-1 ${showChart ? 'h-full mt-5' : 'min-h-[300px]'}`}>
               <ResponsiveContainer width="100%" height="100%">
-                <ScatterChart
+                <BarChart
+                  data={correlationData.autocorrelations}
                   margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis 
-                    type="number"
                     dataKey="lag"
                     name="Lag"
                     stroke="#374151"
@@ -387,16 +401,14 @@ export const CorrelationAnalysisChart: React.FC<CorrelationAnalysisChartProps> =
                     axisLine={{ stroke: "#94a3b8" }}
                     fontSize={12}
                     tickMargin={10}
-                    domain={[0, 'dataMax']}
                     label={{ 
-                      value: 'Lag', 
+                      value: 'Lag (time steps)', 
                       position: 'insideBottom',
-                      offset: 0,
+                      offset: -10,
                       style: { textAnchor: 'middle', fill: '#4b5563', fontSize: 12 }
                     }}
                   />
                   <YAxis 
-                    type="number"
                     dataKey="correlation"
                     name="Correlation"
                     stroke="#374151"
@@ -420,9 +432,10 @@ export const CorrelationAnalysisChart: React.FC<CorrelationAnalysisChartProps> =
                   />
                   <Tooltip
                     formatter={(value: number, name: string) => {
-                      if (name === 'Correlation') return [`${value.toFixed(2)}`, name];
+                      if (name === 'correlation') return [`${value.toFixed(3)}`, 'Correlation'];
                       return [`${value}`, name];
                     }}
+                    labelFormatter={(lag) => `Lag: ${lag} time steps`}
                     contentStyle={{
                       backgroundColor: "#ffffff",
                       border: "1px solid #e5e7eb",
@@ -436,51 +449,68 @@ export const CorrelationAnalysisChart: React.FC<CorrelationAnalysisChartProps> =
                   {/* Reference lines for significance thresholds */}
                   <ReferenceLine 
                     y={0.2} 
-                    stroke="#94a3b8" 
+                    stroke="#10b981" 
                     strokeDasharray="3 3"
                     label={{ 
-                      value: 'Significance threshold', 
+                      value: '+0.2 (significant)', 
                       position: 'right', 
-                      fill: '#94a3b8',
+                      fill: '#10b981',
                       fontSize: 10
                     }}
                   />
                   <ReferenceLine 
                     y={-0.2} 
-                    stroke="#94a3b8" 
+                    stroke="#10b981" 
                     strokeDasharray="3 3"
+                    label={{ 
+                      value: '-0.2 (significant)', 
+                      position: 'right', 
+                      fill: '#10b981',
+                      fontSize: 10
+                    }}
+                  />
+                  <ReferenceLine 
+                    y={0} 
+                    stroke="#6b7280" 
+                    strokeDasharray="1 1"
                   />
                   
                   {/* Autocorrelation bars */}
-                  <Scatter 
-                    name="Autocorrelation" 
-                    data={correlationData.autocorrelations} 
-                    fill="#6366f1"
-                    shape={(props: any) => {
-                      const { cx, cy, payload } = props;
-                      const { lag, correlation } = payload;
-                      
-                      // Determine if this lag is significant
-                      const isSignificant = Math.abs(correlation) > 0.2 && lag > 0;
-                      
-                      // Calculate bar dimensions
-                      const barWidth = 10;
-                      const barHeight = Math.abs(correlation) * 100;
-                      const y = correlation >= 0 ? cy - barHeight : cy;
-                      
+                  <Bar 
+                    dataKey="correlation"
+                    radius={[2, 2, 2, 2]}
+                  >
+                    {(correlationData.autocorrelations || []).map((entry, index) => {
+                      const isSignificant = Math.abs(entry.correlation) > 0.2 && entry.lag > 0;
                       return (
-                        <rect
-                          x={cx - barWidth / 2}
-                          y={y}
-                          width={barWidth}
-                          height={barHeight}
+                        <Cell
+                          key={`cell-${index}`}
                           fill={isSignificant ? '#4f46e5' : '#94a3b8'}
-                          stroke="none"
                         />
                       );
+                    })}
+                  </Bar>
+
+                  {/* Add brush for lag selection */}
+                  <Brush 
+                    dataKey="lag" 
+                    height={30}
+                    stroke="#4f46e5"
+                    fill="rgba(79, 70, 229, 0.1)"
+                    tickFormatter={(lag) => `${lag}`}
+                    onChange={(brushData) => {
+                      if (brushData?.startIndex !== undefined && brushData?.endIndex !== undefined) {
+                        const startLag = correlationData.autocorrelations?.[brushData.startIndex]?.lag;
+                        const endLag = correlationData.autocorrelations?.[brushData.endIndex]?.lag;
+                        if (startLag !== undefined && endLag !== undefined) {
+                          setBrushDomain([startLag, endLag]);
+                        }
+                      } else {
+                        setBrushDomain(null);
+                      }
                     }}
                   />
-                </ScatterChart>
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </>

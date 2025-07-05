@@ -67,7 +67,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             ${isSidebarOpen ? "lg:ml-64" : "lg:ml-16"}
           `}
         >
-          <div className="mx-auto w-full max-w-full lg:max-w-5xl xl:max-w-7xl">
+          <div className="mx-auto w-full max-w-full">
             {children}
           </div>
         </motion.main>

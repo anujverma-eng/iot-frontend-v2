@@ -10,6 +10,7 @@ import {
   ReferenceLine,
   ZAxis,
   Cell,
+  Brush,
 } from "recharts";
 import { Card, CardBody, Chip } from "@heroui/react";
 import { Icon } from "@iconify/react";
@@ -22,6 +23,7 @@ interface AnomalyDetectionChartProps {
 }
 
 export const AnomalyDetectionChart: React.FC<AnomalyDetectionChartProps> = ({ config, showChart = false, showCards=false }) => {
+  const [brushDomain, setBrushDomain] = React.useState<[number, number] | null>(null);
   // Calculate anomalies using Z-score method
   const anomalyData = React.useMemo(() => {
     if (!config.series || config.series.length < 10) return null;
@@ -124,9 +126,17 @@ export const AnomalyDetectionChart: React.FC<AnomalyDetectionChartProps> = ({ co
                   axisLine={{ stroke: "#94a3b8" }}
                   fontSize={12}
                   tickMargin={10}
-                  tickFormatter={(timestamp) => new Date(timestamp).toLocaleDateString()}
+                  tickFormatter={(timestamp) => {
+                    const date = new Date(timestamp);
+                    return date.toLocaleDateString("en-US", { 
+                      month: "short", 
+                      day: "numeric",
+                      ...(brushDomain ? { hour: "2-digit", minute: "2-digit" } : {})
+                    });
+                  }}
                   type="number"
-                  domain={["dataMin", "dataMax"]}
+                  scale="time"
+                  domain={brushDomain || ["dataMin", "dataMax"]}
                 />
                 <YAxis
                   dataKey="value"
@@ -157,7 +167,13 @@ export const AnomalyDetectionChart: React.FC<AnomalyDetectionChartProps> = ({ co
                     if (name === "Z-score") return [`${value.toFixed(4)}`, name];
                     return [`${value}`, name];
                   }}
-                  labelFormatter={(timestamp) => new Date(timestamp).toLocaleString()}
+                  labelFormatter={(timestamp) => new Date(timestamp).toLocaleString("en-US", {
+                    month: "short",
+                    day: "numeric", 
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit"
+                  })}
                   contentStyle={{
                     backgroundColor: "#ffffff",
                     border: "1px solid #e5e7eb",
@@ -216,6 +232,32 @@ export const AnomalyDetectionChart: React.FC<AnomalyDetectionChartProps> = ({ co
                     <Cell key={`cell-${index}`} fill={entry.anomalyType === "high" ? "#ef4444" : "#f59e0b"} />
                   ))}
                 </Scatter>
+
+                {/* Add brush for interactive time selection */}
+                <Brush 
+                  dataKey="timestamp" 
+                  height={30}
+                  stroke="#ef4444"
+                  fill="rgba(239, 68, 68, 0.1)"
+                  tickFormatter={(timestamp) => {
+                    const date = new Date(timestamp);
+                    return date.toLocaleDateString("en-US", { 
+                      month: "short", 
+                      day: "numeric" 
+                    });
+                  }}
+                  onChange={(brushData) => {
+                    if (brushData?.startIndex !== undefined && brushData?.endIndex !== undefined && anomalyData.dataWithZScores) {
+                      const startTimestamp = anomalyData.dataWithZScores[brushData.startIndex]?.timestamp;
+                      const endTimestamp = anomalyData.dataWithZScores[brushData.endIndex]?.timestamp;
+                      if (startTimestamp && endTimestamp) {
+                        setBrushDomain([startTimestamp, endTimestamp]);
+                      }
+                    } else {
+                      setBrushDomain(null);
+                    }
+                  }}
+                />
               </ScatterChart>
             </ResponsiveContainer>
           </div>

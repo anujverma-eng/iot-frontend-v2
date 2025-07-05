@@ -12,6 +12,7 @@ import { SoloView } from "../components/analytics/solo-view";
 import { ClaimSensorModal } from "../components/sensors/claim-sensor-modal";
 import { StatsCard } from "../components/stats-card";
 import { ChartContainer } from "../components/visualization/chart-container";
+import { ComparisonChart } from "../components/visualization/comparison-chart";
 import { GaugeChart } from "../components/visualization/gauge-chart";
 import { chartColors, sensorTypes, statusOptions, timeRangePresets } from "../data/analytics";
 import { AppDispatch, RootState } from "../store";
@@ -38,6 +39,9 @@ import {
   updateSensorDisplayName,
 } from "../store/sensorsSlice";
 import { fetchTelemetry, selectTelemetryData, selectTelemetryLoading, setTimeRange } from "../store/telemetrySlice";
+import { useDebouncedSensorSelection } from "../hooks/useDebouncedSensorSelection";
+import { useOptimizedDataFetch } from "../hooks/useOptimizedDataFetch";
+import { useCompareSelection } from "../hooks/useCompareSelection";
 import { ChartConfig, FilterState, MultiSeriesConfig, SensorStatus, SensorType } from "../types/sensor";
 
 type RangeValue<T> = { start: T | null; end: T | null };
@@ -133,6 +137,10 @@ export const AnalyticsPage: React.FC = () => {
   const loading = useSelector(selectSensorsLoading);
   const selectedSensorData = useSelector(selectSelectedSensor);
   const pagination = useSelector(selectSensorPagination);
+
+  // Use optimized data fetching hook
+  const { fetchData: fetchOptimizedData, cancelPendingRequests } = useOptimizedDataFetch();
+  
   // --- local search text (controlled input) ----------------------------
   const [searchQuery, setSearchQuery] = React.useState(filters.search);
 
@@ -277,6 +285,24 @@ export const AnalyticsPage: React.FC = () => {
 
   const toISO = (d: Date | string) => new Date(d).toISOString();
 
+  // Use comparison selection hook for better loading states
+  const {
+    addSensorToComparison,
+    removeSensorFromComparison,
+    isSensorLoading,
+    canAddMoreSensors,
+    shouldShowComparison,
+    isGlobalLoading: isCompareLoading,
+    minSensorsForFetch
+  } = useCompareSelection({
+    timeRange: {
+      start: toISO(filters.timeRange.start),
+      end: toISO(filters.timeRange.end)
+    },
+    maxSensors: 10,
+    minSensorsForFetch: 2 // Only start loading when 2+ sensors selected
+  });
+
   // Stringify time range for reliable dependency comparison
   const timeRangeKey = React.useMemo(() => {
     return `${filters.timeRange.start.getTime()}-${filters.timeRange.end.getTime()}`;
@@ -285,14 +311,20 @@ export const AnalyticsPage: React.FC = () => {
   // Add a ref to track the most recent time range request
   const lastTimeRangeRequestRef = React.useRef<string>("");
 
-  // Modify your telemetry-fetching useEffect
+  // Optimized telemetry fetching with debouncing and cancellation
   React.useEffect(() => {
     if (selectedSensor) {
       // Create a request ID based on current parameters
       const currentRequest = `${selectedSensor}-${timeRangeKey}`;
+      
+      // Don't make duplicate requests
+      if (lastTimeRangeRequestRef.current === currentRequest) {
+        return;
+      }
+      
       lastTimeRangeRequestRef.current = currentRequest;
 
-      // Ensure end time is set to end of day (just like in handleFiltersChange)
+      // Ensure end time is set to end of day
       const adjustedTimeRange = {
         start: new Date(filters.timeRange.start),
         end: new Date(filters.timeRange.end),
@@ -304,44 +336,46 @@ export const AnalyticsPage: React.FC = () => {
         end: adjustedTimeRange.end.toISOString(),
       });
 
-      // Slight delay to prevent race conditions with direct dispatch calls
-      setTimeout(() => {
-        // Only proceed if this is still the most recent request
-        if (lastTimeRangeRequestRef.current === currentRequest) {
-          dispatch(
-            fetchTelemetry({
-              sensorIds: [selectedSensor],
-              timeRange: {
-                start: toISO(adjustedTimeRange.start),
-                end: toISO(adjustedTimeRange.end),
-              },
-            })
-          );
-        }
-      }, 50);
+      // Use optimized data fetching
+      fetchOptimizedData({
+        sensorIds: [selectedSensor],
+        timeRange: {
+          start: toISO(adjustedTimeRange.start),
+          end: toISO(adjustedTimeRange.end),
+        },
+      });
     }
-  }, [selectedSensor, timeRangeKey, dispatch]); // Use timeRangeKey instead of filters.timeRange
+  }, [selectedSensor, timeRangeKey, fetchOptimizedData]); // Use optimized fetch
 
   const sameRange = (a: { start: Date; end: Date }, b: { start: Date; end: Date }) =>
     new Date(a.start).getTime() === new Date(b.start).getTime() &&
     new Date(a.end).getTime() === new Date(b.end).getTime();
 
-  // Fetch data for comparison sensors
+  // Fetch data for comparison sensors with optimization
   React.useEffect(() => {
     if (selectedSensorIds.length > 0) {
-      dispatch(
-        fetchTelemetry({
-          sensorIds: selectedSensorIds,
-          timeRange: {
-            start: toISO(filters.timeRange.start),
-            end: toISO(filters.timeRange.end),
-          },
-        })
-      );
+      fetchOptimizedData({
+        sensorIds: selectedSensorIds,
+        timeRange: {
+          start: toISO(filters.timeRange.start),
+          end: toISO(filters.timeRange.end),
+        },
+      });
     }
-  }, [selectedSensorIds, filters.timeRange, dispatch]);
+  }, [selectedSensorIds, filters.timeRange, fetchOptimizedData]);
+
+  // Add cleanup effect
+  React.useEffect(() => {
+    return () => {
+      // Cancel any pending requests when component unmounts
+      cancelPendingRequests();
+    };
+  }, [cancelPendingRequests]);
 
   const handleSensorSelect = (id: string) => {
+    // Cancel any pending data requests for the previous sensor
+    cancelPendingRequests();
+    
     setSelectedSensor(id);
     navigate(`/dashboard/sensors/${id}`);
   };
@@ -470,7 +504,25 @@ export const AnalyticsPage: React.FC = () => {
   };
 
   const handleMultiSelect = (ids: string[]) => {
-    dispatch(setSelectedSensorIds(ids));
+    // Use the comparison hook for optimized loading states
+    const currentIds = new Set(selectedSensorIds);
+    const newIds = new Set(ids);
+    
+    // Find added and removed sensors
+    const addedSensors = ids.filter(id => !currentIds.has(id));
+    const removedSensors = selectedSensorIds.filter(id => !newIds.has(id));
+    
+    // Handle additions
+    addedSensors.forEach(id => {
+      if (canAddMoreSensors(ids.length)) {
+        addSensorToComparison(id);
+      }
+    });
+    
+    // Handle removals
+    removedSensors.forEach(id => {
+      removeSensorFromComparison(id);
+    });
   };
 
   const handleRemoveCompare = (id: string) => {
@@ -760,6 +812,7 @@ export const AnalyticsPage: React.FC = () => {
             <SensorList
               sensors={filteredSensors}
               selectedSensorIds={selectedSensorIds}
+              currentSelectedSensor={selectedSensor} // Pass current selected sensor
               onSensorSelect={handleSensorSelect}
               onSensorToggleStar={handleToggleStar}
               onSearch={handleSearchChange}
@@ -767,6 +820,10 @@ export const AnalyticsPage: React.FC = () => {
               onMultiSelect={handleMultiSelect}
               isComparing={isCompareMode}
               onSensorUpdated={refreshSensorData}
+              isDataLoading={isLoadingData && !isCompareMode} // Only show for single sensor mode
+              isSensorLoading={isSensorLoading} // Pass individual sensor loading state
+              isCompareLoading={isCompareLoading} // Pass compare loading state
+              shouldShowComparison={shouldShowComparison} // Pass comparison check
             />
             {pagination.page < pagination.totalPages && (
               <div className="p-2 border-t border-divider">
@@ -887,26 +944,33 @@ export const AnalyticsPage: React.FC = () => {
           )}
 
           <div className="flex-1 p-4 overflow-auto">
-            {isLoadingData ? (
-              <div className="flex items-center justify-center h-full">
-                <Spinner />
-              </div>
-            ) : isCompareMode ? (
-              selectedSensorIds.length > 0 && multiSeriesConfig ? (
-                <ChartContainer
+            {isCompareMode ? (
+              shouldShowComparison(selectedSensorIds.length) && multiSeriesConfig ? (
+                <ComparisonChart
                   config={multiSeriesConfig}
-                  isMultiSeries={true}
-                  onBrushChange={handleBrushChange}
+                  isLoading={isCompareLoading}
                   onDownloadCSV={handleDownloadCSV}
-                  onDisplayNameChange={handleDisplayNameChange}
+                  onRemoveSensor={removeSensorFromComparison}
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-center">
                   <Icon icon="lucide:bar-chart-2" className="text-default-300 mb-4" width={48} height={48} />
                   <h3 className="text-xl font-medium mb-2">Compare Sensors</h3>
                   <p className="text-default-500 mb-6 max-w-md">
-                    Select two or more sensors from the list to compare their data.
+                    {selectedSensorIds.length === 0 
+                      ? "Select sensors from the list to compare their data."
+                      : selectedSensorIds.length === 1
+                      ? `Select ${minSensorsForFetch - selectedSensorIds.length} more sensor to start comparison.`
+                      : `Select ${minSensorsForFetch - selectedSensorIds.length} more sensors to start comparison.`
+                    }
                   </p>
+                  {selectedSensorIds.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-sm text-default-400">
+                        {selectedSensorIds.length} of {minSensorsForFetch} sensors selected
+                      </p>
+                    </div>
+                  )}
                   {isMobile && (
                     <Button
                       color="primary"
@@ -918,6 +982,10 @@ export const AnalyticsPage: React.FC = () => {
                   )}
                 </div>
               )
+            ) : isLoadingData ? (
+              <div className="flex items-center justify-center h-full">
+                <Spinner />
+              </div>
             ) : chartConfig && currentSensor ? (
               <div className={`h-full ${isMobile ? "relative overflow-hidden" : ""}`}>
                 {/* Main chart view */}
@@ -936,6 +1004,7 @@ export const AnalyticsPage: React.FC = () => {
                     onToggleStar={handleToggleStar}
                     onDisplayNameChange={handleDisplayNameChange}
                     onOpenInNewTab={!isSoloMode ? handleOpenInNewTab : undefined}
+                    isLoading={isLoadingData}
                   />
                 </div>
 

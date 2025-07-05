@@ -8,7 +8,8 @@ import {
   Tooltip, 
   ResponsiveContainer,
   Cell,
-  ReferenceLine
+  ReferenceLine,
+  Brush
 } from 'recharts';
 import { Card, CardBody } from '@heroui/react';
 import { Icon } from '@iconify/react';
@@ -277,6 +278,15 @@ export const DistributionChart: React.FC<DistributionChartProps> = ({
                   />
                 ))}
               </Bar>
+              
+              {/* Add brush for interactive selection */}
+              <Brush 
+                dataKey="range" 
+                height={30}
+                stroke="#6366f1"
+                fill="rgba(99, 102, 241, 0.1)"
+                tickFormatter={(value) => value.toString().slice(0, 8)}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>

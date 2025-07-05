@@ -1,23 +1,24 @@
-import { addToast, Button, ButtonGroup, Card, Input, Tab, Tabs, Tooltip, useDisclosure, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from "@heroui/react";
+import { addToast, Button, Card, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger, Input, Tab, Tabs, useDisclosure } from "@heroui/react";
 import { Icon } from "@iconify/react";
-import React from "react";
-import html2canvas from "html2canvas";
 import { saveAs } from "file-saver";
+import html2canvas from "html2canvas";
+import React from "react";
 import { ChartConfig, MultiSeriesConfig, VisualizationType } from "../../types/sensor";
 import { TableView } from "../analytics/table-view";
 import { AreaChart } from "./area-chart";
 import { BarChart } from "./bar-chart";
 import { BatteryChart } from "./battery-chart";
 import { CandlestickChart } from "./candlestick-chart";
-import { FFTChart } from "./fft-chart";
 import { GaugeChart } from "./gauge-chart";
 import { GenericChart } from "./generic-chart";
 import { HeatmapChart } from "./heatmap-chart";
-import { HistogramChart } from "./histogram-chart";
 import { LightChart } from "./light-chart";
 import { LineChart } from "./line-chart";
 import { PressureChart } from "./pressure-chart";
 import { SparkTimelineChart } from "./spark-timeline-chart";
+
+import { ChartLoadingSkeleton } from './chart-loading-skeleton';
+import { MobileChartLoading } from './mobile-chart-loading';
 
 interface ChartContainerProps {
   config: ChartConfig | MultiSeriesConfig;
@@ -33,6 +34,7 @@ interface ChartContainerProps {
   onToggleStar?: (mac: string) => void;
   isStarred?: boolean;
   onOpenInNewTab?: () => void;
+  isLoading?: boolean; // Add loading prop
 }
 
 export const ChartContainer: React.FC<ChartContainerProps> = ({
@@ -45,6 +47,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   onToggleStar,
   isStarred = false,
   onOpenInNewTab,
+  isLoading = false, // Add loading prop with default
 }) => {
   const [isEditing, setIsEditing] = React.useState(false);
   const [displayName, setDisplayName] = React.useState(sensor?.displayName || "");
@@ -60,6 +63,10 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
         ? (config as MultiSeriesConfig).series // track series array (object identity)
         : (config as ChartConfig).series,
       config.type, // track primitive sensor-type
+      // Add data length to prevent stale memoization
+      isMultiSeries 
+        ? (config as MultiSeriesConfig).series?.reduce((acc, s) => acc + (s.data?.length || 0), 0)
+        : (config as ChartConfig).series?.length || 0
     ]
   );
 
@@ -148,29 +155,6 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
     }
   }, [visualizationType, showMovingAverage, showDailyRange, sensor]);
 
-  // Add this in your component or in useEffect
-  // React.useEffect(() => {
-  //   console.log("Chart receiving new data:", {
-  //     timestamp: new Date().toISOString(),
-  //     isMultiSeries: !!isMultiSeries,
-  //     seriesCount: isMultiSeries ? config?.series?.length : 1,
-  //     dataPoints: isMultiSeries
-  //       ? config?.series?.reduce((acc, s) => acc + (s.data?.length || 0), 0)
-  //       : config?.series?.length || 0,
-  //     dateRange: isMultiSeries && config?.series?.[0]?.data?.length
-  //       ? {
-  //           start: new Date(config.series[0].data[0].timestamp).toISOString(),
-  //           end: new Date(config.series[0].data[config.series[0].data.length-1].timestamp).toISOString()
-  //         }
-  //       : config?.series?.length
-  //         ? {
-  //             start: new Date(config.series[0].timestamp).toISOString(),
-  //             end: new Date(config.series[config.series.length-1].timestamp).toISOString()
-  //           }
-  //         : null
-  //   });
-  // }, [config, isMultiSeries]);
-
   // Add error handling for when config is null
   if (!config) {
     return (
@@ -207,13 +191,6 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
               </div>
 
               <div className="flex items-center gap-2">
-                {/* <Button isIconOnly size="sm" variant="light" onPress={handleToggleStar} className="text-warning">
-                  <Icon
-                    icon={isStarred ? "lucide:star" : "lucide:star"}
-                    className={isStarred ? "text-warning fill-warning" : "text-default-400"}
-                  />
-                </Button> */}
-
                 {onOpenInNewTab && (
                   <Button
                     size="sm"
@@ -306,10 +283,6 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       </Card>
     );
   }
-
-  const handleDownloadTypeToggle = () => {
-    // This function is no longer needed
-  };
 
   const handleDownload = async (type: "csv" | "png") => {
     if (type === "csv") {
@@ -418,7 +391,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       return visualizationType === "area" ? (
         <AreaChart config={multi} isMultiSeries onBrushChange={onBrushChange} />
       ) : (
-        <LineChart config={multi} isMultiSeries/>
+        <LineChart config={multi} isMultiSeries />
       );
     }
 
@@ -440,7 +413,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
           case "gauge":
             return <GaugeChart config={singleConfig} size="lg" />;
           default:
-            return <LineChart config={enhancedConfig}/>;
+            return <LineChart config={enhancedConfig} />;
         }
 
       case "pressure":
@@ -448,6 +421,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
           case "candlestick":
             return <CandlestickChart config={enhancedConfig} onBrushChange={onBrushChange} />;
           default:
+            return <LineChart config={enhancedConfig} />;
             return <PressureChart config={enhancedConfig} onBrushChange={onBrushChange} />;
         }
 
@@ -491,6 +465,27 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
 
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const [activeTab, setActiveTab] = React.useState("chart");
+  
+  // Detect if mobile
+  const [isMobile, setIsMobile] = React.useState(false);
+  React.useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  // Show loading skeleton when loading and no data available
+  if (isLoading && (!config || (isMultiSeries && (!config.series || config.series.length === 0)) || (!isMultiSeries && (!config.series || config.series.length === 0)))) {
+    return isMobile ? (
+      <MobileChartLoading 
+        sensorName={sensor?.displayName || sensor?.mac}
+        sensorMac={sensor?.mac}
+      />
+    ) : (
+      <ChartLoadingSkeleton />
+    );
+  }
 
   return (
     <Card className="w-full h-full border border-default-200 shadow-md">

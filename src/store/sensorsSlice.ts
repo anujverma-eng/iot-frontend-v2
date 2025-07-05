@@ -110,6 +110,7 @@ interface State {
     error: string | null;
     data: Sensor | null;
   };
+  currentSensorDataLoading: boolean; // Track if current sensor data is loading
 }
 
 const initial: State = {
@@ -149,6 +150,7 @@ const initial: State = {
     error: null,
     data: null,
   },
+  currentSensorDataLoading: false, // Initialize current sensor data loading state
 };
 
 /* ─────────────────  slice  ─────────────────── */
@@ -186,6 +188,9 @@ const sensorSlice = createSlice({
     },
     clearSelectedSensorIds: (s) => {
       s.selectedSensorIds = [];
+    },
+    setCurrentSensorDataLoading: (s, a: PayloadAction<boolean>) => {
+      s.currentSensorDataLoading = a.payload;
     },
     setLimit: (state, action: PayloadAction<number>) => {
       state.pagination.limit = action.payload;
@@ -362,6 +367,7 @@ export const {
   addSelectedSensorId,
   removeSelectedSensorId,
   clearSelectedSensorIds,
+  setCurrentSensorDataLoading,
   setLimit,
 } = sensorSlice.actions;
 
@@ -379,5 +385,6 @@ export const selectSensorsLoading = (state: RootState) => state.sensors.loading;
 export const selectSensorsError = (state: RootState) => state.sensors.error;
 export const selectPagination = (state: RootState) => state.sensors.pagination;
 export const selectSelectedSensor = (state: RootState) => state.sensors.selectedSensor;
+export const selectCurrentSensorDataLoading = (state: RootState) => state.sensors.currentSensorDataLoading;
 
 export default sensorSlice.reducer;
