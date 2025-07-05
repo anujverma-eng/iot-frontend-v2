@@ -351,14 +351,17 @@ export const GatewaysPage: React.FC = () => {
                 </TableBody>
               </Table>
 
-              <div className="flex justify-center">
-                <Pagination 
-                  total={pagination.totalPages} 
-                  page={pagination.page} 
-                  onChange={handlePageChange} 
-                  showControls 
-                />
-              </div>
+              {/* Only show pagination if there's more than one page */}
+              {pagination.totalPages > 1 && (
+                <div className="flex justify-center">
+                  <Pagination 
+                    total={pagination.totalPages} 
+                    page={pagination.page} 
+                    onChange={handlePageChange} 
+                    showControls 
+                  />
+                </div>
+              )}
             </div>
           ) : gateways.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 gap-4">
