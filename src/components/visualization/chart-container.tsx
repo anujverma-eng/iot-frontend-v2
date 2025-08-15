@@ -3,6 +3,7 @@ import { Icon } from "@iconify/react";
 import { saveAs } from "file-saver";
 import html2canvas from "html2canvas";
 import React from "react";
+import { formatNumericValue } from "../../utils/numberUtils";
 import { ChartConfig, MultiSeriesConfig, VisualizationType } from "../../types/sensor";
 import { TableView } from "../analytics/table-view";
 import { TimeRangeSelector } from "../analytics/time-range-selector";
@@ -670,7 +671,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                   ...s,
                   data: s.data?.map((d: any) => ({
                     ...d,
-                    value: typeof d.value === "number" ? Number(d.value).toFixed(4) : d.value,
+                    value: typeof d.value === "number" ? formatNumericValue(d.value, 4) : d.value,
                   })) ?? [],
                 })) ?? [],
               }}

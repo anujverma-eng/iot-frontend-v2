@@ -19,6 +19,7 @@ import html2canvas from "html2canvas";
 import { saveAs } from "file-saver";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, useParams } from "react-router-dom";
+import { formatNumericValue } from "../../utils/numberUtils";
 import { chartColors } from "../../data/analytics";
 import { AppDispatch, RootState } from "../../store";
 import {
@@ -32,7 +33,14 @@ import {
   toggleSensorStar,
   updateSensorDisplayName,
 } from "../../store/sensorsSlice";
-import { fetchTelemetry, selectTelemetryData, selectTelemetryLoading } from "../../store/telemetrySlice";
+import { 
+  fetchTelemetry, 
+  selectTelemetryData, 
+  selectTelemetryLoading,
+  toggleLiveMode,
+  selectIsLiveMode,
+  selectLiveStatus
+} from "../../store/telemetrySlice";
 import { ChartConfig } from "../../types/sensor";
 import { LineChart } from "../visualization/line-chart";
 import { AnomalyDetectionChart } from "./distribution-charts/anomaly-detection-chart";
@@ -75,8 +83,8 @@ export const SoloView: React.FC = () => {
   const chartRef = React.useRef<HTMLDivElement>(null);
 
   // Live mode state - sync with Redux
-  const reduxIsLiveMode = useSelector((state: RootState) => state.telemetry.isLiveMode);
-  const reduxLiveStatus = useSelector((state: RootState) => state.telemetry.liveStatus);
+  const reduxIsLiveMode = useSelector(selectIsLiveMode);
+  const reduxLiveStatus = useSelector(selectLiveStatus);
   const [isLiveMode, setIsLiveMode] = React.useState(reduxIsLiveMode);
   const [liveStatus, setLiveStatus] = React.useState<'disconnected' | 'connecting' | 'connected' | 'error' | 'slow_network'>(reduxLiveStatus);
   const [gatewayIds, setGatewayIds] = React.useState<string[]>([]);
@@ -346,17 +354,25 @@ export const SoloView: React.FC = () => {
     const series = telemetryData[sensorId].series;
     if (!series.length) return null;
 
-    const values = series.map((point) => point.value);
+    // Convert string values to numbers for calculations
+    const values = series.map((point) => {
+      const numValue = typeof point.value === 'string' ? parseFloat(point.value) : point.value;
+      return isNaN(numValue) ? 0 : numValue;
+    });
+    
     const min = Math.min(...values);
     const max = Math.max(...values);
     const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
-    const latest = series[series.length - 1].value;
+    
+    // Ensure latest is also converted to number
+    const latestValue = series[series.length - 1].value;
+    const latest = typeof latestValue === 'string' ? parseFloat(latestValue) : latestValue;
 
     // Calculate standard deviation
     const variance = values.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) / values.length;
     const stdDev = Math.sqrt(variance);
 
-    return { min, max, avg, latest, stdDev };
+    return { min, max, avg, latest: isNaN(latest) ? 0 : latest, stdDev };
   }, [sensorId, telemetryData]);
 
   // Handlers
@@ -401,17 +417,66 @@ export const SoloView: React.FC = () => {
     );
   };
 
-  const handleLiveModeChange = (isLive: boolean) => {
-    // The TimeRangeSelector will handle Redux state updates
-    // This is just for any local state sync if needed
+  const handleLiveModeChange = async (isLive: boolean) => {
+    console.log('[SoloView] Live mode toggle requested:', isLive);
     setIsLiveMode(isLive);
+    
+    try {
+      if (isLive) {
+        // Get gateway IDs for the current sensor
+        const currentGatewayIds = currentSensor?.mac ? [currentSensor.mac] : [];
+        console.log('[SoloView] Enabling live mode for gateways:', currentGatewayIds);
+        
+        await dispatch(toggleLiveMode({ 
+          enable: true, 
+          gatewayIds: currentGatewayIds 
+        })).unwrap();
+        
+        console.log('[SoloView] Live mode enabled successfully');
+      } else {
+        console.log('[SoloView] Disabling live mode');
+        await dispatch(toggleLiveMode({ 
+          enable: false, 
+          gatewayIds: [] 
+        })).unwrap();
+        
+        console.log('[SoloView] Live mode disabled successfully');
+      }
+    } catch (error) {
+      console.error('[SoloView] Live mode toggle failed:', error);
+      // Revert local state on error
+      setIsLiveMode(!isLive);
+    }
   };
 
-  const handleRetryConnection = () => {
+  const handleRetryConnection = async () => {
+    console.log('[SoloView] Retrying connection...');
     setLiveStatus('connecting');
-    setTimeout(() => {
-      setLiveStatus(Math.random() > 0.5 ? 'connected' : 'error');
-    }, 1500);
+    
+    try {
+      const currentGatewayIds = currentSensor?.mac ? [currentSensor.mac] : [];
+      await dispatch(toggleLiveMode({ 
+        enable: false, 
+        gatewayIds: [] 
+      })).unwrap();
+      
+      // Small delay before reconnecting
+      setTimeout(async () => {
+        try {
+          await dispatch(toggleLiveMode({ 
+            enable: true, 
+            gatewayIds: currentGatewayIds 
+          })).unwrap();
+          console.log('[SoloView] Connection retry successful');
+        } catch (retryError) {
+          console.error('[SoloView] Connection retry failed:', retryError);
+          setLiveStatus('error');
+        }
+      }, 1000);
+    } catch (error) {
+      console.error('[SoloView] Retry connection failed:', error);
+      setLiveStatus('error');
+    }
   };
 
   const handleDownloadCSV = () => {
@@ -708,42 +773,42 @@ export const SoloView: React.FC = () => {
                       <Card>
                         <CardBody className="p-3">
                           <p className="text-xs text-default-500">Latest</p>
-                          <p className="text-xl font-semibold text-success-800">{stats.latest.toFixed(4)}</p>
+                          <p className="text-xl font-semibold text-success-800">{formatNumericValue(stats.latest, 4)}</p>
                           <p className="text-xs">{chartConfig?.unit}</p>
                         </CardBody>
                       </Card>
                       <Card>
                         <CardBody className="p-3">
                           <p className="text-xs text-default-500">Average</p>
-                          <p className="text-xl font-semibold text-primary-700">{stats.avg.toFixed(4)}</p>
+                          <p className="text-xl font-semibold text-primary-700">{formatNumericValue(stats.avg, 4)}</p>
                           <p className="text-xs">{chartConfig?.unit}</p>
                         </CardBody>
                       </Card>
                       <Card>
                         <CardBody className="p-3">
                           <p className="text-xs text-default-500">Minimum</p>
-                          <p className="text-xl font-semibold text-danger-700">{stats.min.toFixed(4)}</p>
+                          <p className="text-xl font-semibold text-danger-700">{formatNumericValue(stats.min, 4)}</p>
                           <p className="text-xs">{chartConfig?.unit}</p>
                         </CardBody>
                       </Card>
                       <Card>
                         <CardBody className="p-3">
                           <p className="text-xs text-default-500">Maximum</p>
-                          <p className="text-xl font-semibold text-warning-700">{stats.max.toFixed(4)}</p>
+                          <p className="text-xl font-semibold text-warning-700">{formatNumericValue(stats.max, 4)}</p>
                           <p className="text-xs">{chartConfig?.unit}</p>
                         </CardBody>
                       </Card>
                       <Card>
                         <CardBody className="p-3">
                           <p className="text-xs text-default-500">Max - Min</p>
-                          <p className="text-xl font-semibold text-sky-800">{(stats.max - stats.min).toFixed(4)}</p>
+                          <p className="text-xl font-semibold text-sky-800">{formatNumericValue(stats.max - stats.min, 4)}</p>
                           <p className="text-xs">{chartConfig?.unit}</p>
                         </CardBody>
                       </Card>
                       <Card>
                         <CardBody className="p-3">
                           <p className="text-xs text-default-500">Std Dev</p>
-                          <p className="text-xl font-semibold">{stats.stdDev.toFixed(4)}</p>
+                          <p className="text-xl font-semibold">{formatNumericValue(stats.stdDev, 4)}</p>
                           <p className="text-xs">{chartConfig?.unit}</p>
                         </CardBody>
                       </Card>
@@ -758,7 +823,7 @@ export const SoloView: React.FC = () => {
               <Tab key="chart" title="Chart View">
                 {chartConfig && (
                   <div className="w-full h-[400px] rounded-lg bg-white dark:bg-content1 p-4" ref={chartRef}>
-                    <LineChart config={chartConfig} />
+                    <LineChart config={chartConfig} isLiveMode={isLiveMode} />
                   </div>
                 )}
               </Tab>

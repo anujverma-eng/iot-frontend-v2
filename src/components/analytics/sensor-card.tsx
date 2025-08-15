@@ -3,6 +3,7 @@ import { Card, CardBody, Checkbox, Badge, Tooltip, Spinner, useDisclosure, addTo
 import { Icon } from "@iconify/react";
 import { formatDistanceToNow } from "date-fns";
 import { useDispatch } from "react-redux";
+import { formatNumericValue } from "../../utils/numberUtils";
 import { Sensor } from "../../types/sensor";
 import { DeleteSensorModal } from "../DeleteSensorModal";
 import { AppDispatch } from "../../store";
@@ -218,7 +219,7 @@ export const SensorCard: React.FC<SensorCardProps> = React.memo(({
 
           <div className="mt-2 flex items-center justify-between">
             <Badge color="primary" variant="flat">
-              {sensor.lastValue.toFixed(4)} {sensor.unit}
+              {formatNumericValue(sensor.lastValue, 4)} {sensor.unit}
             </Badge>
             <span className="text-xs text-default-500">
               {new Date(sensor.lastSeen).toLocaleString("en-US", {

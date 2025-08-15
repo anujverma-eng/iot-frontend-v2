@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { formatDistanceToNow } from "date-fns";
 import { Link } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
+import { formatNumericValue } from "../utils/numberUtils";
 import { AppDispatch } from "../store";
 import {
   fetchGateways,
@@ -259,7 +260,7 @@ export const DashboardHome: React.FC = () => {
                       </Chip>
                     </TableCell>
                     <TableCell>
-                      {sensor.lastValue?.toFixed(4)} {sensor.lastUnit}
+                      {formatNumericValue(sensor.lastValue, 4)} {sensor.lastUnit}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -367,7 +368,7 @@ export const DashboardHome: React.FC = () => {
                       </Chip>
                     </div>
                     <div className="text-2xl font-bold mb-2">
-                      {sensor.lastValue?.toFixed(4)} {sensor.lastUnit}
+                      {formatNumericValue(sensor.lastValue, 4)} {sensor.lastUnit}
                     </div>
                     <div className="text-sm text-default-400">
                       Last updated: {formatDistanceToNow(new Date(sensor.lastSeen), { addSuffix: true })}

@@ -13,6 +13,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { formatNumericValue } from "../../utils/numberUtils";
 import { ChartConfig, MultiSeriesConfig } from "../../types/sensor";
 
 interface LineChartProps {
@@ -714,13 +715,13 @@ export const LineChart: React.FC<LineChartProps> = ({
             <Tooltip
               formatter={(value: number, name: string) => {
                 if (name === "movingAverage") {
-                  return [`${value.toFixed(4)} ${config.unit} (MA)`, "Moving Avg"];
+                  return [`${formatNumericValue(value, 4)} ${config.unit} (MA)`, "Moving Avg"];
                 }
                 if (isMultiSeries) {
                   const series = (config as MultiSeriesConfig).series.find(s => s.id === name);
-                  return [`${value.toFixed(2)} ${config.unit}`, series?.name || name];
+                  return [`${formatNumericValue(value, 2)} ${config.unit}`, series?.name || name];
                 }
-                return [`${value.toFixed(2)} ${config.unit}`, "Value"];
+                return [`${formatNumericValue(value, 2)} ${config.unit}`, "Value"];
               }}
               labelFormatter={(label: number) => formatTooltipDate(label)}
               contentStyle={{
