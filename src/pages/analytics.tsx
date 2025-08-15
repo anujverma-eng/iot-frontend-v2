@@ -912,7 +912,8 @@ export const AnalyticsPage: React.FC = () => {
               {/* <h3 className="text-sm font-medium">My Sensors</h3> */}
               <FilterBar
                 filters={filters}
-                onFiltersChange={handleFiltersChange} // Now this will work
+                onFiltersChange={handleFiltersChange}
+                isMobile={false}
               />
               <div className="flex items-center gap-2">
                 <Switch
@@ -1145,6 +1146,10 @@ export const AnalyticsPage: React.FC = () => {
                     onDisplayNameChange={handleDisplayNameChange}
                     onOpenInNewTab={!isSoloMode ? handleOpenInNewTab : undefined}
                     isLoading={isLoadingData}
+                    timeRange={filters.timeRange}
+                    onTimeRangeChange={syncTimeRange}
+                    showTimeRangeApplyButtons={true}
+                    isMobileView={isMobile}
                   />
                 </div>
 

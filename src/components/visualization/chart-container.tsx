@@ -5,6 +5,7 @@ import html2canvas from "html2canvas";
 import React from "react";
 import { ChartConfig, MultiSeriesConfig, VisualizationType } from "../../types/sensor";
 import { TableView } from "../analytics/table-view";
+import { TimeRangeSelector } from "../analytics/time-range-selector";
 import { AreaChart } from "./area-chart";
 import { BarChart } from "./bar-chart";
 import { BatteryChart } from "./battery-chart";
@@ -34,7 +35,12 @@ interface ChartContainerProps {
   onToggleStar?: (mac: string) => void;
   isStarred?: boolean;
   onOpenInNewTab?: () => void;
-  isLoading?: boolean; // Add loading prop
+  isLoading?: boolean;
+  // Add time range props
+  timeRange?: { start: Date; end: Date };
+  onTimeRangeChange?: (range: { start: Date; end: Date }) => void;
+  showTimeRangeApplyButtons?: boolean;
+  isMobileView?: boolean;
 }
 
 export const ChartContainer: React.FC<ChartContainerProps> = ({
@@ -47,7 +53,11 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   onToggleStar,
   isStarred = false,
   onOpenInNewTab,
-  isLoading = false, // Add loading prop with default
+  isLoading = false,
+  timeRange,
+  onTimeRangeChange,
+  showTimeRangeApplyButtons = false,
+  isMobileView = false,
 }) => {
   const [isEditing, setIsEditing] = React.useState(false);
   const [displayName, setDisplayName] = React.useState(sensor?.displayName || "");
@@ -520,6 +530,16 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
+              {/* Time Range Selector */}
+              {timeRange && onTimeRangeChange && (
+                <TimeRangeSelector
+                  timeRange={timeRange}
+                  onTimeRangeChange={onTimeRangeChange}
+                  showApplyButtons={showTimeRangeApplyButtons}
+                  isMobile={isMobileView}
+                />
+              )}
+
               {/* <Button isIconOnly size="sm" variant="light" onPress={handleToggleStar} className="text-warning">
                 <Icon
                   icon={isStarred ? "lucide:star" : "lucide:star"}

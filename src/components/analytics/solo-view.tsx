@@ -41,6 +41,7 @@ import { DistributionChart } from "./distribution-charts/distribution-chart";
 import { TrendAnalysisChart } from "./distribution-charts/trend-analysis-chart";
 import { FilterBar } from "./filter-bar";
 import { TableView } from "./table-view";
+import { TimeRangeSelector } from "./time-range-selector";
 
 // Fix the interface to satisfy the Record<string, string | undefined> constraint
 interface SoloViewParams {
@@ -326,6 +327,15 @@ export const SoloView: React.FC = () => {
     );
   };
 
+  const handleTimeRangeChange = (range: { start: Date; end: Date }) => {
+    dispatch(
+      setFilters({
+        ...filters,
+        timeRange: range,
+      })
+    );
+  };
+
   const handleDownloadCSV = () => {
     try {
       if (!chartConfig || !chartConfig.series) {
@@ -564,6 +574,14 @@ export const SoloView: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-2">
+                      {/* Time Range Selector */}
+                      <TimeRangeSelector
+                        timeRange={filters.timeRange}
+                        onTimeRangeChange={handleTimeRangeChange}
+                        showApplyButtons={true}
+                        isMobile={false}
+                      />
+                      
                       {starLoading ? (
                         <Spinner size="sm" />
                       ) : (
