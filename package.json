@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@aws-amplify/pubsub": "^6.1.61",
     "@headlessui/react": "^1.7.17",
     "@heroicons/react": "^2.0.18",
     "@heroui/react": "2.7.8",
@@ -24,6 +25,7 @@
     "@tailwindcss/forms": "^0.5.7",
     "@zxcvbn-ts/core": "^3.0.4",
     "amazon-cognito-identity-js": "^6.3.1",
+    "aws-amplify": "^6.15.5",
     "axios": "^1.6.2",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",

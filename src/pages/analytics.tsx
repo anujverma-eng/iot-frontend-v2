@@ -1,4 +1,4 @@
-import { addToast, Button, Checkbox, CheckboxGroup, DateRangePicker, Input, Spinner } from "@heroui/react";
+import { addToast, Button, Checkbox, CheckboxGroup, DateRangePicker, Input, Spinner, Switch } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { CalendarDate, DateValue, getLocalTimeZone } from "@internationalized/date";
 import React from "react";
@@ -15,6 +15,7 @@ import { ChartContainer } from "../components/visualization/chart-container";
 import { ComparisonChart } from "../components/visualization/comparison-chart";
 import { GaugeChart } from "../components/visualization/gauge-chart";
 import { chartColors, sensorTypes, statusOptions, timeRangePresets } from "../data/analytics";
+import { startLive, publishCommand } from "../lib/liveMqtt";
 import { AppDispatch, RootState } from "../store";
 import { fetchGateways, selectGateways } from "../store/gatewaySlice";
 import {
@@ -82,7 +83,6 @@ export const AnalyticsPage: React.FC = () => {
   const [isMobileFilterDrawerOpen, setIsMobileFilterDrawerOpen] = React.useState(false);
   const [selectedTimeRangeIndex, setSelectedTimeRangeIndex] = React.useState(1);
   const stats = useSelector(selectSensorStats);
-  console.log("stats", stats);
   const [pendingFilters, setPendingFilters] = React.useState<FilterState | null>(null);
   const gateways = useSelector(selectGateways);
 
@@ -161,6 +161,10 @@ export const AnalyticsPage: React.FC = () => {
 
   // Add state for compare mode
   const [isCompareMode, setIsCompareMode] = React.useState(false);
+
+  // Add live MQTT state
+  const [isLiveMode, setIsLiveMode] = React.useState(false);
+  const [stopLive, setStopLive] = React.useState<(() => void) | null>(null);
 
   const syncTimeRange = (range: { start: Date; end: Date }) => {
     dispatch(setFilters({ ...filters, timeRange: range })); // sensors slice
@@ -282,6 +286,16 @@ export const AnalyticsPage: React.FC = () => {
       navigate(`/dashboard/sensors/${firstSensorId}`, { replace: true });
     }
   }, [sensorId, filteredSensors, selectedSensor, dispatch, navigate]);
+
+  // Cleanup live MQTT connection on unmount
+  React.useEffect(() => {
+    return () => {
+      if (stopLive) {
+        stopLive();
+        console.log('[Analytics] Cleaned up live MQTT connection on unmount');
+      }
+    };
+  }, [stopLive]);
 
   const toISO = (d: Date | string) => new Date(d).toISOString();
 
@@ -638,6 +652,94 @@ export const AnalyticsPage: React.FC = () => {
     }
   };
 
+  // Add handler for live MQTT toggle
+  const handleLiveToggle = async (isLive: boolean) => {
+    try {
+      if (isLive) {
+        console.log(gateways)
+        // Get active gateway IDs from the gateways state
+        const gatewayIds = gateways
+          // .filter(gateway => gateway.status === 'active') // Only active gateways
+          .map(gateway => gateway._id) // Format as gw_<id>
+          .slice(0, 10); // Limit to first 10 gateways to avoid too many subscriptions
+
+        if (gatewayIds.length === 0) {
+          addToast({
+            title: "No Active Gateways",
+            description: "No active gateways found to connect to.",
+          });
+          return;
+        }
+
+        console.log('[Analytics] Starting live mode for gateways:', gatewayIds);
+        const unsubscribe = await startLive(gatewayIds);
+        setStopLive(() => unsubscribe);
+        setIsLiveMode(true);
+        
+        addToast({
+          title: "Live Mode Enabled",
+          description: `Connected to ${gatewayIds.length} gateway(s)`,
+        });
+      } else {
+        // Stop live mode
+        if (stopLive) {
+          stopLive();
+          setStopLive(null);
+        }
+        setIsLiveMode(false);
+        
+        addToast({
+          title: "Live Mode Disabled",
+          description: "Disconnected from live data stream",
+        });
+      }
+    } catch (error) {
+      console.error('[Analytics] Live toggle error:', error);
+      addToast({
+        title: "Live Mode Error",
+        description: error instanceof Error ? error.message : "Failed to toggle live mode",
+      });
+      setIsLiveMode(false);
+    }
+  };
+
+  // Optional: Test publish command function
+  const handleSendTestCommand = async () => {
+    if (!isLiveMode) {
+      addToast({
+        title: "Live Mode Required",
+        description: "Enable live mode before sending commands",
+      });
+      return;
+    }
+
+    try {
+      // Get the first active gateway to send test to
+      const activeGateway = gateways.find(gateway => gateway.status === 'active');
+      if (!activeGateway) {
+        addToast({
+          title: "No Active Gateway",
+          description: "No active gateway found to send command to",
+        });
+        return;
+      }
+
+      const gatewayId = `gw_${activeGateway._id}`;
+      await publishCommand(gatewayId, { type: 'ping', ts: Date.now() });
+      
+      addToast({
+        title: "Test Command Sent",
+        description: `Sent ping command to ${gatewayId}`,
+      });
+    } catch (error) {
+      console.error('[Analytics] Test command error:', error);
+      addToast({
+        title: "Command Error",
+        description: error instanceof Error ? error.message : "Failed to send test command",
+      });
+    }
+  };
+
   // Prepare chart config for selected sensor
   const chartConfig: ChartConfig | null = React.useMemo(() => {
     if (!selectedSensor || !telemetryData[selectedSensor]) return null;
@@ -751,13 +853,27 @@ export const AnalyticsPage: React.FC = () => {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold">Sensors</h1>
 
-          <Button
-            color="primary"
-            onPress={() => dispatch(setClaimModalOpen(true))}
-            startContent={<Icon icon="lucide:plus" />}
-          >
-            Add Sensor
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Test command button - only show when live mode is active */}
+            {isLiveMode && (
+              <Button
+                size="sm"
+                variant="flat"
+                color="secondary"
+                onPress={handleSendTestCommand}
+                startContent={<Icon icon="lucide:send" />}
+              >
+                Test
+              </Button>
+            )}
+            <Button
+              color="primary"
+              onPress={() => dispatch(setClaimModalOpen(true))}
+              startContent={<Icon icon="lucide:plus" />}
+            >
+              Add Sensor
+            </Button>
+          </div>
         </div>
 
         {/* stats grid – re-use the component from SensorsPage */}
@@ -798,15 +914,27 @@ export const AnalyticsPage: React.FC = () => {
                 filters={filters}
                 onFiltersChange={handleFiltersChange} // Now this will work
               />
-              <Button
-                size="sm"
-                variant={isCompareMode ? "solid" : "flat"}
-                color={isCompareMode ? "primary" : "default"}
-                onPress={toggleCompareMode}
-                startContent={<Icon icon="lucide:bar-chart-2" width={16} />}
-              >
-                {isCompareMode ? "Comparing" : "Compare"}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Switch
+                  size="sm"
+                  color="success"
+                  isSelected={isLiveMode}
+                  onValueChange={handleLiveToggle}
+                  startContent={<Icon icon="lucide:wifi" width={12} />}
+                  endContent={<Icon icon="lucide:wifi-off" width={12} />}
+                >
+                  <span className="text-xs">Live</span>
+                </Switch>
+                <Button
+                  size="sm"
+                  variant={isCompareMode ? "solid" : "flat"}
+                  color={isCompareMode ? "primary" : "default"}
+                  onPress={toggleCompareMode}
+                  startContent={<Icon icon="lucide:bar-chart-2" width={16} />}
+                >
+                  {isCompareMode ? "Comparing" : "Compare"}
+                </Button>
+              </div>
             </div>
 
             <SensorList
@@ -884,15 +1012,27 @@ export const AnalyticsPage: React.FC = () => {
                   </div>
                 )}
 
-                <Button
-                  size="sm"
-                  color={isCompareMode ? "primary" : "default"}
-                  variant={isCompareMode ? "solid" : "flat"}
-                  startContent={<Icon icon="lucide:bar-chart-2" width={16} />}
-                  onPress={toggleCompareMode}
-                >
-                  {isCompareMode ? <>Compare ({selectedSensorIds.length})</> : "Compare"}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    size="sm"
+                    color="success"
+                    isSelected={isLiveMode}
+                    onValueChange={handleLiveToggle}
+                    startContent={<Icon icon="lucide:wifi" width={12} />}
+                    endContent={<Icon icon="lucide:wifi-off" width={12} />}
+                  >
+                    <span className="text-xs">Live</span>
+                  </Switch>
+                  <Button
+                    size="sm"
+                    color={isCompareMode ? "primary" : "default"}
+                    variant={isCompareMode ? "solid" : "flat"}
+                    startContent={<Icon icon="lucide:bar-chart-2" width={16} />}
+                    onPress={toggleCompareMode}
+                  >
+                    {isCompareMode ? <>Compare ({selectedSensorIds.length})</> : "Compare"}
+                  </Button>
+                </div>
               </div>
 
               {/* Active filters display */}
