@@ -403,7 +403,6 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       visualizationType,
     };
 
-    console.log({ enhancedConfig });
     switch (singleConfig.type) {
       case "temperature":
       case "humidity":

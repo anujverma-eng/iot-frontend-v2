@@ -93,7 +93,6 @@ export const DashboardHome: React.FC = () => {
 
     fetchData();
   }, [dispatch]);
-console.log("gatewayStats",{gatewayStats})
   const stats = React.useMemo(
     () => ({
       totalGateways: gatewayStats?.totalGateways || 0,

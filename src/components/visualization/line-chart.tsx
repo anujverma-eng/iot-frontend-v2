@@ -29,12 +29,10 @@ export const LineChart: React.FC<LineChartProps> = ({
   onDownloadCSV,
   onZoomChange,
 }) => {
-  console.log("Rendering LineChart with config:", config);
 
   // Add clear check for empty data
   const hasData = isMultiSeries ? config.series?.some((s: any) => s.data?.length > 0) : config.series?.length > 0;
 
-  console.log(config.series);
 
   // Optimize data for performance - limit data points for smooth rendering
   const optimizeDataForRendering = React.useCallback((data: any[]) => {

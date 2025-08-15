@@ -150,6 +150,5 @@ export const initSession = createAsyncThunk("auth/initSession", async () => {
     expiresAt: sess.exp,
     idToken: sess.id,
   });
-  console.log({ sess });
   return { email: sess.email, id: sess.id };
 });

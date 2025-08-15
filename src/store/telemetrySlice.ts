@@ -33,15 +33,10 @@ export const fetchTelemetry = createAsyncThunk<
   /* thunk API    */ { rejectValue: string }
 >("telemetry/fetchTelemetry", async (params, { rejectWithValue }) => {
   try {
-    console.log("API Request to fetch telemetry:", {
-      sensorIds: params.sensorIds,
-      timeRange: params.timeRange,
-    });
 
     // Detect if mobile for optimized bucket sizing
     const isMobile = window.innerWidth < 768;
     const bucketSize = chooseBucketSize(params.timeRange.start, params.timeRange.end, 400, isMobile);
-    console.log(`Using bucket size: ${bucketSize} (mobile: ${isMobile})`);
     
     const response = await TelemetryService.query({ ...params, bucketSize });
 
@@ -134,7 +129,6 @@ const telemetrySlice = createSlice({
           // IMPORTANT: Clear data for the requested sensors instead of keeping old data
           // Extract sensorIds from the action.meta.arg
           const requestedSensorIds = action.meta.arg.sensorIds || [];
-
           // Clear data for these specific sensors
           requestedSensorIds.forEach((id) => {
             state.data[id] = {
@@ -147,7 +141,7 @@ const telemetrySlice = createSlice({
               avg: 0,
               current: 0,
               series: [], // Empty the series array to reflect no data for this range
-            };
+            } as SensorData;
           });
 
           state.lastUpdated = new Date().toISOString();
@@ -156,7 +150,7 @@ const telemetrySlice = createSlice({
 
         // Standard data update logic for non-empty responses
         Object.entries(action.payload).forEach(([sensorId, data]) => {
-          state.data[sensorId] = data;
+          state.data[sensorId] = data as SensorData;
         });
 
         state.lastUpdated = new Date().toISOString();
