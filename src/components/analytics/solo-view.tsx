@@ -22,6 +22,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { formatNumericValue } from "../../utils/numberUtils";
 import { chartColors } from "../../data/analytics";
 import { AppDispatch, RootState } from "../../store";
+import { useOptimizedDataFetch } from "../../hooks/useOptimizedDataFetch";
 import {
   fetchSensorById,
   fetchSensors,
@@ -41,6 +42,7 @@ import {
   selectIsLiveMode,
   selectLiveStatus
 } from "../../store/telemetrySlice";
+import { fetchGateways, selectGateways } from "../../store/gatewaySlice";
 import { ChartConfig } from "../../types/sensor";
 import { LineChart } from "../visualization/line-chart";
 import { AnomalyDetectionChart } from "./distribution-charts/anomaly-detection-chart";
@@ -50,7 +52,6 @@ import { TrendAnalysisChart } from "./distribution-charts/trend-analysis-chart";
 import { FilterBar } from "./filter-bar";
 import { TableView } from "./table-view";
 import { TimeRangeSelector } from "./time-range-selector";
-import { GatewayResolver } from "../../utils/gatewayResolver";
 
 // Fix the interface to satisfy the Record<string, string | undefined> constraint
 interface SoloViewParams {
@@ -70,6 +71,7 @@ export const SoloView: React.FC = () => {
   const sensors = useSelector(selectSensors);
   const loading = useSelector(selectSensorsLoading);
   const selectedSensorData = useSelector(selectSelectedSensor);
+  const gateways = useSelector(selectGateways);
 
   // Local state
   const [searchText, setSearchText] = React.useState("");
@@ -87,7 +89,9 @@ export const SoloView: React.FC = () => {
   const reduxLiveStatus = useSelector(selectLiveStatus);
   const [isLiveMode, setIsLiveMode] = React.useState(reduxIsLiveMode);
   const [liveStatus, setLiveStatus] = React.useState<'disconnected' | 'connecting' | 'connected' | 'error' | 'slow_network'>(reduxLiveStatus);
-  const [gatewayIds, setGatewayIds] = React.useState<string[]>([]);
+
+  // Use optimized data fetch hook for efficient live data updates
+  const { fetchData: fetchOptimizedData, cancelPendingRequests } = useOptimizedDataFetch();
 
     // Sync Redux isLiveMode with local state
   React.useEffect(() => {
@@ -101,6 +105,21 @@ export const SoloView: React.FC = () => {
   React.useEffect(() => {
     setLiveStatus(reduxLiveStatus);
   }, [reduxLiveStatus]);
+
+  // Cleanup on unmount - cancel any pending data requests and live mode
+  React.useEffect(() => {
+    return () => {
+      console.log('[SoloView] Component unmounting, cancelling pending requests');
+      cancelPendingRequests();
+      
+      // Clean up live mode connection if active
+      if (isLiveMode) {
+        console.log('[SoloView] Dispatching live mode toggle to false on unmount');
+        dispatch(toggleLiveMode({ enable: false, gatewayIds: [] }));
+        console.log('[SoloView] Cleaned up live MQTT connection on unmount');
+      }
+    };
+  }, [cancelPendingRequests, isLiveMode, dispatch]);
 
   const sensorsLoaded = useSelector((s: RootState) => s.sensors.loaded);
   const sensorsLoading = useSelector(selectSensorsLoading);
@@ -151,6 +170,12 @@ export const SoloView: React.FC = () => {
       .catch((e) => console.error('[SoloView] Fetch sensors error:', e));
   }, [dispatch, sensorsLoaded, sensorsLoading, filters.search]);
 
+  // Fetch gateways for live mode functionality
+  React.useEffect(() => {
+    console.log('[SoloView] Fetching gateways for live mode');
+    dispatch(fetchGateways({ page: 1, limit: 1000, search: "" }));
+  }, [dispatch]);
+
   /*****************************************************************************
    * 2️⃣  Ensure we always have a “selected” sensor
    *****************************************************************************/
@@ -186,58 +211,16 @@ export const SoloView: React.FC = () => {
 
     if (initialLoading) return; // wait until list call finished
     if (sensorId && !initialLoading) {
-      dispatch(
-        fetchTelemetry({
-          sensorIds: [sensorId],
-          timeRange: {
-            start: filters.timeRange.start.toISOString(),
-            end: filters.timeRange.end.toISOString(),
-          },
-        })
-      );
+      // Use optimized data fetch for better performance and live mode support
+      fetchOptimizedData({
+        sensorIds: [sensorId],
+        timeRange: {
+          start: filters.timeRange.start.toISOString(),
+          end: filters.timeRange.end.toISOString(),
+        },
+      });
     }
-  }, [sensorId, filters.timeRange.start, filters.timeRange.end, initialLoading, dispatch]);
-
-  // Resolve gateway IDs for current sensor
-  React.useEffect(() => {
-    console.log('[SoloView] Gateway resolution effect triggered');
-    console.log('[SoloView] Current sensor:', currentSensor ? { id: currentSensor._id, mac: currentSensor.mac, lastSeenBy: currentSensor.lastSeenBy } : null);
-    
-    const resolveGatewayIds = async () => {
-      if (!currentSensor || !currentSensor.mac) {
-        console.log('[SoloView] No current sensor or MAC, clearing gateway IDs');
-        setGatewayIds([]);
-        return;
-      }
-
-      try {
-        console.log('[SoloView] Resolving gateway IDs for sensor:', currentSensor.mac);
-        
-        // First check if we can use direct gateway IDs from sensor
-        const directIds = GatewayResolver.getDirectGatewayIds(currentSensor);
-        console.log('[SoloView] Direct gateway IDs:', directIds);
-        
-        if (directIds.length > 0) {
-          console.log('[SoloView] Using direct gateway IDs:', directIds);
-          setGatewayIds(directIds);
-          return;
-        }
-
-        console.log('[SoloView] No direct IDs found, falling back to MAC-based resolution');
-        // Fallback to MAC-based resolution
-        const resolvedIds = await GatewayResolver.getGatewayIdsForSensor(currentSensor);
-        console.log('[SoloView] Resolved gateway IDs from MAC:', resolvedIds);
-        setGatewayIds(resolvedIds);
-      } catch (error) {
-        console.error("[SoloView] Failed to resolve gateway IDs:", error);
-        // Fallback: try to use sensor MAC as gateway ID (for compatibility)
-        console.log('[SoloView] Using sensor MAC as fallback gateway ID:', currentSensor.mac);
-        setGatewayIds([currentSensor.mac]);
-      }
-    };
-
-    resolveGatewayIds();
-  }, [currentSensor?._id, currentSensor?.mac]); // Only re-run when sensor ID or MAC changes
+  }, [sensorId, filters.timeRange.start, filters.timeRange.end, initialLoading, fetchOptimizedData]);
 
   // Prepare chart config for selected sensor
   const chartConfig: ChartConfig | null = React.useMemo(() => {
@@ -423,13 +406,28 @@ export const SoloView: React.FC = () => {
     
     try {
       if (isLive) {
-        // Get gateway IDs for the current sensor
-        const currentGatewayIds = currentSensor?.mac ? [currentSensor.mac] : [];
-        console.log('[SoloView] Enabling live mode for gateways:', currentGatewayIds);
+        // Use gateway IDs like analytics.tsx does - don't filter by status
+        console.log('[SoloView] Available gateways:', gateways.length);
+        
+        const gatewayIds = gateways
+          .map(gateway => gateway._id) // Use gateway ID directly
+          .slice(0, 10); // Limit to first 10 gateways to avoid too many subscriptions
+
+        console.log('[SoloView] Available gateways:', gateways.map(g => ({ id: g._id, status: g.status })));
+        console.log('[SoloView] Selected gateway IDs:', gatewayIds);
+        
+        if (gatewayIds.length === 0) {
+          console.warn('[SoloView] No gateways found');
+          // Revert local state
+          setIsLiveMode(false);
+          return;
+        }
+        
+        console.log('[SoloView] Enabling live mode for gateways:', gatewayIds);
         
         await dispatch(toggleLiveMode({ 
           enable: true, 
-          gatewayIds: currentGatewayIds 
+          gatewayIds 
         })).unwrap();
         
         console.log('[SoloView] Live mode enabled successfully');
@@ -454,7 +452,7 @@ export const SoloView: React.FC = () => {
     setLiveStatus('connecting');
     
     try {
-      const currentGatewayIds = currentSensor?.mac ? [currentSensor.mac] : [];
+      // First disable live mode
       await dispatch(toggleLiveMode({ 
         enable: false, 
         gatewayIds: [] 
@@ -463,9 +461,20 @@ export const SoloView: React.FC = () => {
       // Small delay before reconnecting
       setTimeout(async () => {
         try {
+          // Use same gateway logic as live mode toggle
+          const gatewayIds = gateways
+            .map(gateway => gateway._id)
+            .slice(0, 10);
+            
+          if (gatewayIds.length === 0) {
+            console.warn('[SoloView] No gateways available for retry');
+            setLiveStatus('error');
+            return;
+          }
+          
           await dispatch(toggleLiveMode({ 
             enable: true, 
-            gatewayIds: currentGatewayIds 
+            gatewayIds 
           })).unwrap();
           console.log('[SoloView] Connection retry successful');
         } catch (retryError) {
@@ -727,7 +736,7 @@ export const SoloView: React.FC = () => {
                         onLiveModeChange={handleLiveModeChange}
                         liveStatus={liveStatus}
                         onRetryConnection={handleRetryConnection}
-                        gatewayIds={gatewayIds}
+                        gatewayIds={gateways.map(g => g._id)}
                       />
                       
                       {starLoading ? (
