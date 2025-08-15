@@ -42,6 +42,7 @@ import { TrendAnalysisChart } from "./distribution-charts/trend-analysis-chart";
 import { FilterBar } from "./filter-bar";
 import { TableView } from "./table-view";
 import { TimeRangeSelector } from "./time-range-selector";
+import { GatewayResolver } from "../../utils/gatewayResolver";
 
 // Fix the interface to satisfy the Record<string, string | undefined> constraint
 interface SoloViewParams {
@@ -50,7 +51,6 @@ interface SoloViewParams {
 }
 
 export const SoloView: React.FC = () => {
-  const log = (...msg: any[]) => console.log("[SoloView]", ...msg);
   const navigate = useNavigate();
   const { sensorId } = useParams<SoloViewParams>();
   const dispatch = useDispatch<AppDispatch>();
@@ -74,9 +74,25 @@ export const SoloView: React.FC = () => {
   const [starLoading, setStarLoading] = React.useState(false);
   const chartRef = React.useRef<HTMLDivElement>(null);
 
-  // Live mode state
-  const [isLiveMode, setIsLiveMode] = React.useState(true); // Default to live mode
-  const [liveStatus, setLiveStatus] = React.useState<'disconnected' | 'connecting' | 'connected' | 'error' | 'slow_network'>('disconnected');
+  // Live mode state - sync with Redux
+  const reduxIsLiveMode = useSelector((state: RootState) => state.telemetry.isLiveMode);
+  const reduxLiveStatus = useSelector((state: RootState) => state.telemetry.liveStatus);
+  const [isLiveMode, setIsLiveMode] = React.useState(reduxIsLiveMode);
+  const [liveStatus, setLiveStatus] = React.useState<'disconnected' | 'connecting' | 'connected' | 'error' | 'slow_network'>(reduxLiveStatus);
+  const [gatewayIds, setGatewayIds] = React.useState<string[]>([]);
+
+    // Sync Redux isLiveMode with local state
+  React.useEffect(() => {
+    console.log('[SoloView] Redux live mode sync effect - Redux isLiveMode:', reduxIsLiveMode, 'Local isLiveMode:', isLiveMode);
+    if (reduxIsLiveMode !== isLiveMode) {
+      console.log('[SoloView] Syncing local state with Redux state:', reduxIsLiveMode);
+      setIsLiveMode(reduxIsLiveMode);
+    }
+  }, [reduxIsLiveMode, isLiveMode]);
+
+  React.useEffect(() => {
+    setLiveStatus(reduxLiveStatus);
+  }, [reduxLiveStatus]);
 
   const sensorsLoaded = useSelector((s: RootState) => s.sensors.loaded);
   const sensorsLoading = useSelector(selectSensorsLoading);
@@ -114,7 +130,7 @@ export const SoloView: React.FC = () => {
   // Fetch sensors on component mount - ONLY ONCE
   React.useEffect(() => {
     if (sensorsLoaded || sensorsLoading) return; // already have / still fetching
-    log("⏩ fetchSensors (once)");
+    console.log('[SoloView] Fetching sensors on mount');
     dispatch(
       fetchSensors({
         page: 1,
@@ -124,7 +140,7 @@ export const SoloView: React.FC = () => {
       })
     )
       .unwrap() // ← propagates real promise
-      .catch((e) => log("⚠️ fetchSensors error", e));
+      .catch((e) => console.error('[SoloView] Fetch sensors error:', e));
   }, [dispatch, sensorsLoaded, sensorsLoading, filters.search]);
 
   /*****************************************************************************
@@ -138,7 +154,7 @@ export const SoloView: React.FC = () => {
     /* a) we have an id in the URL ----------------------------------------- */
     if (sensorId) {
       if (selectedSensorData.data?._id !== sensorId) {
-        log("⏩ fetchSensorById", sensorId);
+        console.log('[SoloView] Fetching sensor by ID:', sensorId);
         dispatch(fetchSensorById(sensorId));
       }
       return;
@@ -147,14 +163,18 @@ export const SoloView: React.FC = () => {
     /* b) no id → redirect to first sensor --------------------------------- */
     if (filteredSensors.length && !selectedSensorData.data) {
       const firstId = filteredSensors[0].id;
-      log("↪️ redirect to first sensor", firstId);
+      console.log('[SoloView] Redirecting to first sensor:', firstId);
       navigate(`/dashboard/sensors/${firstId}?solo=true`, { replace: true });
     }
   }, [sensorId, filteredIds, sensorsLoaded, selectedSensorData.data?._id, dispatch, navigate]);
 
   // Fetch telemetry data when selected sensor or time range changes - FIXED DEPENDENCIES
   React.useEffect(() => {
-    log("🔄 sensor-selection effect", { sensorId, filteredIds, selectedId: selectedSensorData.data?._id });
+    console.log('[SoloView] Sensor selection effect:', { 
+      sensorId, 
+      filteredIds, 
+      selectedId: selectedSensorData.data?._id 
+    });
 
     if (initialLoading) return; // wait until list call finished
     if (sensorId && !initialLoading) {
@@ -169,6 +189,47 @@ export const SoloView: React.FC = () => {
       );
     }
   }, [sensorId, filters.timeRange.start, filters.timeRange.end, initialLoading, dispatch]);
+
+  // Resolve gateway IDs for current sensor
+  React.useEffect(() => {
+    console.log('[SoloView] Gateway resolution effect triggered');
+    console.log('[SoloView] Current sensor:', currentSensor ? { id: currentSensor._id, mac: currentSensor.mac, lastSeenBy: currentSensor.lastSeenBy } : null);
+    
+    const resolveGatewayIds = async () => {
+      if (!currentSensor || !currentSensor.mac) {
+        console.log('[SoloView] No current sensor or MAC, clearing gateway IDs');
+        setGatewayIds([]);
+        return;
+      }
+
+      try {
+        console.log('[SoloView] Resolving gateway IDs for sensor:', currentSensor.mac);
+        
+        // First check if we can use direct gateway IDs from sensor
+        const directIds = GatewayResolver.getDirectGatewayIds(currentSensor);
+        console.log('[SoloView] Direct gateway IDs:', directIds);
+        
+        if (directIds.length > 0) {
+          console.log('[SoloView] Using direct gateway IDs:', directIds);
+          setGatewayIds(directIds);
+          return;
+        }
+
+        console.log('[SoloView] No direct IDs found, falling back to MAC-based resolution');
+        // Fallback to MAC-based resolution
+        const resolvedIds = await GatewayResolver.getGatewayIdsForSensor(currentSensor);
+        console.log('[SoloView] Resolved gateway IDs from MAC:', resolvedIds);
+        setGatewayIds(resolvedIds);
+      } catch (error) {
+        console.error("[SoloView] Failed to resolve gateway IDs:", error);
+        // Fallback: try to use sensor MAC as gateway ID (for compatibility)
+        console.log('[SoloView] Using sensor MAC as fallback gateway ID:', currentSensor.mac);
+        setGatewayIds([currentSensor.mac]);
+      }
+    };
+
+    resolveGatewayIds();
+  }, [currentSensor?._id, currentSensor?.mac]); // Only re-run when sensor ID or MAC changes
 
   // Prepare chart config for selected sensor
   const chartConfig: ChartConfig | null = React.useMemo(() => {
@@ -341,18 +402,9 @@ export const SoloView: React.FC = () => {
   };
 
   const handleLiveModeChange = (isLive: boolean) => {
+    // The TimeRangeSelector will handle Redux state updates
+    // This is just for any local state sync if needed
     setIsLiveMode(isLive);
-    if (isLive) {
-      // Simulate connecting to live data
-      setLiveStatus('connecting');
-      setTimeout(() => {
-        // Simulate different connection states for demo
-        const states: typeof liveStatus[] = ['connected', 'error', 'slow_network'];
-        setLiveStatus(states[Math.floor(Math.random() * states.length)]);
-      }, 2000);
-    } else {
-      setLiveStatus('disconnected');
-    }
   };
 
   const handleRetryConnection = () => {
@@ -470,7 +522,7 @@ export const SoloView: React.FC = () => {
   const handleToggleStar = async () => {
     setStarLoading(true);
     try {
-      console.log("🔄 handleToggleStar", currentSensor?.mac);
+      console.log('[SoloView] Toggling star for sensor:', currentSensor?.mac);
       if (currentSensor?.mac) {
         await dispatch(toggleSensorStar(currentSensor.mac)).unwrap();
       }
@@ -610,6 +662,7 @@ export const SoloView: React.FC = () => {
                         onLiveModeChange={handleLiveModeChange}
                         liveStatus={liveStatus}
                         onRetryConnection={handleRetryConnection}
+                        gatewayIds={gatewayIds}
                       />
                       
                       {starLoading ? (

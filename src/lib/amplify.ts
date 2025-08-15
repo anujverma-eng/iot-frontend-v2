@@ -24,13 +24,15 @@ export const pubsub = new PubSub({
 // 3) Add Hub listener for connection state debugging
 Hub.listen('pubsub', (data: any) => {
   const { payload } = data;
-  console.log('[MQTT Hub]', payload.event, payload.data);
+  console.log('[MQTT Hub] Event received:', payload.event, 'Data:', payload.data);
   
   if (payload.event === 'connected') {
-    console.log('✅ [MQTT] Connected to IoT Core');
+    console.log('[MQTT Hub] Connected to IoT Core');
   } else if (payload.event === 'disconnected') {
-    console.log('❌ [MQTT] Disconnected from IoT Core');
+    console.log('[MQTT Hub] Disconnected from IoT Core');
   } else if (payload.event === 'connection_failed') {
-    console.error('🚫 [MQTT] Connection failed:', payload.data);
+    console.error('[MQTT Hub] Connection failed:', payload.data);
+  } else {
+    console.log('[MQTT Hub] Unknown event:', payload.event);
   }
 });

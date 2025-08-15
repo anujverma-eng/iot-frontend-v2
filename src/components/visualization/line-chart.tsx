@@ -241,6 +241,15 @@ export const LineChart: React.FC<LineChartProps> = ({
     } else {
       const singleConfig = config as ChartConfig;
       rawData = singleConfig.series || [];
+      
+      // Debug logging for live data updates
+      console.log('[LineChart] Processing chart data:', {
+        configType: singleConfig.type,
+        seriesLength: rawData.length,
+        lastPoint: rawData[rawData.length - 1],
+        lastThreePoints: rawData.slice(-3),
+        timestamp: Date.now()
+      });
     }
 
     // Apply data optimization for large datasets
@@ -249,6 +258,14 @@ export const LineChart: React.FC<LineChartProps> = ({
 
   // Add moving average calculation
   const chartDataWithMA = React.useMemo(() => {
+    console.log('[LineChart] chartDataWithMA memoization triggered:', {
+      inputLength: chartData?.length || 0,
+      lastPoint: chartData?.[chartData.length - 1],
+      lastThreeInputPoints: chartData?.slice(-3),
+      showMA: isMultiSeries ? false : (config as ChartConfig).showMovingAverage,
+      timestamp: Date.now()
+    });
+
     if (!chartData || chartData.length === 0) return chartData;
 
     if (isMultiSeries || !(config as ChartConfig).showMovingAverage) {
@@ -272,13 +289,39 @@ export const LineChart: React.FC<LineChartProps> = ({
       result[i].movingAverage = sum / count;
     }
 
+    console.log('[LineChart] chartDataWithMA completed:', {
+      outputLength: result.length,
+      lastResultPoint: result[result.length - 1]
+    });
+
     return result;
   }, [chartData, config, isMultiSeries]);
 
   const orderedData = React.useMemo(
-    () => [...chartDataWithMA].sort((a, b) => a.timestamp - b.timestamp),
+    () => {
+      const sortedData = [...chartDataWithMA].sort((a, b) => a.timestamp - b.timestamp);
+      console.log('[LineChart] orderedData memoization triggered:', {
+        inputLength: chartDataWithMA.length,
+        outputLength: sortedData.length,
+        lastInputPoint: chartDataWithMA[chartDataWithMA.length - 1],
+        lastOutputPoint: sortedData[sortedData.length - 1],
+        lastThreePoints: sortedData.slice(-3),
+        timestamp: Date.now()
+      });
+      return sortedData;
+    },
     [chartDataWithMA]
   );
+
+  // Use a stable key based on data characteristics rather than forcing re-mounts
+  const chartKey = React.useMemo(() => {
+    if (!orderedData.length) return 'empty-chart';
+    
+    // Create a stable key that changes only when we want Recharts to recognize new data
+    const dataIdentifier = `chart-${orderedData.length}-${orderedData[0]?.timestamp || 0}-${orderedData[orderedData.length - 1]?.timestamp || 0}`;
+    console.log('[LineChart] Generated stable chart key:', dataIdentifier);
+    return dataIdentifier;
+  }, [orderedData.length, orderedData[0]?.timestamp, orderedData[orderedData.length - 1]?.timestamp]);
 
   // Initialize brush domain when data changes (but don't trigger brush change callback)
   React.useEffect(() => {
@@ -495,7 +538,16 @@ export const LineChart: React.FC<LineChartProps> = ({
     }));
   }, [orderedData, isMultiSeries, config]);
 
-  console.log(dailyRangeData);
+  console.log('[LineChart] Final orderedData for rendering:', {
+    length: orderedData.length,
+    firstPoint: orderedData[0],
+    lastPoint: orderedData[orderedData.length - 1],
+    samplePoints: orderedData.slice(-3), // show last 3 points
+    allTimestamps: orderedData.map(p => p.timestamp),
+    allValues: orderedData.map(p => p.value)
+  });
+
+  console.log('[LineChart] About to render Recharts with data length:', orderedData.length);
 
   return (
     <div className="w-full h-full flex flex-col">
@@ -596,8 +648,16 @@ export const LineChart: React.FC<LineChartProps> = ({
       </div>
 
       <div className="flex-1 min-h-[300px]">
-        <ResponsiveContainer width="100%" height="100%" className="overflow-visible">
-          <RechartsLineChart data={orderedData} margin={{ top: 10, right: 30, left: 20, bottom: 20 }}>
+        <ResponsiveContainer 
+          width="100%" 
+          height="100%" 
+          className="overflow-visible"
+        >
+          <RechartsLineChart 
+            key={chartKey}
+            data={orderedData} 
+            margin={{ top: 10, right: 30, left: 20, bottom: 20 }}
+          >
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis
               dataKey="timestamp"
@@ -708,7 +768,7 @@ export const LineChart: React.FC<LineChartProps> = ({
                     dot={false}
                     activeDot={{ r: 6, strokeWidth: 2 }}
                     strokeWidth={2.5}
-                    animationDuration={1000}
+                    isAnimationActive={false}
                   />
                 ))}
               </>
@@ -727,7 +787,7 @@ export const LineChart: React.FC<LineChartProps> = ({
                     style: { filter: "drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))" },
                   }}
                   strokeWidth={2.5}
-                  animationDuration={1000}
+                  isAnimationActive={false}
                 />
 
                 {(config as ChartConfig).showMovingAverage && (
@@ -738,8 +798,8 @@ export const LineChart: React.FC<LineChartProps> = ({
                     strokeWidth={3}
                     dot={false}
                     activeDot={{ r: 4 }}
+                    isAnimationActive={false}
                     strokeDasharray="5 5"
-                    animationDuration={1500}
                   />
                 )}
               </>

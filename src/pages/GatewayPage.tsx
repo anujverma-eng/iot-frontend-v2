@@ -223,7 +223,6 @@ export const GatewaysPage: React.FC = () => {
           </Chip>
         );
       case "actions":
-        console.log('Rendering actions for gateway:', gateway.mac);
         const isDeleting = deleteLoadingIds.includes(gateway._id);
         return (
           <div className="flex items-center gap-2">

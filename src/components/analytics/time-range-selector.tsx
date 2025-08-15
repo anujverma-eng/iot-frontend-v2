@@ -4,6 +4,12 @@ import { Icon } from "@iconify/react";
 import { CalendarDate, DateValue, getLocalTimeZone } from "@internationalized/date";
 import React from "react";
 import { timeRangePresets } from "../../data/analytics";
+import { useAppDispatch, useAppSelector } from "../../hooks/useAppDispatch";
+import { 
+  selectIsLiveMode, 
+  selectLiveStatus,
+  toggleLiveMode as toggleLiveModeAction
+} from "../../store/telemetrySlice";
 
 type RangeValue<T> = { start: T | null; end: T | null };
 
@@ -20,16 +26,26 @@ export const TimeRangeSelector: React.FC<{
   onLiveModeChange?: (isLive: boolean) => void;
   liveStatus?: LiveStatus;
   onRetryConnection?: () => void;
+  gatewayIds?: string[]; // Add gateway IDs for live mode
 }> = ({ 
   timeRange, 
   onTimeRangeChange, 
   showApplyButtons = false, 
   isMobile = false,
-  isLiveMode = false,
+  isLiveMode: externalIsLiveMode,
   onLiveModeChange,
-  liveStatus = 'disconnected',
-  onRetryConnection
+  liveStatus: externalLiveStatus,
+  onRetryConnection,
+  gatewayIds = []
 }) => {
+  const dispatch = useAppDispatch();
+  const reduxIsLiveMode = useAppSelector(selectIsLiveMode);
+  const reduxLiveStatus = useAppSelector(selectLiveStatus);
+  
+  // Use external props if available, otherwise use Redux state
+  const isLiveMode = externalIsLiveMode !== undefined ? externalIsLiveMode : reduxIsLiveMode;
+  const liveStatus = externalLiveStatus !== undefined ? externalLiveStatus : reduxLiveStatus;
+  
   const [open, setOpen] = React.useState(false);
   const [pendingTimeRange, setPendingTimeRange] = React.useState(timeRange);
   const [pendingLiveMode, setPendingLiveMode] = React.useState(isLiveMode);
@@ -75,7 +91,7 @@ export const TimeRangeSelector: React.FC<{
     setPendingLiveMode(isLiveMode);
   }, [timeRange, isLiveMode]);
 
-  const toggleLiveMode = () => {
+  const toggleLiveMode = async () => {
     const newLiveMode = !pendingLiveMode;
     setPendingLiveMode(newLiveMode);
     
@@ -87,7 +103,20 @@ export const TimeRangeSelector: React.FC<{
     
     // Apply immediately if not using apply buttons or on mobile
     if (!showApplyButtons || isMobile) {
-      onLiveModeChange?.(newLiveMode);
+      if (onLiveModeChange) {
+        onLiveModeChange(newLiveMode);
+      } else if (gatewayIds.length > 0) {
+        // Use Redux action if gateway IDs are available
+        try {
+          await dispatch(toggleLiveModeAction({ enable: newLiveMode, gatewayIds })).unwrap();
+        } catch (error) {
+          console.error('Failed to toggle live mode:', error);
+          // Revert the pending state on error
+          setPendingLiveMode(!newLiveMode);
+          return;
+        }
+      }
+      
       if (!newLiveMode) {
         const defaultRange = timeRangePresets[1].getValue();
         onTimeRangeChange(defaultRange);
@@ -129,11 +158,28 @@ export const TimeRangeSelector: React.FC<{
     }
   };
 
-  const handleApply = () => {
+  const handleApply = async () => {
     if (pendingLiveMode) {
-      onLiveModeChange?.(true);
+      if (onLiveModeChange) {
+        onLiveModeChange(true);
+      } else if (gatewayIds.length > 0) {
+        try {
+          await dispatch(toggleLiveModeAction({ enable: true, gatewayIds })).unwrap();
+        } catch (error) {
+          console.error('Failed to enable live mode:', error);
+          return;
+        }
+      }
     } else {
-      onLiveModeChange?.(false);
+      if (onLiveModeChange) {
+        onLiveModeChange(false);
+      } else {
+        try {
+          await dispatch(toggleLiveModeAction({ enable: false, gatewayIds: [] })).unwrap();
+        } catch (error) {
+          console.error('Failed to disable live mode:', error);
+        }
+      }
       onTimeRangeChange(pendingTimeRange);
     }
     setOpen(false);
@@ -158,14 +204,22 @@ export const TimeRangeSelector: React.FC<{
     setOpen(false);
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     const defaultRange = timeRangePresets[1].getValue(); // Last 24 Hours
     setRangeIdx(1);
     setPendingTimeRange(defaultRange);
     setPendingLiveMode(false);
     
     if (!showApplyButtons || isMobile) {
-      onLiveModeChange?.(false);
+      if (onLiveModeChange) {
+        onLiveModeChange(false);
+      } else {
+        try {
+          await dispatch(toggleLiveModeAction({ enable: false, gatewayIds: [] })).unwrap();
+        } catch (error) {
+          console.error('Failed to disable live mode:', error);
+        }
+      }
       onTimeRangeChange(defaultRange);
       setOpen(false);
     }

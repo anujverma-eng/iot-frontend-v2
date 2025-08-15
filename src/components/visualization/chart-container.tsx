@@ -17,6 +17,7 @@ import { LightChart } from "./light-chart";
 import { LineChart } from "./line-chart";
 import { PressureChart } from "./pressure-chart";
 import { SparkTimelineChart } from "./spark-timeline-chart";
+import { GatewayResolver } from "../../utils/gatewayResolver";
 
 import { ChartLoadingSkeleton } from './chart-loading-skeleton';
 import { MobileChartLoading } from './mobile-chart-loading';
@@ -73,19 +74,34 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   const [visualizationType, setVisualizationType] = React.useState<VisualizationType>("line");
   const [showMovingAverage, setShowMovingAverage] = React.useState(false);
   const [showDailyRange, setShowDailyRange] = React.useState(false);
+  const [gatewayIds, setGatewayIds] = React.useState<string[]>([]);
   const chartRef = React.useRef<HTMLDivElement>(null);
 
+  // Use a more targeted memoization approach
   const memoizedConfig = React.useMemo(
-    () => config, // same reference until series/type actually change
+    () => {
+      console.log('[ChartContainer] Config memoization triggered:', {
+        isLiveMode,
+        configType: config.type,
+        seriesLength: isMultiSeries 
+          ? (config as MultiSeriesConfig).series?.length
+          : (config as ChartConfig).series?.length,
+        lastTimestamp: !isMultiSeries && (config as ChartConfig).series?.length > 0
+          ? (config as ChartConfig).series[(config as ChartConfig).series.length - 1]?.timestamp
+          : null,
+        lastValue: !isMultiSeries && (config as ChartConfig).series?.length > 0
+          ? (config as ChartConfig).series[(config as ChartConfig).series.length - 1]?.value
+          : null,
+        timestamp: Date.now()
+      });
+      return config;
+    },
     [
-      isMultiSeries
-        ? (config as MultiSeriesConfig).series // track series array (object identity)
-        : (config as ChartConfig).series,
-      config.type, // track primitive sensor-type
-      // Add data length to prevent stale memoization
-      isMultiSeries 
-        ? (config as MultiSeriesConfig).series?.reduce((acc, s) => acc + (s.data?.length || 0), 0)
-        : (config as ChartConfig).series?.length || 0
+      config, // Always track the config object itself
+      // In live mode, track data changes more granularly by stringifying key data points
+      isLiveMode && !isMultiSeries && (config as ChartConfig).series?.length > 0
+        ? JSON.stringify((config as ChartConfig).series.slice(-3)) // Track last 3 data points
+        : null
     ]
   );
 
@@ -173,6 +189,37 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       window.history.replaceState(null, "", window.location.pathname + window.location.search + hash);
     }
   }, [visualizationType, showMovingAverage, showDailyRange, sensor]);
+
+  // Resolve gateway IDs for current sensor
+  React.useEffect(() => {
+    const resolveGatewayIds = async () => {
+      if (!sensor || !sensor.mac) {
+        setGatewayIds([]);
+        return;
+      }
+
+      try {
+        // First check if we can use direct gateway IDs from sensor
+        const directIds = GatewayResolver.getDirectGatewayIds(sensor as any);
+        if (directIds.length > 0) {
+          console.log('[ChartContainer] Using direct gateway IDs:', directIds);
+          setGatewayIds(directIds);
+          return;
+        }
+
+        // Fallback to MAC-based resolution
+        const sensorData = { ...sensor, lastSeenBy: [] } as any; // Type assertion for sensor with lastSeenBy
+        const resolvedIds = await GatewayResolver.getGatewayIdsForSensor(sensorData);
+        setGatewayIds(resolvedIds);
+      } catch (error) {
+        console.error("[ChartContainer] Failed to resolve gateway IDs:", error);
+        // Fallback: try to use sensor MAC as gateway ID (for compatibility)
+        setGatewayIds([sensor.mac]);
+      }
+    };
+
+    resolveGatewayIds();
+  }, [sensor?.id, sensor?.mac]); // Only re-run when sensor ID or MAC changes
 
   // Add error handling for when config is null
   if (!config) {
@@ -550,6 +597,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                   onLiveModeChange={onLiveModeChange}
                   liveStatus={liveStatus}
                   onRetryConnection={onRetryConnection}
+                  gatewayIds={gatewayIds}
                 />
               )}
 

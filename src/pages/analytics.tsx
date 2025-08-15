@@ -15,7 +15,6 @@ import { ChartContainer } from "../components/visualization/chart-container";
 import { ComparisonChart } from "../components/visualization/comparison-chart";
 import { GaugeChart } from "../components/visualization/gauge-chart";
 import { chartColors, sensorTypes, statusOptions, timeRangePresets } from "../data/analytics";
-import { startLive, publishCommand } from "../lib/liveMqtt";
 import { AppDispatch, RootState } from "../store";
 import { fetchGateways, selectGateways } from "../store/gatewaySlice";
 import {
@@ -39,7 +38,16 @@ import {
   toggleSensorStar,
   updateSensorDisplayName,
 } from "../store/sensorsSlice";
-import { fetchTelemetry, selectTelemetryData, selectTelemetryLoading, setTimeRange } from "../store/telemetrySlice";
+import { 
+  fetchTelemetry, 
+  selectTelemetryData, 
+  selectTelemetryLoading, 
+  setTimeRange,
+  selectIsLiveMode,
+  selectLiveStatus,
+  toggleLiveMode,
+  selectLiveSensors
+} from "../store/telemetrySlice";
 import { useDebouncedSensorSelection } from "../hooks/useDebouncedSensorSelection";
 import { useOptimizedDataFetch } from "../hooks/useOptimizedDataFetch";
 import { useCompareSelection } from "../hooks/useCompareSelection";
@@ -82,12 +90,26 @@ export const AnalyticsPage: React.FC = () => {
   const [isMobileSensorDrawerOpen, setIsMobileSensorDrawerOpen] = React.useState(false);
   const [isMobileFilterDrawerOpen, setIsMobileFilterDrawerOpen] = React.useState(false);
   const [selectedTimeRangeIndex, setSelectedTimeRangeIndex] = React.useState(1);
+  const dispatch = useDispatch<AppDispatch>();
+
+  // Get state from Redux
+  const filters = useSelector(selectFilters);
+  const selectedSensorIds = useSelector(selectSelectedSensorIds);
+  const telemetryData = useSelector(selectTelemetryData);
+  const isLoadingData = useSelector(selectTelemetryLoading);
+  const sensors = useSelector(selectSensors);
+  const loading = useSelector(selectSensorsLoading);
+  const selectedSensorData = useSelector(selectSelectedSensor);
+  const pagination = useSelector(selectSensorPagination);
+  const gateways = useSelector(selectGateways);
+  
+  // Live mode Redux state
+  const isLiveMode = useSelector(selectIsLiveMode);
+  const liveStatus = useSelector(selectLiveStatus);
+  const liveSensors = useSelector(selectLiveSensors);
+
   const stats = useSelector(selectSensorStats);
   const [pendingFilters, setPendingFilters] = React.useState<FilterState | null>(null);
-  const gateways = useSelector(selectGateways);
-
-  // Live mode status state (isLiveMode already exists below)
-  const [liveStatus, setLiveStatus] = React.useState<'disconnected' | 'connecting' | 'connected' | 'error' | 'slow_network'>('disconnected');
 
   const applyPendingFilters = () => {
     if (pendingFilters) {
@@ -129,18 +151,6 @@ export const AnalyticsPage: React.FC = () => {
     }
   };
 
-  const dispatch = useDispatch<AppDispatch>();
-
-  // Get state from Redux
-  const filters = useSelector(selectFilters);
-  const selectedSensorIds = useSelector(selectSelectedSensorIds);
-  const telemetryData = useSelector(selectTelemetryData);
-  const isLoadingData = useSelector(selectTelemetryLoading);
-  const sensors = useSelector(selectSensors);
-  const loading = useSelector(selectSensorsLoading);
-  const selectedSensorData = useSelector(selectSelectedSensor);
-  const pagination = useSelector(selectSensorPagination);
-
   // Use optimized data fetching hook
   const { fetchData: fetchOptimizedData, cancelPendingRequests } = useOptimizedDataFetch();
   
@@ -165,35 +175,9 @@ export const AnalyticsPage: React.FC = () => {
   // Add state for compare mode
   const [isCompareMode, setIsCompareMode] = React.useState(false);
 
-  // Add live MQTT state
-  const [isLiveMode, setIsLiveMode] = React.useState(false);
-  const [stopLive, setStopLive] = React.useState<(() => void) | null>(null);
-
   const syncTimeRange = (range: { start: Date; end: Date }) => {
     dispatch(setFilters({ ...filters, timeRange: range })); // sensors slice
     dispatch(setTimeRange(range)); // telemetry slice
-  };
-
-  const handleLiveModeChange = (isLive: boolean) => {
-    setIsLiveMode(isLive);
-    if (isLive) {
-      // Simulate connecting to live data
-      setLiveStatus('connecting');
-      setTimeout(() => {
-        // Simulate different connection states for demo
-        const states: typeof liveStatus[] = ['connected', 'error', 'slow_network'];
-        setLiveStatus(states[Math.floor(Math.random() * states.length)]);
-      }, 2000);
-    } else {
-      setLiveStatus('disconnected');
-    }
-  };
-
-  const handleRetryConnection = () => {
-    setLiveStatus('connecting');
-    setTimeout(() => {
-      setLiveStatus(Math.random() > 0.5 ? 'connected' : 'error');
-    }, 1500);
   };
 
   // Fetch sensors on component mount
@@ -300,27 +284,35 @@ export const AnalyticsPage: React.FC = () => {
 
   // Handle URL parameter for selected sensor
   React.useEffect(() => {
+    console.log('[Analytics] URL sensor effect triggered with:', { sensorId, selectedSensor, filteredSensorsLength: filteredSensors?.length });
+    
     if (sensorId) {
+      console.log('[Analytics] Setting sensor from URL parameter:', sensorId);
       dispatch(fetchSensorById(sensorId));
       setSelectedSensor(sensorId);
     } else if (filteredSensors && filteredSensors.length > 0 && !selectedSensor) {
       // Add null check for filteredSensors before accessing length
       const firstSensorId = filteredSensors[0].id;
+      console.log('[Analytics] Auto-selecting first sensor:', firstSensorId);
       dispatch(fetchSensorById(firstSensorId));
       setSelectedSensor(firstSensorId);
       navigate(`/dashboard/sensors/${firstSensorId}`, { replace: true });
     }
   }, [sensorId, filteredSensors, selectedSensor, dispatch, navigate]);
 
-  // Cleanup live MQTT connection on unmount
+  // Cleanup live MQTT connection on unmount (handled by Redux now)
   React.useEffect(() => {
+    console.log('[Analytics] Component mounted/unmounted effect');
     return () => {
-      if (stopLive) {
-        stopLive();
+      console.log('[Analytics] Component unmounting, cleaning up live mode');
+      // Redux will handle cleanup automatically
+      if (isLiveMode) {
+        console.log('[Analytics] Dispatching live mode toggle to false on unmount');
+        dispatch(toggleLiveMode({ enable: false, gatewayIds: [] }));
         console.log('[Analytics] Cleaned up live MQTT connection on unmount');
       }
     };
-  }, [stopLive]);
+  }, [isLiveMode, dispatch]);
 
   const toISO = (d: Date | string) => new Date(d).toISOString();
 
@@ -370,7 +362,7 @@ export const AnalyticsPage: React.FC = () => {
       };
       adjustedTimeRange.end.setHours(23, 59, 59, 999);
 
-      console.log("Effect triggered: Fetching telemetry with time range:", {
+      console.log('[Analytics] Effect triggered - Fetching telemetry with time range:', {
         start: adjustedTimeRange.start.toISOString(),
         end: adjustedTimeRange.end.toISOString(),
       });
@@ -422,7 +414,6 @@ export const AnalyticsPage: React.FC = () => {
   const handleSearchChange = (txt: string) => setSearchQuery(txt);
 
   const handleLoadMore = () => {
-    console.log({ pagination });
     if (pagination.page >= pagination.totalPages || loading) return;
     const next = pagination.page + 1;
     dispatch(
@@ -463,7 +454,7 @@ export const AnalyticsPage: React.FC = () => {
       // 2. Update Redux state with the sanitized time range
       dispatch(setTimeRange(timeRange));
 
-      console.log("Fetching telemetry with time range:", {
+      console.log('[Analytics] Fetching telemetry with time range:', {
         start: timeRange.start.toISOString(),
         end: timeRange.end.toISOString(),
       });
@@ -677,18 +668,24 @@ export const AnalyticsPage: React.FC = () => {
     }
   };
 
-  // Add handler for live MQTT toggle
-  const handleLiveToggle = async (isLive: boolean) => {
+  // Add handler for live MQTT toggle using Redux
+  const handleLiveToggle = async (enableLive: boolean) => {
+    console.log('[Analytics] handleLiveToggle called with:', enableLive);
+    console.log('[Analytics] Current state - isLiveMode:', isLiveMode, 'gateways count:', gateways.length);
+    
     try {
-      if (isLive) {
-        console.log(gateways)
+      if (enableLive) {
+        console.log('[Analytics] Starting live mode...');
         // Get active gateway IDs from the gateways state
         const gatewayIds = gateways
-          // .filter(gateway => gateway.status === 'active') // Only active gateways
-          .map(gateway => gateway._id) // Format as gw_<id>
+          .map(gateway => gateway._id) // Use gateway ID directly
           .slice(0, 10); // Limit to first 10 gateways to avoid too many subscriptions
 
+        console.log('[Analytics] Available gateways:', gateways.map(g => ({ id: g._id, status: g.status })));
+        console.log('[Analytics] Selected gateway IDs:', gatewayIds);
+
         if (gatewayIds.length === 0) {
+          console.warn('[Analytics] No active gateways found');
           addToast({
             title: "No Active Gateways",
             description: "No active gateways found to connect to.",
@@ -697,22 +694,21 @@ export const AnalyticsPage: React.FC = () => {
         }
 
         console.log('[Analytics] Starting live mode for gateways:', gatewayIds);
-        const unsubscribe = await startLive(gatewayIds);
-        setStopLive(() => unsubscribe);
-        setIsLiveMode(true);
         
+        // Use Redux action to toggle live mode
+        await dispatch(toggleLiveMode({ enable: true, gatewayIds })).unwrap();
+        
+        console.log('[Analytics] Live mode started successfully');
         addToast({
           title: "Live Mode Enabled",
           description: `Connected to ${gatewayIds.length} gateway(s)`,
         });
       } else {
-        // Stop live mode
-        if (stopLive) {
-          stopLive();
-          setStopLive(null);
-        }
-        setIsLiveMode(false);
+        console.log('[Analytics] Stopping live mode...');
+        // Stop live mode using Redux
+        await dispatch(toggleLiveMode({ enable: false, gatewayIds: [] })).unwrap();
         
+        console.log('[Analytics] Live mode stopped successfully');
         addToast({
           title: "Live Mode Disabled",
           description: "Disconnected from live data stream",
@@ -724,7 +720,6 @@ export const AnalyticsPage: React.FC = () => {
         title: "Live Mode Error",
         description: error instanceof Error ? error.message : "Failed to toggle live mode",
       });
-      setIsLiveMode(false);
     }
   };
 
@@ -749,8 +744,9 @@ export const AnalyticsPage: React.FC = () => {
         return;
       }
 
-      const gatewayId = `gw_${activeGateway._id}`;
-      await publishCommand(gatewayId, { type: 'ping', ts: Date.now() });
+      const gatewayId = activeGateway._id;
+      // TODO: Re-enable when publishCommand is available
+      // await publishCommand(gatewayId, { type: 'ping', ts: Date.now() });
       
       addToast({
         title: "Test Command Sent",
@@ -769,13 +765,17 @@ export const AnalyticsPage: React.FC = () => {
   const chartConfig: ChartConfig | null = React.useMemo(() => {
     if (!selectedSensor || !telemetryData[selectedSensor]) return null;
     const sensorData = telemetryData[selectedSensor];
-    console.log("Chart data content:", {
+    console.log('[Analytics] Chart data content:', {
       sensorId: selectedSensor,
       dataPoints: sensorData.series.length,
       firstPoint: sensorData.series[0],
       lastPoint: sensorData.series[sensorData.series.length - 1],
       nonNullCount: sensorData.series.filter((point) => point && point.value !== null && point.value !== undefined)
         .length,
+      // Add detailed data for debugging
+      lastFivePoints: sensorData.series.slice(-5),
+      timestamps: sensorData.series.slice(-3).map(p => p.timestamp),
+      values: sensorData.series.slice(-3).map(p => p.value)
     });
 
     return {
@@ -784,7 +784,18 @@ export const AnalyticsPage: React.FC = () => {
       series: sensorData.series,
       color: chartColors[0],
     };
-  }, [selectedSensor, telemetryData]);
+  }, [
+    selectedSensor, 
+    // Track specific sensor data changes, especially for live mode
+    selectedSensor ? telemetryData[selectedSensor] : null,
+    // In live mode, also track data length and last timestamp
+    isLiveMode && selectedSensor && telemetryData[selectedSensor] 
+      ? telemetryData[selectedSensor].series.length 
+      : 0,
+    isLiveMode && selectedSensor && telemetryData[selectedSensor]?.series.length > 0
+      ? telemetryData[selectedSensor].series[telemetryData[selectedSensor].series.length - 1]?.timestamp
+      : 0
+  ]);
 
   // Prepare multi-series chart config for comparison
   const multiSeriesConfig: MultiSeriesConfig | null = React.useMemo(() => {
@@ -816,7 +827,15 @@ export const AnalyticsPage: React.FC = () => {
         };
       }),
     };
-  }, [telemetryData, selectedSensorIds, sensors]);
+  }, [
+    telemetryData, 
+    selectedSensorIds, 
+    sensors,
+    // In live mode, track data changes for selected sensors
+    isLiveMode ? selectedSensorIds.map(id => 
+      telemetryData[id] ? telemetryData[id].series.length : 0
+    ).join(',') : null
+  ]);
 
   // Find the currently selected sensor object
   const currentSensor = React.useMemo(() => {
@@ -1176,9 +1195,7 @@ export const AnalyticsPage: React.FC = () => {
                     showTimeRangeApplyButtons={true}
                     isMobileView={isMobile}
                     isLiveMode={isLiveMode}
-                    onLiveModeChange={handleLiveModeChange}
                     liveStatus={liveStatus}
-                    onRetryConnection={handleRetryConnection}
                   />
                 </div>
 
@@ -1497,7 +1514,7 @@ export const AnalyticsPage: React.FC = () => {
                               const startJs = range.start.toDate(getLocalTimeZone());
                               const endJs = range.end.toDate(getLocalTimeZone());
 
-                              console.log("Mobile date range selected:", {
+                              console.log('[Analytics] Mobile date range selected:', {
                                 start: startJs,
                                 end: endJs,
                                 startISO: startJs.toISOString(),

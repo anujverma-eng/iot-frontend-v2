@@ -47,7 +47,6 @@ export const SensorsPage: React.FC = () => {
 
   // Selectors
   const sensors = useSelector(selectSensors);
-  console.log({ sensors });
   const stats = useSelector(selectSensorStats);
   const pagination = useSelector(selectSensorPagination);
   const isLoading = useSelector((state: RootState) => state.sensors.loading);
