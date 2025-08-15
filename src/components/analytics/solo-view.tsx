@@ -74,6 +74,10 @@ export const SoloView: React.FC = () => {
   const [starLoading, setStarLoading] = React.useState(false);
   const chartRef = React.useRef<HTMLDivElement>(null);
 
+  // Live mode state
+  const [isLiveMode, setIsLiveMode] = React.useState(true); // Default to live mode
+  const [liveStatus, setLiveStatus] = React.useState<'disconnected' | 'connecting' | 'connected' | 'error' | 'slow_network'>('disconnected');
+
   const sensorsLoaded = useSelector((s: RootState) => s.sensors.loaded);
   const sensorsLoading = useSelector(selectSensorsLoading);
 
@@ -336,6 +340,28 @@ export const SoloView: React.FC = () => {
     );
   };
 
+  const handleLiveModeChange = (isLive: boolean) => {
+    setIsLiveMode(isLive);
+    if (isLive) {
+      // Simulate connecting to live data
+      setLiveStatus('connecting');
+      setTimeout(() => {
+        // Simulate different connection states for demo
+        const states: typeof liveStatus[] = ['connected', 'error', 'slow_network'];
+        setLiveStatus(states[Math.floor(Math.random() * states.length)]);
+      }, 2000);
+    } else {
+      setLiveStatus('disconnected');
+    }
+  };
+
+  const handleRetryConnection = () => {
+    setLiveStatus('connecting');
+    setTimeout(() => {
+      setLiveStatus(Math.random() > 0.5 ? 'connected' : 'error');
+    }, 1500);
+  };
+
   const handleDownloadCSV = () => {
     try {
       if (!chartConfig || !chartConfig.series) {
@@ -580,6 +606,10 @@ export const SoloView: React.FC = () => {
                         onTimeRangeChange={handleTimeRangeChange}
                         showApplyButtons={true}
                         isMobile={false}
+                        isLiveMode={isLiveMode}
+                        onLiveModeChange={handleLiveModeChange}
+                        liveStatus={liveStatus}
+                        onRetryConnection={handleRetryConnection}
                       />
                       
                       {starLoading ? (

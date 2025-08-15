@@ -72,9 +72,18 @@ export const FilterBar: React.FC<FilterBarProps> = ({ filters, onFiltersChange, 
   };
 
   const activeFiltersCount = 
-    pendingFilters.types.length + 
-    (pendingFilters.status !== "all" ? 1 : 0) + 
-    (pendingFilters.sort ? 1 : 0);
+    filters.types.length + 
+    (filters.status !== "all" ? 1 : 0) + 
+    (filters.sort ? 1 : 0);
+
+  const hasActiveFilters = activeFiltersCount > 0;
+
+  // Check for pending changes
+  const hasPendingChanges = !isMobile && (
+    JSON.stringify(pendingFilters.types) !== JSON.stringify(filters.types) ||
+    pendingFilters.status !== filters.status ||
+    JSON.stringify(pendingFilters.sort) !== JSON.stringify(filters.sort)
+  );
 
   return (
     <Popover 
@@ -86,15 +95,17 @@ export const FilterBar: React.FC<FilterBarProps> = ({ filters, onFiltersChange, 
       <PopoverTrigger>
         <Button
           size="sm"
-          variant="flat"
+          variant={hasActiveFilters ? "solid" : "flat"}
+          color={hasActiveFilters ? "primary" : "default"}
           startContent={<Icon icon="lucide:filter" width={16} />}
           endContent={activeFiltersCount > 0 && (
-            <span className="ml-1 px-1.5 py-0.5 text-xs bg-primary text-primary-foreground rounded-full">
+            <span className="ml-1 px-1.5 py-0.5 text-xs bg-white text-primary rounded-full">
               {activeFiltersCount}
             </span>
           )}
+          className={hasPendingChanges ? "animate-pulse" : ""}
         >
-          Filter
+          {hasPendingChanges ? "Filter*" : "Filter"}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-4">

@@ -41,6 +41,11 @@ interface ChartContainerProps {
   onTimeRangeChange?: (range: { start: Date; end: Date }) => void;
   showTimeRangeApplyButtons?: boolean;
   isMobileView?: boolean;
+  // Live mode props
+  isLiveMode?: boolean;
+  onLiveModeChange?: (isLive: boolean) => void;
+  liveStatus?: 'disconnected' | 'connecting' | 'connected' | 'error' | 'slow_network';
+  onRetryConnection?: () => void;
 }
 
 export const ChartContainer: React.FC<ChartContainerProps> = ({
@@ -58,6 +63,10 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   onTimeRangeChange,
   showTimeRangeApplyButtons = false,
   isMobileView = false,
+  isLiveMode = false,
+  onLiveModeChange,
+  liveStatus = 'disconnected',
+  onRetryConnection,
 }) => {
   const [isEditing, setIsEditing] = React.useState(false);
   const [displayName, setDisplayName] = React.useState(sensor?.displayName || "");
@@ -537,6 +546,10 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                   onTimeRangeChange={onTimeRangeChange}
                   showApplyButtons={showTimeRangeApplyButtons}
                   isMobile={isMobileView}
+                  isLiveMode={isLiveMode}
+                  onLiveModeChange={onLiveModeChange}
+                  liveStatus={liveStatus}
+                  onRetryConnection={onRetryConnection}
                 />
               )}
 

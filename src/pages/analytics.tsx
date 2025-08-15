@@ -86,6 +86,9 @@ export const AnalyticsPage: React.FC = () => {
   const [pendingFilters, setPendingFilters] = React.useState<FilterState | null>(null);
   const gateways = useSelector(selectGateways);
 
+  // Live mode status state (isLiveMode already exists below)
+  const [liveStatus, setLiveStatus] = React.useState<'disconnected' | 'connecting' | 'connected' | 'error' | 'slow_network'>('disconnected');
+
   const applyPendingFilters = () => {
     if (pendingFilters) {
       // First update filters state
@@ -169,6 +172,28 @@ export const AnalyticsPage: React.FC = () => {
   const syncTimeRange = (range: { start: Date; end: Date }) => {
     dispatch(setFilters({ ...filters, timeRange: range })); // sensors slice
     dispatch(setTimeRange(range)); // telemetry slice
+  };
+
+  const handleLiveModeChange = (isLive: boolean) => {
+    setIsLiveMode(isLive);
+    if (isLive) {
+      // Simulate connecting to live data
+      setLiveStatus('connecting');
+      setTimeout(() => {
+        // Simulate different connection states for demo
+        const states: typeof liveStatus[] = ['connected', 'error', 'slow_network'];
+        setLiveStatus(states[Math.floor(Math.random() * states.length)]);
+      }, 2000);
+    } else {
+      setLiveStatus('disconnected');
+    }
+  };
+
+  const handleRetryConnection = () => {
+    setLiveStatus('connecting');
+    setTimeout(() => {
+      setLiveStatus(Math.random() > 0.5 ? 'connected' : 'error');
+    }, 1500);
   };
 
   // Fetch sensors on component mount
@@ -1150,6 +1175,10 @@ export const AnalyticsPage: React.FC = () => {
                     onTimeRangeChange={syncTimeRange}
                     showTimeRangeApplyButtons={true}
                     isMobileView={isMobile}
+                    isLiveMode={isLiveMode}
+                    onLiveModeChange={handleLiveModeChange}
+                    liveStatus={liveStatus}
+                    onRetryConnection={handleRetryConnection}
                   />
                 </div>
 

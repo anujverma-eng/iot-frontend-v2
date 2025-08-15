@@ -1,5 +1,5 @@
 // components/analytics/time-range-selector.tsx
-import { Button, DateRangePicker, Divider, Popover, PopoverContent, PopoverTrigger } from "@heroui/react";
+import { Button, DateRangePicker, Divider, Popover, PopoverContent, PopoverTrigger, Spinner, Alert } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { CalendarDate, DateValue, getLocalTimeZone } from "@internationalized/date";
 import React from "react";
@@ -9,15 +9,33 @@ type RangeValue<T> = { start: T | null; end: T | null };
 
 const toCal = (d: Date) => new CalendarDate(d.getFullYear(), d.getMonth() + 1, d.getDate());
 
+type LiveStatus = 'disconnected' | 'connecting' | 'connected' | 'error' | 'slow_network';
+
 export const TimeRangeSelector: React.FC<{
   timeRange: { start: Date; end: Date };
   onTimeRangeChange: (range: { start: Date; end: Date }) => void;
   showApplyButtons?: boolean;
   isMobile?: boolean;
-}> = ({ timeRange, onTimeRangeChange, showApplyButtons = false, isMobile = false }) => {
+  isLiveMode?: boolean;
+  onLiveModeChange?: (isLive: boolean) => void;
+  liveStatus?: LiveStatus;
+  onRetryConnection?: () => void;
+}> = ({ 
+  timeRange, 
+  onTimeRangeChange, 
+  showApplyButtons = false, 
+  isMobile = false,
+  isLiveMode = false,
+  onLiveModeChange,
+  liveStatus = 'disconnected',
+  onRetryConnection
+}) => {
   const [open, setOpen] = React.useState(false);
   const [pendingTimeRange, setPendingTimeRange] = React.useState(timeRange);
+  const [pendingLiveMode, setPendingLiveMode] = React.useState(isLiveMode);
   const [rangeIdx, setRangeIdx] = React.useState(() => {
+    if (isLiveMode) return -1; // Special index for live mode
+    
     const currentStart = timeRange.start;
     const currentEnd = timeRange.end;
     
@@ -33,6 +51,12 @@ export const TimeRangeSelector: React.FC<{
   });
 
   React.useEffect(() => {
+    if (isLiveMode) {
+      setRangeIdx(-1);
+      setPendingLiveMode(true);
+      return;
+    }
+
     const isSameDay = (a: Date, b: Date) =>
       a.getFullYear() === b.getFullYear() &&
       a.getMonth() === b.getMonth() &&
@@ -48,15 +72,39 @@ export const TimeRangeSelector: React.FC<{
     });
     setRangeIdx(idx === -1 ? timeRangePresets.length - 1 : idx);
     setPendingTimeRange(timeRange);
-  }, [timeRange]);
+    setPendingLiveMode(isLiveMode);
+  }, [timeRange, isLiveMode]);
+
+  const toggleLiveMode = () => {
+    const newLiveMode = !pendingLiveMode;
+    setPendingLiveMode(newLiveMode);
+    
+    if (newLiveMode) {
+      setRangeIdx(-1);
+    } else {
+      setRangeIdx(1); // Default to "Last 24 Hours"
+    }
+    
+    // Apply immediately if not using apply buttons or on mobile
+    if (!showApplyButtons || isMobile) {
+      onLiveModeChange?.(newLiveMode);
+      if (!newLiveMode) {
+        const defaultRange = timeRangePresets[1].getValue();
+        onTimeRangeChange(defaultRange);
+      }
+      setOpen(false);
+    }
+  };
 
   const choosePreset = (i: number) => {
     setRangeIdx(i);
+    setPendingLiveMode(false);
     const newRange = timeRangePresets[i].getValue();
     setPendingTimeRange(newRange);
     
     // Apply immediately if not using apply buttons or on mobile
     if (!showApplyButtons || isMobile) {
+      onLiveModeChange?.(false);
       onTimeRangeChange(newRange);
       setOpen(false);
     }
@@ -70,9 +118,11 @@ export const TimeRangeSelector: React.FC<{
       const newRange = { start: startDate, end: endDate };
       setRangeIdx(timeRangePresets.length - 1); // Set to custom
       setPendingTimeRange(newRange);
+      setPendingLiveMode(false);
       
       // Apply immediately if not using apply buttons or on mobile
       if (!showApplyButtons || isMobile) {
+        onLiveModeChange?.(false);
         onTimeRangeChange(newRange);
         setOpen(false);
       }
@@ -80,13 +130,21 @@ export const TimeRangeSelector: React.FC<{
   };
 
   const handleApply = () => {
-    onTimeRangeChange(pendingTimeRange);
+    if (pendingLiveMode) {
+      onLiveModeChange?.(true);
+    } else {
+      onLiveModeChange?.(false);
+      onTimeRangeChange(pendingTimeRange);
+    }
     setOpen(false);
   };
 
   const handleCancel = () => {
     setPendingTimeRange(timeRange);
+    setPendingLiveMode(isLiveMode);
     setRangeIdx(() => {
+      if (isLiveMode) return -1;
+      
       const idx = timeRangePresets.findIndex((p, i) => {
         if (i === timeRangePresets.length - 1) return false;
         const r = p.getValue();
@@ -104,8 +162,10 @@ export const TimeRangeSelector: React.FC<{
     const defaultRange = timeRangePresets[1].getValue(); // Last 24 Hours
     setRangeIdx(1);
     setPendingTimeRange(defaultRange);
+    setPendingLiveMode(false);
     
     if (!showApplyButtons || isMobile) {
+      onLiveModeChange?.(false);
       onTimeRangeChange(defaultRange);
       setOpen(false);
     }
@@ -113,111 +173,263 @@ export const TimeRangeSelector: React.FC<{
 
   // Check if pending changes differ from current
   const hasPendingChanges = showApplyButtons && (
-    pendingTimeRange.start.getTime() !== timeRange.start.getTime() ||
-    pendingTimeRange.end.getTime() !== timeRange.end.getTime()
+    pendingLiveMode !== isLiveMode ||
+    (!pendingLiveMode && (
+      pendingTimeRange.start.getTime() !== timeRange.start.getTime() ||
+      pendingTimeRange.end.getTime() !== timeRange.end.getTime()
+    ))
   );
 
   const getCurrentLabel = () => {
+    if (isLiveMode || pendingLiveMode) return "Live Data";
     if (rangeIdx >= 0 && rangeIdx < timeRangePresets.length - 1) {
       return timeRangePresets[rangeIdx].label;
     }
     return "Custom";
   };
 
+  const getButtonProps = () => {
+    if (isLiveMode) {
+      switch (liveStatus) {
+        case 'connecting':
+          return {
+            color: 'warning' as const,
+            variant: 'solid' as const,
+            className: 'animate-pulse',
+            startContent: <Spinner size="sm" color="current" />
+          };
+        case 'connected':
+          return {
+            color: 'success' as const,
+            variant: 'solid' as const,
+            className: 'animate-none',
+            startContent: <Icon icon="lucide:radio" width={16} className="animate-pulse" />
+          };
+        case 'error':
+          return {
+            color: 'danger' as const,
+            variant: 'solid' as const,
+            className: 'animate-none',
+            startContent: <Icon icon="lucide:wifi-off" width={16} />
+          };
+        case 'slow_network':
+          return {
+            color: 'warning' as const,
+            variant: 'solid' as const,
+            className: 'animate-none',
+            startContent: <Icon icon="lucide:signal-low" width={16} />
+          };
+        default:
+          return {
+            color: 'default' as const,
+            variant: 'flat' as const,
+            className: 'animate-none',
+            startContent: <Icon icon="lucide:calendar" width={16} />
+          };
+      }
+    }
+
+    if (hasPendingChanges) {
+      return {
+        color: 'primary' as const,
+        variant: 'solid' as const,
+        className: 'animate-pulse',
+        startContent: <Icon icon="lucide:calendar" width={16} />
+      };
+    }
+
+    return {
+      color: 'default' as const,
+      variant: 'flat' as const,
+      className: 'animate-none',
+      startContent: <Icon icon="lucide:calendar" width={16} />
+    };
+  };
+
+  const buttonProps = getButtonProps();
+
   return (
-    <Popover 
-      isOpen={open} 
-      onOpenChange={setOpen} 
-      placement="bottom-end"
-      offset={10}
-    >
-      <PopoverTrigger>
-        <Button
-          size="sm"
-          variant={hasPendingChanges ? "solid" : "flat"}
-          color={hasPendingChanges ? "warning" : "default"}
-          startContent={<Icon icon="lucide:calendar" width={16} />}
-          className={hasPendingChanges ? "animate-pulse" : ""}
-        >
-          {hasPendingChanges && showApplyButtons ? "Time Range*" : `Time Range: ${getCurrentLabel()}`}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-80 p-4">
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-semibold text-default-700">Select Time Range</h4>
-            {hasPendingChanges && (
-              <span className="text-xs text-warning-600 font-medium">Changes pending</span>
+    <div className="relative">
+      <Popover 
+        isOpen={open} 
+        onOpenChange={setOpen} 
+        placement="bottom-end"
+        offset={10}
+      >
+        <PopoverTrigger>
+          <Button
+            size="sm"
+            {...buttonProps}
+          >
+            {isLiveMode && liveStatus === 'connecting' && "Connecting..."}
+            {isLiveMode && liveStatus === 'connected' && "Live Data"}
+            {isLiveMode && liveStatus === 'error' && "Connection Failed"}
+            {isLiveMode && liveStatus === 'slow_network' && "Slow Network"}
+            {!isLiveMode && (hasPendingChanges && showApplyButtons ? "Time Range*" : `Time Range: ${getCurrentLabel()}`)}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-96 p-4">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-semibold text-default-700">Data Source</h4>
+              {hasPendingChanges && (
+                <span className="text-xs text-warning-600 font-medium">Changes pending</span>
+              )}
+            </div>
+
+            {/* Live Mode Toggle */}
+            <div className="space-y-3">
+              <Button
+                size="md"
+                variant={pendingLiveMode ? "solid" : "bordered"}
+                color={pendingLiveMode ? "success" : "default"}
+                startContent={
+                  pendingLiveMode ? (
+                    liveStatus === 'connecting' ? (
+                      <Spinner size="sm" color="current" />
+                    ) : liveStatus === 'connected' ? (
+                      <Icon icon="lucide:radio" width={16} className="animate-pulse" />
+                    ) : liveStatus === 'error' ? (
+                      <Icon icon="lucide:wifi-off" width={16} />
+                    ) : (
+                      <Icon icon="lucide:signal" width={16} />
+                    )
+                  ) : (
+                    <Icon icon="lucide:radio" width={16} />
+                  )
+                }
+                onPress={toggleLiveMode}
+                className="w-full justify-start"
+              >
+                <div className="flex flex-col items-start">
+                  <span className="font-medium">Live Real-time Data</span>
+                  <span className="text-xs opacity-70">
+                    {pendingLiveMode ? (
+                      liveStatus === 'connecting' ? "Connecting to live feed..." :
+                      liveStatus === 'connected' ? "Receiving live updates" :
+                      liveStatus === 'error' ? "Failed to connect" :
+                      liveStatus === 'slow_network' ? "Poor connection quality" :
+                      "Live mode active"
+                    ) : "Enable real-time updates"}
+                  </span>
+                </div>
+              </Button>
+
+              {/* Network Status Alert */}
+              {isLiveMode && (liveStatus === 'error' || liveStatus === 'slow_network') && (
+                <Alert
+                  color={liveStatus === 'error' ? "danger" : "warning"}
+                  variant="flat"
+                  startContent={
+                    <Icon 
+                      icon={liveStatus === 'error' ? "lucide:wifi-off" : "lucide:signal-low"} 
+                      width={16} 
+                    />
+                  }
+                  endContent={
+                    <Button
+                      size="sm"
+                      variant="flat"
+                      color={liveStatus === 'error' ? "danger" : "warning"}
+                      onPress={onRetryConnection}
+                    >
+                      {liveStatus === 'error' ? 'Retry' : 'Switch to Normal'}
+                    </Button>
+                  }
+                >
+                  <div className="text-sm">
+                    <div className="font-medium">
+                      {liveStatus === 'error' ? 'Connection Failed' : 'Slow Network'}
+                    </div>
+                    <div className="text-xs opacity-80">
+                      {liveStatus === 'error' 
+                        ? 'Unable to establish real-time connection'
+                        : 'Poor network may affect live updates'
+                      }
+                    </div>
+                  </div>
+                </Alert>
+              )}
+            </div>
+
+            {/* Historical Data Options - only show when not in live mode */}
+            {!pendingLiveMode && (
+              <>
+                <Divider />
+                <div className="space-y-3">
+                  <h5 className="text-sm font-medium text-default-600">Historical Time Range</h5>
+                  
+                  {/* PRESET BUTTONS */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {timeRangePresets.map((p, i) => (
+                      <Button
+                        key={p.label}
+                        size="sm"
+                        variant={rangeIdx === i ? "solid" : "bordered"}
+                        color={rangeIdx === i ? "primary" : "default"}
+                        startContent={<Icon icon="lucide:calendar" width={14} />}
+                        onPress={() => choosePreset(i)}
+                      >
+                        {p.label}
+                      </Button>
+                    ))}
+                  </div>
+
+                  {/* CUSTOM DATE PICKER - only show for Custom preset */}
+                  {rangeIdx === timeRangePresets.length - 1 && (
+                    <div className="mt-4">
+                      <DateRangePicker
+                        aria-label="Custom range"
+                        showMonthAndYearPickers
+                        value={{
+                          start: toCal(pendingTimeRange.start),
+                          end: toCal(pendingTimeRange.end),
+                        }}
+                        onChange={handleCustomDateChange}
+                      />
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* APPLY BUTTONS for desktop mode */}
+            {showApplyButtons && !isMobile && (
+              <>
+                <Divider />
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="flat"
+                    onPress={handleCancel}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="flat"
+                    color="warning"
+                    onPress={handleReset}
+                    className="flex-1"
+                  >
+                    Reset
+                  </Button>
+                  <Button
+                    size="sm"
+                    color="primary"
+                    onPress={handleApply}
+                    className="flex-1"
+                    isDisabled={!hasPendingChanges}
+                  >
+                    Apply
+                  </Button>
+                </div>
+              </>
             )}
           </div>
-          
-          {/* PRESET BUTTONS */}
-          <div className="grid grid-cols-2 gap-2">
-            {timeRangePresets.map((p, i) => (
-              <Button
-                key={p.label}
-                size="sm"
-                variant={rangeIdx === i ? "solid" : "bordered"}
-                color={rangeIdx === i ? "primary" : "default"}
-                startContent={<Icon icon="lucide:calendar" width={14} />}
-                onPress={() => choosePreset(i)}
-              >
-                {p.label}
-              </Button>
-            ))}
-          </div>
-
-          {/* CUSTOM DATE PICKER - only show for Custom preset */}
-          {rangeIdx === timeRangePresets.length - 1 && (
-            <div className="mt-4">
-              <DateRangePicker
-                aria-label="Custom range"
-                showMonthAndYearPickers
-                value={{
-                  start: toCal(pendingTimeRange.start),
-                  end: toCal(pendingTimeRange.end),
-                }}
-                onChange={handleCustomDateChange}
-              />
-            </div>
-          )}
-
-          {/* APPLY BUTTONS for desktop mode */}
-          {showApplyButtons && !isMobile && (
-            <>
-              <Divider />
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="flat"
-                  onPress={handleCancel}
-                  className="flex-1"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  size="sm"
-                  variant="flat"
-                  color="warning"
-                  onPress={handleReset}
-                  className="flex-1"
-                >
-                  Reset
-                </Button>
-                <Button
-                  size="sm"
-                  color="primary"
-                  onPress={handleApply}
-                  className="flex-1"
-                  isDisabled={!hasPendingChanges}
-                >
-                  Apply
-                </Button>
-              </div>
-            </>
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
+        </PopoverContent>
+      </Popover>
+    </div>
   );
 };
