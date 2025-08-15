@@ -20,6 +20,7 @@ interface LineChartProps {
   isMultiSeries?: boolean;
   onDownloadCSV?: () => void;
   onZoomChange?: (isZoomed: boolean) => void;
+  isLiveMode?: boolean; // New prop to conditionally disable brush for live data
   // Removed onBrushChange - brush is for visual selection only, not data loading
 }
 
@@ -28,6 +29,7 @@ export const LineChart: React.FC<LineChartProps> = ({
   isMultiSeries = false,
   onDownloadCSV,
   onZoomChange,
+  isLiveMode = false, // Default to false for backward compatibility
 }) => {
 
   // Add clear check for empty data
@@ -315,13 +317,14 @@ export const LineChart: React.FC<LineChartProps> = ({
 
   // Use a stable key based on data characteristics rather than forcing re-mounts
   const chartKey = React.useMemo(() => {
-    if (!orderedData.length) return 'empty-chart';
-    
-    // Create a stable key that changes only when we want Recharts to recognize new data
-    const dataIdentifier = `chart-${orderedData.length}-${orderedData[0]?.timestamp || 0}-${orderedData[orderedData.length - 1]?.timestamp || 0}`;
-    console.log('[LineChart] Generated stable chart key:', dataIdentifier);
-    return dataIdentifier;
-  }, [orderedData.length, orderedData[0]?.timestamp, orderedData[orderedData.length - 1]?.timestamp]);
+    // --- REVISED CHART KEY LOGIC ---
+    // The key must be stable for a given sensor. It should NOT change with every new data point.
+    // We'll use properties from the config that don't change per reading.
+    const stableKey = `recharts-line-${config.type}-${config.unit}`;
+    console.log('[LineChart] Generated stable chart key:', stableKey);
+    return stableKey;
+    // --- END REVISED LOGIC ---
+  }, [config.type, config.unit]); // Only change when sensor type/unit changes
 
   // Initialize brush domain when data changes (but don't trigger brush change callback)
   React.useEffect(() => {
@@ -548,6 +551,21 @@ export const LineChart: React.FC<LineChartProps> = ({
   });
 
   console.log('[LineChart] About to render Recharts with data length:', orderedData.length);
+  console.log(`[LineChart] Rendering with orderedData length: ${orderedData.length}. Last point:`, orderedData[orderedData.length - 1]);
+
+  // Data validation - render placeholder for empty data
+  if (!orderedData || orderedData.length === 0) {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center">
+        <div className="text-center">
+          <div className="text-lg text-default-500 mb-2">No Data Available</div>
+          <div className="text-sm text-default-400">
+            Loading chart data...
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full h-full flex flex-col">
@@ -668,7 +686,7 @@ export const LineChart: React.FC<LineChartProps> = ({
               fontSize={12}
               type="number"
               scale="time"
-              domain={zoomDomain ? zoomDomain.x : ["dataMin", "dataMax"]}
+              domain={zoomDomain ? zoomDomain.x : ["dataMin", "dataMax"]} // CRITICAL: Auto-adjust to data range
               tickMargin={10}
               height={50}
               tickCount={getOptimalTickCount()}
@@ -679,7 +697,7 @@ export const LineChart: React.FC<LineChartProps> = ({
               axisLine={{ stroke: "#94a3b8" }}
               fontSize={12}
               tickMargin={10}
-              domain={zoomDomain ? zoomDomain.y : ['auto', 'auto']}
+              domain={zoomDomain ? zoomDomain.y : ['dataMin', 'dataMax']} // CRITICAL: Auto-adjust to value range
               label={{
                 value: config.unit,
                 angle: -90,
@@ -805,18 +823,23 @@ export const LineChart: React.FC<LineChartProps> = ({
               </>
             )}
 
-            <Brush
-              dataKey="timestamp"
-              height={36}
-              stroke="#f59e0b"
-              fill="#f3f4f6"
-              travellerWidth={10}
-              gap={1}
-              tickFormatter={formatXAxis}
-              startIndex={brushDomain.startIndex}
-              endIndex={brushDomain.endIndex}
-              onChange={handleBrushChange}
-            />
+            {/* --- THE CRITICAL FIX --- */}
+            {/* Only render the Brush when NOT in live mode */}
+            {!isLiveMode && hasData && (
+              <Brush
+                dataKey="timestamp"
+                height={36}
+                stroke="#f59e0b"
+                fill="#f3f4f6"
+                travellerWidth={10}
+                gap={1}
+                tickFormatter={formatXAxis}
+                startIndex={brushDomain.startIndex}
+                endIndex={brushDomain.endIndex}
+                onChange={handleBrushChange}
+              />
+            )}
+            {/* --- END FIX --- */}
           </RechartsLineChart>
         </ResponsiveContainer>
       </div>

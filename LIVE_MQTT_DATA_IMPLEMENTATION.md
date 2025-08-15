@@ -286,18 +286,25 @@ addLiveData: (state, action: PayloadAction<LiveDataMessage>) => {
       value: Number(value)
     };
 
-    sensor.series.push(dataPoint);
+    // --- CRITICAL: IMMUTABLE UPDATE LOGIC ---
+    // 1. Create a new array with the new data point
+    let newSeries = [...sensor.series, dataPoint];
+
+    // 2. Sort the new array (sort() mutates, so we apply it to our new copy)
+    newSeries.sort((a, b) => a.timestamp - b.timestamp);
+
+    // 3. Slice if the new array exceeds the max length
+    if (newSeries.length > state.maxLiveReadings) {
+      newSeries = newSeries.slice(-state.maxLiveReadings);
+    }
+
+    // 4. Assign the new, sorted, and trimmed array to the state
+    sensor.series = newSeries;
+    // --- END IMMUTABLE UPDATE LOGIC ---
+
     sensor.lastUpdated = now;
     sensor.isLive = true;
     sensor.current = Number(value);
-
-    // Maintain max readings limit (performance optimization)
-    if (sensor.series.length > state.maxLiveReadings) {
-      sensor.series = sensor.series.slice(-state.maxLiveReadings);
-    }
-
-    // Sort by timestamp to maintain order
-    sensor.series.sort((a, b) => a.timestamp - b.timestamp);
 
     // Update aggregates for live data
     if (sensor.series.length > 0) {
@@ -526,15 +533,14 @@ export const LineChart: React.FC<LineChartProps> = ({
   onZoomChange,
 }) => {
 
-  // Stable chart key based on data characteristics
+  // Stable chart key based on sensor characteristics (NOT data points)
   const chartKey = React.useMemo(() => {
-    if (!orderedData.length) return 'empty-chart';
-    
-    // Create stable key that changes only when we want Recharts to recognize new data
-    const dataIdentifier = `chart-${orderedData.length}-${orderedData[0]?.timestamp || 0}-${orderedData[orderedData.length - 1]?.timestamp || 0}`;
-    console.log('[LineChart] Generated stable chart key:', dataIdentifier);
-    return dataIdentifier;
-  }, [orderedData.length, orderedData[0]?.timestamp, orderedData[orderedData.length - 1]?.timestamp]);
+    // The key must be stable for a given sensor. It should NOT change with every new data point.
+    // We'll use properties from the config that don't change per reading.
+    const stableKey = `recharts-line-${config.type}-${config.unit}`;
+    console.log('[LineChart] Generated stable chart key:', stableKey);
+    return stableKey;
+  }, [config.type, config.unit]); // Only change when sensor type/unit changes
 
   // Chart data processing with memoization
   const orderedData = React.useMemo(() => {
@@ -555,7 +561,7 @@ export const LineChart: React.FC<LineChartProps> = ({
       <div className="flex-1 min-h-[300px]">
         <ResponsiveContainer width="100%" height="100%" className="overflow-visible">
           <RechartsLineChart 
-            key={chartKey}  // Stable key for smooth updates
+            key={chartKey}  // Stable key prevents unnecessary remounting
             data={orderedData} 
             margin={{ top: 10, right: 30, left: 20, bottom: 20 }}
           >
@@ -574,20 +580,6 @@ export const LineChart: React.FC<LineChartProps> = ({
               strokeWidth={2.5}
               isAnimationActive={false}  // Prevents animation restarts
             />
-            
-            {/* Moving average line (if enabled) */}
-            {config.showMovingAverage && (
-              <Line
-                type="monotone"
-                dataKey="movingAverage"
-                stroke="#10b981"
-                strokeWidth={3}
-                dot={false}
-                activeDot={{ r: 4 }}
-                isAnimationActive={false}  // Prevents animation restarts
-                strokeDasharray="5 5"
-              />
-            )}
           </RechartsLineChart>
         </ResponsiveContainer>
       </div>
@@ -597,10 +589,11 @@ export const LineChart: React.FC<LineChartProps> = ({
 ```
 
 **Key Features:**
-- **Stable Chart Keys**: Prevents unnecessary component remounts
+- **Stable Chart Keys**: Prevents unnecessary component remounting
 - **Animation Control**: Disabled animations for smooth live data additions
 - **Optimized Memoization**: Only re-processes data when necessary
 - **Performance Monitoring**: Detailed logging for debugging
+- **Adaptive Axis Domains**: Automatically adjusts X and Y axis ranges to fit all data points
 
 ---
 
@@ -696,9 +689,11 @@ The implementation includes comprehensive logging throughout the data pipeline:
 [TelemetrySlice] Received live data callback: {...}
 [TelemetrySlice] addLiveData called with X sensors
 [TelemetrySlice] Processing sensor reading: {...}
+[TelemetrySlice] New series assigned. Length: {...}
 
 // Analytics Component Logs
 [Analytics] Chart data content: {...}
+[Analytics] Rendering with series length: X. Last point: {...}
 
 // Chart Container Logs
 [ChartContainer] Config memoization triggered: {...}
@@ -706,6 +701,7 @@ The implementation includes comprehensive logging throughout the data pipeline:
 // Line Chart Logs
 [LineChart] Processing chart data: {...}
 [LineChart] orderedData memoization triggered: {...}
+[LineChart] Rendering with orderedData length: X. Last point: {...}
 ```
 
 ### Performance Monitoring
@@ -714,6 +710,79 @@ The implementation includes comprehensive logging throughout the data pipeline:
 2. **Data Flow Monitoring**: Track data through the entire pipeline
 3. **Connection State**: Real-time connection status monitoring
 4. **Error Handling**: Comprehensive error logging with context
+
+### Critical Fix: State Mutation Prevention
+
+**Problem 1:** The original implementation had a critical bug where `sensor.series.sort()` mutated the array in-place, preventing React's change detection from working properly.
+
+**Solution 1:** The reducer now uses immutable update patterns:
+
+```typescript
+// ❌ WRONG: Mutates existing array
+sensor.series.push(dataPoint);
+sensor.series.sort((a, b) => a.timestamp - b.timestamp);
+
+// ✅ CORRECT: Creates new array with immutable operations
+let newSeries = [...sensor.series, dataPoint];
+newSeries.sort((a, b) => a.timestamp - b.timestamp);
+sensor.series = newSeries;
+```
+
+**Problem 2:** Sensor key mismatch between historical data and live data caused live updates to create separate state entries that charts couldn't see.
+
+**Solution 2:** Revised sensor identification logic ensures live data only updates existing sensors:
+
+```typescript
+// ❌ WRONG: Could create new sensor entries with MAC address keys
+let existingSensorKey = Object.keys(state.data).find(key => 
+  state.data[key].mac === mac || key === mac
+);
+if (!existingSensorKey) {
+  existingSensorKey = mac; // Creates duplicate entries!
+}
+
+// ✅ CORRECT: Only updates existing sensors, prevents state pollution
+const sensorKey = Object.keys(state.data).find(key => state.data[key].mac === mac);
+if (!sensorKey) {
+  console.warn(`Received live data for unknown sensor MAC: ${mac}. Skipping.`);
+  return; // Skip this reading to prevent state pollution
+}
+```
+
+**Problem 3:** React component `key` prop changing with every data point caused unnecessary component remounting instead of smooth updates.
+
+**Solution 3:** Use stable key based on sensor characteristics, not data points:
+
+```typescript
+// ❌ WRONG: Key changes with every new data point, causing remounting
+const chartKey = `chart-${orderedData.length}-${orderedData[0]?.timestamp}-${orderedData[orderedData.length - 1]?.timestamp}`;
+
+// ✅ CORRECT: Stable key allows Recharts to efficiently update existing component
+const chartKey = React.useMemo(() => {
+  return `recharts-line-${config.type}-${config.unit}`;
+}, [config.type, config.unit]); // Only changes when sensor type/unit changes
+```
+
+**Problem 4:** Recharts axis domains not automatically adjusting to include new live data points, causing them to render "off-screen".
+
+**Solution 4:** Explicitly configure axis domains to dynamically adjust to data range:
+
+```typescript
+// ❌ WRONG: Fixed or auto domains may not include new data points
+<YAxis domain={['auto', 'auto']} />
+
+// ✅ CORRECT: Dynamic domains that recalculate with each data update
+<XAxis 
+  domain={["dataMin", "dataMax"]} // Auto-adjust to full timestamp range
+  type="number" 
+  scale="time" 
+/>
+<YAxis 
+  domain={['dataMin', 'dataMax']} // Auto-adjust to full value range
+/>
+```
+
+This ensures that React components receive new array references and properly re-render when live data arrives, while maintaining data integrity by only updating sensors that already exist in the state, allowing Recharts to efficiently render new data points without component remounting, and ensuring all data points remain visible within the chart's viewport.
 
 ---
 
@@ -760,5 +829,30 @@ The implementation includes comprehensive logging throughout the data pipeline:
 ✅ **State Management**: Redux efficiently manages live data with memoized selectors  
 ✅ **Error Handling**: Graceful handling of connection failures with user feedback  
 ✅ **Performance**: Optimized rendering with minimal re-renders and memory usage  
+✅ **Visual Consistency**: All data points remain visible with adaptive axis domains  
+
+## 🏆 Complete Solution Summary
+
+This implementation successfully resolves all common issues with real-time chart updates through a comprehensive four-part solution:
+
+### 1. **Immutable State Updates**
+- Prevents React change detection failures
+- Ensures proper Redux state propagation
+- Maintains referential integrity for memoization
+
+### 2. **Correct Sensor Identification** 
+- Eliminates state pollution from duplicate sensor entries
+- Ensures live data updates existing chart data sources
+- Maintains data consistency across the application
+
+### 3. **Stable Component Keys**
+- Prevents unnecessary React component remounting
+- Allows Recharts to efficiently handle prop updates
+- Eliminates visual flickering and animation restarts
+
+### 4. **Dynamic Axis Domain Management**
+- Ensures all data points remain visible in the chart viewport
+- Automatically adjusts chart scale to accommodate new data ranges
+- Provides smooth visual expansion as data grows
 
 This implementation provides a robust, scalable, and performant solution for real-time IoT data visualization with an excellent user experience.

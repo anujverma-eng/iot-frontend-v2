@@ -765,36 +765,34 @@ export const AnalyticsPage: React.FC = () => {
   const chartConfig: ChartConfig | null = React.useMemo(() => {
     if (!selectedSensor || !telemetryData[selectedSensor]) return null;
     const sensorData = telemetryData[selectedSensor];
+    
+    // Enhanced debugging for live data
+    const currentSeries = sensorData.series;
     console.log('[Analytics] Chart data content:', {
       sensorId: selectedSensor,
-      dataPoints: sensorData.series.length,
-      firstPoint: sensorData.series[0],
-      lastPoint: sensorData.series[sensorData.series.length - 1],
-      nonNullCount: sensorData.series.filter((point) => point && point.value !== null && point.value !== undefined)
-        .length,
-      // Add detailed data for debugging
-      lastFivePoints: sensorData.series.slice(-5),
-      timestamps: sensorData.series.slice(-3).map(p => p.timestamp),
-      values: sensorData.series.slice(-3).map(p => p.value)
+      dataPoints: currentSeries.length,
+      firstPoint: currentSeries[0],
+      lastPoint: currentSeries[currentSeries.length - 1],
+      nonNullCount: currentSeries.filter((point) => point && point.value !== null && point.value !== undefined).length,
+      lastFivePoints: currentSeries.slice(-5),
+      timestamps: currentSeries.slice(-3).map(p => p.timestamp),
+      values: currentSeries.slice(-3).map(p => p.value),
+      seriesReference: currentSeries // Log reference to help debug mutations
     });
+    
+    console.log(`[Analytics] Rendering with series length: ${currentSeries.length}. Last point:`, currentSeries[currentSeries.length - 1]);
 
     return {
       type: sensorData.type,
       unit: sensorData.unit,
-      series: sensorData.series,
+      series: sensorData.series, // Pass series directly - array reference will change on updates
       color: chartColors[0],
     };
   }, [
     selectedSensor, 
-    // Track specific sensor data changes, especially for live mode
-    selectedSensor ? telemetryData[selectedSensor] : null,
-    // In live mode, also track data length and last timestamp
-    isLiveMode && selectedSensor && telemetryData[selectedSensor] 
-      ? telemetryData[selectedSensor].series.length 
-      : 0,
-    isLiveMode && selectedSensor && telemetryData[selectedSensor]?.series.length > 0
-      ? telemetryData[selectedSensor].series[telemetryData[selectedSensor].series.length - 1]?.timestamp
-      : 0
+    // Depend on the series array reference itself - will change when Redux creates new array
+    selectedSensor ? telemetryData[selectedSensor]?.series : null,
+    isLiveMode // Track live mode changes
   ]);
 
   // Prepare multi-series chart config for comparison

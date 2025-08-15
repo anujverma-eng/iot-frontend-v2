@@ -207,41 +207,27 @@ const telemetrySlice = createSlice({
         
         console.log('[TelemetrySlice] Processing sensor reading:', { mac, name, type, unit, value, timestamp });
         
-        // Find existing sensor by MAC - check both as key and as mac property
-        let existingSensorKey = Object.keys(state.data).find(key => 
-          state.data[key].mac === mac || key === mac
-        );
-        
-        console.log('[TelemetrySlice] Found existing sensor key:', existingSensorKey);
-        
-        // If no existing sensor found, try to match by MAC directly as key
-        if (!existingSensorKey) {
-          console.log('[TelemetrySlice] No existing sensor found, will create new entry');
-          // Use the MAC address as the key for consistency
-          existingSensorKey = mac;
-        }
-        
-        const sensorKey = existingSensorKey;
-        console.log('[TelemetrySlice] Final sensor key:', sensorKey);
-        
-        if (!state.data[sensorKey]) {
-          console.log('[TelemetrySlice] Creating new sensor entry for:', sensorKey);
-          // Initialize new sensor
-          state.data[sensorKey] = {
-            id: mac, // Use MAC as ID for consistency
-            mac,
-            type: type as any,
-            unit,
-            series: [],
-            min: Number(value),
-            max: Number(value),
-            avg: Number(value),
-            current: Number(value),
-            isLive: true,
-            lastUpdated: now
-          };
-        }
+        // --- REVISED SENSOR FINDING LOGIC ---
+        // Find the KEY of the sensor that has a matching MAC address.
+        // Do NOT fall back to creating a new key from the MAC address.
+        const sensorKey = Object.keys(state.data).find(key => state.data[key].mac === mac);
 
+        // If no sensor with this MAC exists in our state, we cannot update it.
+        // Log an error and skip this reading. This prevents polluting the state.
+        if (!sensorKey) {
+          console.warn(`[TelemetrySlice] Received live data for an unknown sensor MAC: ${mac}. Skipping.`);
+          console.warn(`[TelemetrySlice] Available sensors:`, Object.keys(state.data).map(key => ({ 
+            key, 
+            mac: state.data[key].mac 
+          })));
+          return; // "return" here exits the forEach loop for this iteration.
+        }
+        // --- END REVISED LOGIC ---
+
+        console.log('[TelemetrySlice] Found matching sensor key:', sensorKey);
+        
+        // Now we are certain that `sensorKey` refers to an existing sensor 
+        // (e.g., '6a8e5a7e-...') and we can safely update it.
         const sensor = state.data[sensorKey];
         console.log('[TelemetrySlice] Current sensor data points before adding:', sensor.series.length);
         
@@ -251,23 +237,31 @@ const telemetrySlice = createSlice({
           value: Number(value)
         };
 
-        sensor.series.push(dataPoint);
+        // --- IMMUTABLE UPDATE LOGIC ---
+        // 1. Create a new array with the new data point
+        let newSeries = [...sensor.series, dataPoint];
+
+        // 2. Sort the new array (sort() mutates, so we apply it to our new copy)
+        newSeries.sort((a, b) => a.timestamp - b.timestamp);
+
+        // 3. Slice if the new array exceeds the max length
+        if (newSeries.length > state.maxLiveReadings) {
+          const removedCount = newSeries.length - state.maxLiveReadings;
+          newSeries = newSeries.slice(-state.maxLiveReadings);
+          console.log('[TelemetrySlice] Trimmed', removedCount, 'old data points, now have:', newSeries.length);
+        }
+
+        // 4. Assign the new, sorted, and trimmed array to the state
+        sensor.series = newSeries;
+        // --- END IMMUTABLE UPDATE LOGIC ---
+
         sensor.lastUpdated = now;
         sensor.isLive = true;
         sensor.current = Number(value);
 
         console.log('[TelemetrySlice] Added data point:', dataPoint);
+        console.log('[TelemetrySlice] New series assigned. Length:', newSeries.length);
         console.log('[TelemetrySlice] Current sensor data points after adding:', sensor.series.length);
-
-        // Maintain max readings limit
-        if (sensor.series.length > state.maxLiveReadings) {
-          const removedCount = sensor.series.length - state.maxLiveReadings;
-          sensor.series = sensor.series.slice(-state.maxLiveReadings);
-          console.log('[TelemetrySlice] Trimmed', removedCount, 'old data points, now have:', sensor.series.length);
-        }
-
-        // Sort by timestamp to maintain order
-        sensor.series.sort((a, b) => a.timestamp - b.timestamp);
 
         // Update aggregates for live data
         if (sensor.series.length > 0) {

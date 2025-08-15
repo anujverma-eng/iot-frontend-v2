@@ -77,7 +77,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   const [gatewayIds, setGatewayIds] = React.useState<string[]>([]);
   const chartRef = React.useRef<HTMLDivElement>(null);
 
-  // Use a more targeted memoization approach
+  // Use a more targeted memoization approach - simplified
   const memoizedConfig = React.useMemo(
     () => {
       console.log('[ChartContainer] Config memoization triggered:', {
@@ -96,13 +96,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       });
       return config;
     },
-    [
-      config, // Always track the config object itself
-      // In live mode, track data changes more granularly by stringifying key data points
-      isLiveMode && !isMultiSeries && (config as ChartConfig).series?.length > 0
-        ? JSON.stringify((config as ChartConfig).series.slice(-3)) // Track last 3 data points
-        : null
-    ]
+    [config] // Depend on the entire config object - it will be new when data changes
   );
 
   // Set default visualization type based on sensor type
@@ -457,7 +451,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       return visualizationType === "area" ? (
         <AreaChart config={multi} isMultiSeries onBrushChange={onBrushChange} />
       ) : (
-        <LineChart config={multi} isMultiSeries />
+        <LineChart config={multi} isMultiSeries isLiveMode={isLiveMode} />
       );
     }
 
@@ -478,7 +472,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
           case "gauge":
             return <GaugeChart config={singleConfig} size="lg" />;
           default:
-            return <LineChart config={enhancedConfig} />;
+            return <LineChart config={enhancedConfig} isLiveMode={isLiveMode} />;
         }
 
       case "pressure":
@@ -486,7 +480,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
           case "candlestick":
             return <CandlestickChart config={enhancedConfig} onBrushChange={onBrushChange} />;
           default:
-            return <LineChart config={enhancedConfig} />;
+            return <LineChart config={enhancedConfig} isLiveMode={isLiveMode} />;
             return <PressureChart config={enhancedConfig} onBrushChange={onBrushChange} />;
         }
 
@@ -517,7 +511,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       case "accelerometer":
         return (
           <div className="flex flex-col h-full">
-            <LineChart config={enhancedConfig} />
+            <LineChart config={enhancedConfig} isLiveMode={isLiveMode} />
           </div>
         );
 
