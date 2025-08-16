@@ -17,6 +17,7 @@ export interface Sensor {
   id?: string; // Optional field for compatibility with some APIs
   favorite?: boolean; // Add favorite field, optional for backward compatibility
   battery?: number; // Battery percentage (0-100), optional with fallback to "n/a"
+  isOnline?: boolean; // Online/offline status based on settings and data reception
 }
 
 export interface SensorResponse {

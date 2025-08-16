@@ -19,6 +19,7 @@ import { cn } from "../lib/utils";
 import { useAppDispatch, useAppSelector } from "../hooks/useAppDispatch";
 import { logout } from "../store/authSlice";
 import { selectIsLiveMode, selectIsConnecting, toggleLiveMode } from "../store/liveDataSlice";
+import { useNavigate } from "react-router-dom";
 
 interface DashboardNavbarProps {
   onMenuToggle: () => void;
@@ -27,7 +28,14 @@ interface DashboardNavbarProps {
 
 export const DashboardNavbar = ({ onMenuToggle, className }: DashboardNavbarProps) => {
   const dispatch = useAppDispatch();
-  const handleMenuAction = (key: React.Key) => key === "logout" && dispatch(logout());
+  const navigate = useNavigate();
+  const handleMenuAction = (key: React.Key) => {
+    if (key === "logout") {
+      dispatch(logout());
+    } else if (key === "settings") {
+      navigate("/dashboard/settings");
+    }
+  };
 
   const profile = useAppSelector((s) => s.profile);
   const orgDetails = useAppSelector((s) => s.org);

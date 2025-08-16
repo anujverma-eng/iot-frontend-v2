@@ -14,6 +14,7 @@ import { StatsCard } from "../components/stats-card";
 import { ChartContainer } from "../components/visualization/chart-container";
 import { ComparisonChart } from "../components/visualization/comparison-chart";
 import { useBreakpoints } from "../hooks/use-media-query";
+import { useOfflineDetectionIntegration } from "../hooks/useOfflineDetectionIntegration";
 import { GaugeChart } from "../components/visualization/gauge-chart";
 import { chartColors, sensorTypes, statusOptions, timeRangePresets } from "../data/analytics";
 import { AppDispatch, RootState } from "../store";
@@ -72,6 +73,9 @@ export const AnalyticsPage: React.FC = () => {
   // Use responsive breakpoints
   const { isMobile, isSmallScreen, isLandscape } = useBreakpoints();
 
+  // Initialize offline detection integration
+  useOfflineDetectionIntegration();
+
   // Legacy mobile states for drawer management
   const [isMobileSensorDrawerOpen, setIsMobileSensorDrawerOpen] = React.useState(false);
   const [isMobileFilterDrawerOpen, setIsMobileFilterDrawerOpen] = React.useState(false);
@@ -96,6 +100,20 @@ export const AnalyticsPage: React.FC = () => {
 
   const stats = useSelector(selectEnhancedSensorStats); // Use enhanced stats with battery count
   const [pendingFilters, setPendingFilters] = React.useState<FilterState | null>(null);
+
+  // DEBUG: Log when sensors or stats change
+  React.useEffect(() => {
+    console.log(`[Analytics] DEBUG: Sensors data changed, count: ${sensors.length}`);
+    sensors.forEach(sensor => {
+      console.log(`[Analytics] DEBUG: Sensor ${sensor.mac} - status: ${sensor.status}, isOnline: ${sensor.isOnline}`);
+    });
+  }, [sensors]);
+
+  React.useEffect(() => {
+    if (stats) {
+      console.log(`[Analytics] DEBUG: Stats updated - Live: ${stats.liveSensors}, Offline: ${stats.offlineSensors}`);
+    }
+  }, [stats]);
 
   const applyPendingFilters = () => {
     if (pendingFilters) {
@@ -1030,7 +1048,7 @@ export const AnalyticsPage: React.FC = () => {
                 {selectedSensor && currentSensor && (
                   <div className="flex items-center gap-2">
                     <div
-                      className={`w-2 h-2 rounded-full ${currentSensor.status === "live" ? "bg-success" : "bg-danger"}`}
+                      className={`w-2 h-2 rounded-full ${currentSensor.isOnline ? "bg-success" : "bg-danger"}`}
                     />
                     <span className="text-sm font-medium truncate max-w-[120px]">
                       {currentSensor.displayName || currentSensor.mac}
@@ -1157,6 +1175,8 @@ export const AnalyticsPage: React.FC = () => {
                       id: currentSensor._id,
                       mac: currentSensor.mac,
                       displayName: currentSensor.displayName,
+                      isOnline: currentSensor.isOnline,
+                      status: currentSensor.status,
                     }}
                     onToggleStar={handleToggleStar}
                     onDisplayNameChange={handleDisplayNameChange}
@@ -1250,7 +1270,7 @@ export const AnalyticsPage: React.FC = () => {
             <div className="flex flex-wrap gap-2 mb-4">
               {selectedSensorsForCompare.map((sensor) => (
                 <div key={sensor._id} className="flex items-center gap-2 p-2 border border-divider rounded-lg">
-                  <div className={`w-2 h-2 rounded-full ${sensor.status === "live" ? "bg-success" : "bg-danger"}`} />
+                  <div className={`w-2 h-2 rounded-full ${sensor.isOnline ? "bg-success" : "bg-danger"}`} />
                   <span className="text-sm">{sensor.displayName || sensor.mac}</span>
                   <Button isIconOnly size="sm" variant="light" onPress={() => handleRemoveCompare(sensor._id)}>
                     <Icon icon="lucide:x" width={14} />

@@ -21,6 +21,7 @@ import { SensorsPage } from "./pages/SensorsPage";
 import { AnalyticsPage } from "./pages/analytics";
 import { DashboardHome } from "./pages/DashboardHome";
 import { PanelPage } from "./pages/PanelPage";
+import { SettingsPage } from "./pages/settings";
 
 export function AppRouter() {
   return (
@@ -53,6 +54,7 @@ export function AppRouter() {
               <Route path="home" element={<DashboardHome />} />
               <Route path="panel" element={<PanelPage />} />
               <Route path="gateways" element={<GatewaysPage />} />
+              <Route path="settings" element={<SettingsPage />} />
               <Route path="sensors">
                 <Route index element={<AnalyticsPage />} />
                 <Route path=":sensorId" element={<AnalyticsPage />} />

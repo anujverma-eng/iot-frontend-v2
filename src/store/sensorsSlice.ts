@@ -298,6 +298,46 @@ const sensorSlice = createSlice({
       
       console.log('[SensorsSlice] Marked all sensors as offline');
     },
+    // Update sensor online status based on offline detection service
+    updateSensorOnlineStatus: (state, action: PayloadAction<{ mac: string; isOnline: boolean }>) => {
+      const { mac, isOnline } = action.payload;
+      console.log(`[SensorsSlice] DEBUG: Received updateSensorOnlineStatus action for ${mac}, isOnline: ${isOnline}`);
+      
+      // Update in main sensors list
+      const sensorIndex = state.data.findIndex((sensor: Sensor) => sensor.mac === mac);
+      console.log(`[SensorsSlice] DEBUG: Found sensor at index ${sensorIndex} in sensors array`);
+      
+      if (sensorIndex !== -1) {
+        const sensor = state.data[sensorIndex];
+        const oldIsOnline = sensor.isOnline;
+        
+        console.log(`[SensorsSlice] DEBUG: Sensor ${mac} current isOnline: ${oldIsOnline}`);
+        console.log(`[SensorsSlice] DEBUG: Sensor ${mac} new isOnline: ${isOnline}`);
+        
+        if (sensor.isOnline !== isOnline) {
+          // Only update isOnline - DO NOT automatically change status
+          sensor.isOnline = isOnline;
+          console.log(`[SensorsSlice] ✅ UPDATED sensor ${mac} online status: ${isOnline ? 'online' : 'offline'}`);
+          console.log(`[SensorsSlice] INFO: sensor.status remains: ${sensor.status} (unchanged)`);
+        } else {
+          console.log(`[SensorsSlice] ⚠️ No change needed for sensor ${mac} - already has correct isOnline status`);
+        }
+      } else {
+        console.log(`[SensorsSlice] ❌ ERROR: Sensor ${mac} not found in sensors array`);
+      }
+      
+      // Update in selected sensor if it matches
+      if (state.selectedSensor.data && state.selectedSensor.data.mac === mac) {
+        const selectedSensor = state.selectedSensor.data;
+        
+        if (selectedSensor.isOnline !== isOnline) {
+          // Only update isOnline - DO NOT automatically change status for selected sensor either
+          selectedSensor.isOnline = isOnline;
+          console.log(`[SensorsSlice] ✅ UPDATED selected sensor ${mac} isOnline: ${isOnline}`);
+          console.log(`[SensorsSlice] INFO: selected sensor.status remains: ${selectedSensor.status} (unchanged)`);
+        }
+      }
+    },
   },
   extraReducers: (builder) => {
     /* fetch sensors ------------------------------------- */
@@ -474,6 +514,7 @@ export const {
   setLimit,
   updateSensorLastSeen,
   markSensorsOffline,
+  updateSensorOnlineStatus,
 } = sensorSlice.actions;
 
 /* ─────────────────  selectors  ─────────────────── */
@@ -500,17 +541,29 @@ export const selectIsSensorLoaded = (sensorId: string) => (state: RootState) => 
 };
 export const selectCurrentSensorDataLoading = (state: RootState) => state.sensors.currentSensorDataLoading;
 
-// Enhanced selector for stats with computed low battery count
+// Enhanced selector for stats with computed low battery count and online/offline counts
 export const selectEnhancedSensorStats = createSelector(
   [selectSensorStats, selectSensors],
   (stats, sensors) => {
     if (!stats) return null;
     
-    // Calculate low battery sensors count from sensor data
+    // Calculate counts from actual sensor data
     const lowBatterySensors = sensors.filter(sensor => isLowBattery(sensor.battery)).length;
+    
+    // Count online sensors based on isOnline field only
+    const liveSensors = sensors.filter(sensor => 
+      sensor.isOnline === true
+    ).length;
+    
+    // Count offline sensors based on isOnline field only
+    const offlineSensors = sensors.filter(sensor => 
+      sensor.isOnline === false
+    ).length;
     
     return {
       ...stats,
+      liveSensors,
+      offlineSensors,
       lowBatterySensors
     };
   }
@@ -520,6 +573,22 @@ export const selectEnhancedSensorStats = createSelector(
 export const selectLowBatterySensors = createSelector(
   [selectSensors],
   (sensors) => sensors.filter(sensor => isLowBattery(sensor.battery))
+);
+
+// Selector for online sensors
+export const selectOnlineSensors = createSelector(
+  [selectSensors],
+  (sensors) => sensors.filter(sensor => 
+    sensor.isOnline === true
+  )
+);
+
+// Selector for offline sensors
+export const selectOfflineSensors = createSelector(
+  [selectSensors],
+  (sensors) => sensors.filter(sensor => 
+    sensor.isOnline === false
+  )
 );
 
 export default sensorSlice.reducer;

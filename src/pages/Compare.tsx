@@ -276,7 +276,7 @@ export const ComparePage: React.FC = () => {
                         
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <div className={`w-2 h-2 rounded-full ${sensor.status === 'live' ? 'bg-success' : 'bg-danger'}`} />
+                            <div className={`w-2 h-2 rounded-full ${sensor.isOnline ? 'bg-success' : 'bg-danger'}`} />
                             <span className="text-sm font-medium truncate">
                               {sensor.displayName || sensor.mac}
                             </span>
@@ -434,7 +434,7 @@ export const ComparePage: React.FC = () => {
                           
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <div className={`w-2 h-2 rounded-full ${sensor.status === 'live' ? 'bg-success' : 'bg-danger'}`} />
+                              <div className={`w-2 h-2 rounded-full ${sensor.isOnline ? 'bg-success' : 'bg-danger'}`} />
                               <span className="text-sm font-medium truncate">
                                 {sensor.displayName || sensor.mac}
                               </span>

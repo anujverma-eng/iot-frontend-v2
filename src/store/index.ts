@@ -7,9 +7,10 @@ import gateways from "./gatewaySlice";
 import sensors from "./sensorsSlice";
 import telemetry from "./telemetrySlice";
 import liveData from "./liveDataSlice";
+import settings from "./settingsSlice";
 
 export const store = configureStore({
-  reducer: { auth, profile, org, confirmation, gateways, sensors, telemetry, liveData },
+  reducer: { auth, profile, org, confirmation, gateways, sensors, telemetry, liveData, settings },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: {

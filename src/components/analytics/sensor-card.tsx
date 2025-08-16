@@ -23,7 +23,7 @@ interface SensorCardProps {
   isDataLoading?: boolean; // Add loading state prop
 }
 
-export const SensorCard: React.FC<SensorCardProps> = React.memo(({
+export const SensorCard: React.FC<SensorCardProps> = ({
   sensor,
   isSelected,
   onSelect,
@@ -41,6 +41,11 @@ export const SensorCard: React.FC<SensorCardProps> = React.memo(({
   const [showDataLoading, setShowDataLoading] = React.useState(false); // Delayed loading state
   const loadingTimeoutRef = React.useRef<NodeJS.Timeout>();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
+
+  // DEBUG: Log when component renders and sensor status changes
+  React.useEffect(() => {
+    console.log(`[SensorCard] DEBUG: Rendering card for ${sensor.mac} - status: ${sensor.status}, isOnline: ${sensor.isOnline}`);
+  }, [sensor.mac, sensor.status, sensor.isOnline]);
 
   // Sync local state with prop when it changes
   React.useEffect(() => {
@@ -193,6 +198,24 @@ export const SensorCard: React.FC<SensorCardProps> = React.memo(({
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {/* Online/Offline Status Indicator */}
+              <Tooltip content={sensor.isOnline ? "Sensor is online" : "Sensor is offline"}>
+                <div className="flex items-center gap-1">
+                  <div className={`w-2 h-2 rounded-full ${
+                    sensor.isOnline === false ? 'bg-danger animate-pulse' : 
+                    sensor.isOnline === true ? 'bg-success animate-pulse' : 
+                    'bg-warning'
+                  }`} />
+                  <span className={`text-xs font-medium ${
+                    sensor.isOnline === false ? 'text-danger' : 
+                    sensor.isOnline === true ? 'text-success' : 
+                    'text-warning'
+                  }`}>
+                    {sensor.isOnline === false ? 'OFFLINE' : "LIVE"}
+                  </span>
+                </div>
+              </Tooltip>
+
               {/* Battery indicator with visual cells */}
               <Tooltip content={sensor.battery !== undefined ? `Battery: ${sensor.battery}%` : "Battery: Status unknown"}>
                 <div className="flex items-center gap-1">
@@ -274,7 +297,7 @@ export const SensorCard: React.FC<SensorCardProps> = React.memo(({
       />
     </>
   );
-});
+};
 
 // Add display name for debugging
 SensorCard.displayName = 'SensorCard';

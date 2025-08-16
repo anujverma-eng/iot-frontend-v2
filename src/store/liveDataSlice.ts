@@ -2,9 +2,10 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { RootState } from './index';
 import { startLive, stopLive, getConnectionStatus, LiveCallbacks } from '../lib/liveMqtt';
-import { updateSensorLastSeen } from './sensorsSlice';
+import { updateSensorLastSeen, selectSensors } from './sensorsSlice';
 import { fetchGateways, updateGatewayPresence as updateGatewayPresenceInGatewaySlice } from './gatewaySlice';
 import { addLiveData } from './telemetrySlice';
+import { offlineDetectionService } from '../services/offlineDetectionService';
 
 // Gateway presence message interface
 export interface GatewayPresenceMessage {
@@ -35,6 +36,22 @@ const initialState: LiveDataState = {
   isLiveMode: false,
   lastConnectionAttempt: null,
 };
+
+// Thunk to handle gateway going offline
+export const handleGatewayOfflineEvent = createAsyncThunk(
+  'liveData/handleGatewayOffline',
+  async (gatewayId: string, { getState }) => {
+    const state = getState() as RootState;
+    const sensors = selectSensors(state);
+    
+    console.log(`[LiveData] Handling gateway ${gatewayId} offline event with ${sensors.length} sensors`);
+    
+    // Pass current sensors to the offline detection service
+    offlineDetectionService.handleGatewayOffline(gatewayId, sensors);
+    
+    return gatewayId;
+  }
+);
 
 // Initialize live data connection with all available gateways
 export const initializeLiveConnection = createAsyncThunk(
@@ -75,6 +92,9 @@ export const initializeLiveConnection = createAsyncThunk(
 
       console.log(`[LiveData:${timestamp}] Found gateways for live connection:`, gatewayIds);
       
+      // Initialize offline detection service with known gateways
+      offlineDetectionService.initializeGatewayTracking(gatewayIds);
+      
       // Add throttling for live data updates to improve performance
       let lastUpdateTime = 0;
       const throttleDelay = 100; // Update every 100ms maximum (10 updates per second)
@@ -98,11 +118,16 @@ export const initializeLiveConnection = createAsyncThunk(
           // Update sensor last seen (existing throttling applies)
           data.sensors.forEach(reading => {
             const nowStr = new Date().toISOString();
+            const now = new Date(nowStr);
+            
             dispatch(updateSensorLastSeen({ 
               mac: reading.mac, 
               lastSeen: nowStr,
               battery: reading.battery // Include battery data from socket
             }));
+
+            // Notify offline detection service of sensor activity
+            offlineDetectionService.updateSensorLastSeen(reading.mac, now);
           });
         },
         onPresence: (topic, message) => {
@@ -121,6 +146,19 @@ export const initializeLiveConnection = createAsyncThunk(
               gatewayId: message.gatewayId,
               isConnected: message.isConnected
             }));
+
+            // Notify offline detection service of gateway status change
+            offlineDetectionService.updateGatewayStatus(
+              message.gatewayId, 
+              message.isConnected, 
+              new Date(presenceData.timestamp)
+            );
+
+            // If gateway went offline, handle sensor dependencies
+            if (!message.isConnected) {
+              // We need to trigger this through a thunk to access current state
+              dispatch(handleGatewayOfflineEvent(message.gatewayId));
+            }
           }
         },
         onError: (error) => {

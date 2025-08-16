@@ -34,6 +34,8 @@ interface ChartContainerProps {
     id: string;
     mac: string;
     displayName?: string;
+    isOnline?: boolean;
+    status?: "live" | "offline";
   };
   onDisplayNameChange?: (displayName: string) => void;
   onToggleStar?: (mac: string) => void;
@@ -218,6 +220,9 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
     resolveGatewayIds();
   }, [sensor?.id, sensor?.mac]); // Only re-run when sensor ID or MAC changes
 
+  // Check if sensor is offline and show waiting state
+  const isSensorOffline = sensor?.isOnline === false;
+  
   // Add error handling for when config is null
   if (!config) {
     return (
@@ -571,9 +576,24 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                 </div>
               ) : (
                 <>
-                  <h3 className="text-base font-medium text-primary-600 truncate">
-                    {sensor.displayName || sensor.mac}
-                  </h3>
+                  <div className="flex flex-col gap-1 flex-1 min-w-0">
+                    <h3 className="text-base font-medium text-primary-600 truncate">
+                      {sensor.displayName || sensor.mac}
+                    </h3>
+                    {/* Mobile status indicator */}
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          isSensorOffline ? 'bg-danger animate-pulse' : 'bg-success'
+                        }`}
+                      />
+                      <span className={`text-xs font-medium ${
+                        isSensorOffline ? 'text-danger' : 'text-success'
+                      }`}>
+                        {isSensorOffline ? 'OFFLINE' : 'ONLINE'}
+                      </span>
+                    </div>
+                  </div>
                   <Button isIconOnly size="sm" variant="light" onPress={() => setIsEditing(true)}>
                     <Icon icon="lucide:edit-3" width={14} className="text-primary-500" />
                   </Button>
@@ -669,7 +689,22 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
               </div>
             ) : (
               <>
-                <h3 className="text-lg font-medium text-primary-600">{sensor.displayName || sensor.mac}</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-medium text-primary-600">{sensor.displayName || sensor.mac}</h3>
+                  {/* Online/Offline status indicator */}
+                  <div className="flex items-center gap-2">
+                    <div 
+                      className={`w-2 h-2 rounded-full ${
+                        isSensorOffline ? 'bg-danger animate-pulse' : 'bg-success'
+                      }`}
+                    />
+                    <span className={`text-xs font-medium ${
+                      isSensorOffline ? 'text-danger' : 'text-success'
+                    }`}>
+                      {isSensorOffline ? 'OFFLINE' : 'ONLINE'}
+                    </span>
+                  </div>
+                </div>
                 <Button isIconOnly size="sm" variant="light" onPress={() => setIsEditing(true)}>
                   <Icon icon="lucide:edit-3" width={16} className="text-primary-500" />
                 </Button>
@@ -775,26 +810,115 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
             } ${getChartHeight()}`} 
             ref={chartRef}
           >
-            {renderChart()}
+            {/* Show offline sensor waiting state */}
+            {isSensorOffline ? (
+              <div className="h-full flex flex-col items-center justify-center p-8 text-center">
+                <div className="flex flex-col items-center gap-4 max-w-md">
+                  {/* Animated loading icon */}
+                  <div className="relative">
+                    <Icon 
+                      icon="lucide:wifi-off" 
+                      className="text-danger-400 animate-pulse" 
+                      width={64} 
+                      height={64} 
+                    />
+                    <div className="absolute -bottom-2 -right-2 bg-danger-500 rounded-full p-1">
+                      <Icon 
+                        icon="lucide:loader-2" 
+                        className="text-white animate-spin" 
+                        width={16} 
+                        height={16} 
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Status message */}
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-semibold text-danger-600">
+                      Sensor Offline
+                    </h3>
+                    <p className="text-default-600 text-sm leading-relaxed">
+                      Waiting for <span className="font-medium text-primary-600">{sensor?.displayName || sensor?.mac}</span> to come back online
+                    </p>
+                    <p className="text-default-500 text-xs">
+                      Chart will update automatically once the sensor becomes live
+                    </p>
+                  </div>
+                  
+                  {/* View Old Readings Button */}
+                  <div className="flex flex-col gap-2 mt-4">
+                    <Button
+                      color="primary"
+                      variant="flat"
+                      size="sm"
+                      onPress={() => {
+                        if (onLiveModeChange) {
+                          onLiveModeChange(false);
+                        }
+                      }}
+                      startContent={<Icon icon="lucide:history" width={16} />}
+                    >
+                      View Old Readings Instead
+                    </Button>
+                    <p className="text-xs text-default-400">
+                      Switch to historical data view
+                    </p>
+                  </div>
+                  
+                  {/* Optional retry indicator */}
+                  <div className="flex items-center gap-2 text-xs text-default-400 mt-2">
+                    <Icon icon="lucide:refresh-cw" className="animate-spin" width={12} />
+                    <span>Monitoring sensor status...</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              renderChart()
+            )}
           </div>
         )}
 
         {/* Table content */}
         {activeTab === "table" && !(isFullscreen && isMobile) && (
           <div className={`flex-1 overflow-auto ${isSmallScreen ? 'mx-3 mb-3' : 'mx-4 mb-4'} ${getChartHeight()}`}>
-            <TableView
-              config={{
-                ...config,
-                series: (config as ChartConfig).series?.map((s: any) => ({
-                  ...s,
-                  data: s.data?.map((d: any) => ({
-                    ...d,
-                    value: typeof d.value === "number" ? formatNumericValue(d.value, 4) : d.value,
+            {/* Show offline sensor waiting state in table view too */}
+            {isSensorOffline ? (
+              <div className="h-full flex flex-col items-center justify-center p-8 text-center">
+                <div className="flex flex-col items-center gap-4 max-w-md">
+                  <Icon 
+                    icon="lucide:table" 
+                    className="text-danger-400" 
+                    width={48} 
+                    height={48} 
+                  />
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-semibold text-danger-600">
+                      No Data Available
+                    </h3>
+                    <p className="text-default-600 text-sm">
+                      Sensor <span className="font-medium text-primary-600">{sensor?.displayName || sensor?.mac}</span> is currently offline
+                    </p>
+                    <p className="text-default-500 text-xs">
+                      Table will populate once sensor comes back online
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <TableView
+                config={{
+                  ...config,
+                  series: (config as ChartConfig).series?.map((s: any) => ({
+                    ...s,
+                    data: s.data?.map((d: any) => ({
+                      ...d,
+                      value: typeof d.value === "number" ? formatNumericValue(d.value, 4) : d.value,
+                    })) ?? [],
                   })) ?? [],
-                })) ?? [],
-              }}
-              onDownloadCSV={onDownloadCSV}
-            />
+                }}
+                onDownloadCSV={onDownloadCSV}
+              />
+            )}
           </div>
         )}
       </div>

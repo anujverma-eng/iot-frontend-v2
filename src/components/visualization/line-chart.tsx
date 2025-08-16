@@ -677,9 +677,9 @@ export const LineChart: React.FC<LineChartProps> = ({
             <div className="text-xs text-default-500 mt-1">
               <span className="font-medium">Real-time data:</span> 
               <span className="ml-1">Showing last {orderedData.length}/{maxLiveReadings} readings</span>
-              {orderedData.length >= maxLiveReadings && (
+              {/* {orderedData.length >= maxLiveReadings && (
                 <span className="text-orange-600 ml-1">(sliding window - oldest data automatically removed)</span>
-              )}
+              )} */}
             </div>
           )}
         </div>

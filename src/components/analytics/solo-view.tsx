@@ -262,6 +262,9 @@ export const SoloView: React.FC = () => {
     };
   }, [sensorId, telemetryData]);
 
+  // Check if sensor is offline
+  const isSensorOffline = selectedSensorData?.data?.isOnline === false;
+
   // Prepare table data with grouping
   // const tableData = React.useMemo(() => {
   //   if (!sensorId || !telemetryData[sensorId]) return [];
@@ -626,7 +629,7 @@ export const SoloView: React.FC = () => {
                         onClick={() => handleSensorSelect(sensor._id)}
                       >
                         <div
-                          className={`w-2 h-2 rounded-full ${sensor.status === "live" ? "bg-success" : "bg-danger"}`}
+                          className={`w-2 h-2 rounded-full ${sensor.isOnline ? "bg-success" : "bg-danger"}`}
                         />
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium truncate">{sensor.displayName || sensor.mac}</div>
@@ -689,11 +692,26 @@ export const SoloView: React.FC = () => {
               <Card className="w-full">
                 <CardBody>
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-xl font-semibold">{currentSensor.displayName || currentSensor.mac}</h2>
-                      <Badge color={currentSensor.status === "live" ? "success" : "danger"} variant="flat">
-                        {currentSensor?.status?.toUpperCase()}
-                      </Badge>
+                    <div className="flex items-center gap-3">
+                      <div className="flex flex-col gap-1">
+                        <h2 className="text-xl font-semibold">{currentSensor.displayName || currentSensor.mac}</h2>
+                        {/* Online/Offline status indicator */}
+                        <div className="flex items-center gap-2">
+                          <div 
+                            className={`w-2 h-2 rounded-full ${
+                              isSensorOffline ? 'bg-danger animate-pulse' : 'bg-success'
+                            }`}
+                          />
+                          <span className={`text-sm font-medium ${
+                            isSensorOffline ? 'text-danger' : 'text-success'
+                          }`}>
+                            {isSensorOffline ? 'OFFLINE' : 'ONLINE'}
+                          </span>
+                          <Badge color={currentSensor.status === "live" ? "success" : "danger"} variant="flat">
+                            {currentSensor?.status?.toUpperCase()}
+                          </Badge>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -821,83 +839,220 @@ export const SoloView: React.FC = () => {
                     }`} 
                     ref={chartRef}
                   >
-                    <LineChart config={chartConfig} isLiveMode={isLiveMode} />
+                    {/* Show offline sensor waiting state */}
+                    {isSensorOffline ? (
+                      <div className="h-full flex flex-col items-center justify-center text-center">
+                        <div className="flex flex-col items-center gap-4 max-w-md">
+                          {/* Animated loading icon */}
+                          <div className="relative">
+                            <Icon 
+                              icon="lucide:wifi-off" 
+                              className="text-danger-400 animate-pulse" 
+                              width={64} 
+                              height={64} 
+                            />
+                            <div className="absolute -bottom-2 -right-2 bg-danger-500 rounded-full p-1">
+                              <Icon 
+                                icon="lucide:loader-2" 
+                                className="text-white animate-spin" 
+                                width={16} 
+                                height={16} 
+                              />
+                            </div>
+                          </div>
+                          
+                          {/* Status message */}
+                          <div className="space-y-2">
+                            <h3 className="text-lg font-semibold text-danger-600">
+                              Sensor Offline
+                            </h3>
+                            <p className="text-default-600 text-sm leading-relaxed">
+                              Waiting for <span className="font-medium text-primary-600">{selectedSensorData?.data?.displayName || selectedSensorData?.data?.mac}</span> to come back online
+                            </p>
+                            <p className="text-default-500 text-xs">
+                              Chart will update automatically once the sensor becomes live
+                            </p>
+                          </div>
+                          
+                          {/* View Old Readings Button */}
+                          <div className="flex flex-col gap-2 mt-4">
+                            <Button
+                              color="primary"
+                              variant="flat"
+                              size="sm"
+                              onPress={() => {
+                                handleLiveModeChange(false);
+                              }}
+                              startContent={<Icon icon="lucide:history" width={16} />}
+                            >
+                              View Old Readings Instead
+                            </Button>
+                            <p className="text-xs text-default-400">
+                              Switch to historical data view
+                            </p>
+                          </div>
+                          
+                          {/* Optional retry indicator */}
+                          <div className="flex items-center gap-2 text-xs text-default-400 mt-2">
+                            <Icon icon="lucide:refresh-cw" className="animate-spin" width={12} />
+                            <span>Monitoring sensor status...</span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <LineChart config={chartConfig} isLiveMode={isLiveMode} />
+                    )}
                   </div>
                 )}
               </Tab>
               <Tab key="table" title={isSmallScreen ? "Table" : "Table View"}>
                 <div className={`${isMobileDevice ? 'h-[400px] overflow-auto' : ''}`}>
-                  {chartConfig && <TableView config={chartConfig} onDownloadCSV={handleDownloadCSV} />}
+                  {/* Show offline sensor waiting state in table view too */}
+                  {isSensorOffline ? (
+                    <div className="h-full flex flex-col items-center justify-center p-8 text-center">
+                      <div className="flex flex-col items-center gap-4 max-w-md">
+                        <Icon 
+                          icon="lucide:table" 
+                          className="text-danger-400" 
+                          width={48} 
+                          height={48} 
+                        />
+                        <div className="space-y-2">
+                          <h3 className="text-lg font-semibold text-danger-600">
+                            No Data Available
+                          </h3>
+                          <p className="text-default-600 text-sm">
+                            Sensor <span className="font-medium text-primary-600">{selectedSensorData?.data?.displayName || selectedSensorData?.data?.mac}</span> is currently offline
+                          </p>
+                          <p className="text-default-500 text-xs">
+                            Table will populate once sensor comes back online
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    chartConfig && <TableView config={chartConfig} onDownloadCSV={handleDownloadCSV} />
+                  )}
                 </div>
               </Tab>
 
               <Tab key="analytics" title="Analytics">
                 <Card>
                   <CardBody>
-                    <Tabs aria-label="Analytics tabs" color="primary" variant="underlined" className="mb-4">
-                      <Tab key="distribution" title="Distribution">
-                        <div className={`mt-4 ${isMobileDevice ? 'h-[500px]' : 'h-[700px]'}`}>
-                          {chartConfig && <DistributionChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />}
+                    {/* Show offline sensor waiting state in analytics view too */}
+                    {isSensorOffline ? (
+                      <div className="h-full flex flex-col items-center justify-center p-8 text-center">
+                        <div className="flex flex-col items-center gap-4 max-w-md">
+                          <Icon 
+                            icon="lucide:bar-chart-3" 
+                            className="text-danger-400" 
+                            width={48} 
+                            height={48} 
+                          />
+                          <div className="space-y-2">
+                            <h3 className="text-lg font-semibold text-danger-600">
+                              Analytics Unavailable
+                            </h3>
+                            <p className="text-default-600 text-sm">
+                              Sensor <span className="font-medium text-primary-600">{selectedSensorData?.data?.displayName || selectedSensorData?.data?.mac}</span> is currently offline
+                            </p>
+                            <p className="text-default-500 text-xs">
+                              Analytics will be available once sensor comes back online
+                            </p>
+                          </div>
                         </div>
-                      </Tab>
-                      <Tab key="trend" title="Trend Analysis">
-                        <div className={`mt-4 ${isMobileDevice ? 'h-[500px]' : 'h-[700px]'}`}>
-                          {chartConfig && <TrendAnalysisChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />}
-                        </div>
-                      </Tab>
-                      <Tab key="anomaly" title="Anomaly Detection">
-                        <div className={`mt-4 ${isMobileDevice ? 'h-[500px]' : 'h-[700px]'}`}>
-                          {chartConfig && <AnomalyDetectionChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />}
-                        </div>
-                      </Tab>
-                      <Tab key="correlation" title="Correlation">
-                        <div className={`mt-4 ${isMobileDevice ? 'h-[500px]' : 'h-[700px]'}`}>
-                          {chartConfig && <CorrelationAnalysisChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />}
-                        </div>
-                      </Tab>
-                    </Tabs>
+                      </div>
+                    ) : (
+                      <Tabs aria-label="Analytics tabs" color="primary" variant="underlined" className="mb-4">
+                        <Tab key="distribution" title="Distribution">
+                          <div className={`mt-4 ${isMobileDevice ? 'h-[500px]' : 'h-[700px]'}`}>
+                            {chartConfig && <DistributionChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />}
+                          </div>
+                        </Tab>
+                        <Tab key="trend" title="Trend Analysis">
+                          <div className={`mt-4 ${isMobileDevice ? 'h-[500px]' : 'h-[700px]'}`}>
+                            {chartConfig && <TrendAnalysisChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />}
+                          </div>
+                        </Tab>
+                        <Tab key="anomaly" title="Anomaly Detection">
+                          <div className={`mt-4 ${isMobileDevice ? 'h-[500px]' : 'h-[700px]'}`}>
+                            {chartConfig && <AnomalyDetectionChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />}
+                          </div>
+                        </Tab>
+                        <Tab key="correlation" title="Correlation">
+                          <div className={`mt-4 ${isMobileDevice ? 'h-[500px]' : 'h-[700px]'}`}>
+                            {chartConfig && <CorrelationAnalysisChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />}
+                          </div>
+                        </Tab>
+                      </Tabs>
+                    )}
                   </CardBody>
                 </Card>
               </Tab>
 
               <Tab key="multichart" title={isMobileDevice ? "Multi" : "Multi-Chart View"}>
-                <div className={`grid ${isMobileDevice ? 'grid-cols-1 gap-3' : 'grid-cols-1 md:grid-cols-2 gap-4'}`}>
-                  <Card className="shadow-sm">
-                    <CardBody className="p-3">
-                      <h3 className="text-sm font-medium mb-2 text-primary-600">Value Distribution</h3>
-                      <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
-                        {chartConfig && <DistributionChart config={chartConfig} showChart isLiveMode={isLiveMode} />}
+                {/* Show offline sensor waiting state in multi-chart view too */}
+                {isSensorOffline ? (
+                  <div className="h-full flex flex-col items-center justify-center p-8 text-center">
+                    <div className="flex flex-col items-center gap-4 max-w-md">
+                      <Icon 
+                        icon="lucide:layout-grid" 
+                        className="text-danger-400" 
+                        width={48} 
+                        height={48} 
+                      />
+                      <div className="space-y-2">
+                        <h3 className="text-lg font-semibold text-danger-600">
+                          Multi-Chart View Unavailable
+                        </h3>
+                        <p className="text-default-600 text-sm">
+                          Sensor <span className="font-medium text-primary-600">{selectedSensorData?.data?.displayName || selectedSensorData?.data?.mac}</span> is currently offline
+                        </p>
+                        <p className="text-default-500 text-xs">
+                          Multi-chart view will be available once sensor comes back online
+                        </p>
                       </div>
-                    </CardBody>
-                  </Card>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={`grid ${isMobileDevice ? 'grid-cols-1 gap-3' : 'grid-cols-1 md:grid-cols-2 gap-4'}`}>
+                    <Card className="shadow-sm">
+                      <CardBody className="p-3">
+                        <h3 className="text-sm font-medium mb-2 text-primary-600">Value Distribution</h3>
+                        <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
+                          {chartConfig && <DistributionChart config={chartConfig} showChart isLiveMode={isLiveMode} />}
+                        </div>
+                      </CardBody>
+                    </Card>
 
-                  <Card className="shadow-sm">
-                    <CardBody className="p-3">
-                      <h3 className="text-sm font-medium mb-2 text-secondary-600">Trend Analysis</h3>
-                      <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
-                        {chartConfig && <TrendAnalysisChart config={chartConfig} showChart isLiveMode={isLiveMode} />}
-                      </div>
-                    </CardBody>
-                  </Card>
+                    <Card className="shadow-sm">
+                      <CardBody className="p-3">
+                        <h3 className="text-sm font-medium mb-2 text-secondary-600">Trend Analysis</h3>
+                        <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
+                          {chartConfig && <TrendAnalysisChart config={chartConfig} showChart isLiveMode={isLiveMode} />}
+                        </div>
+                      </CardBody>
+                    </Card>
 
-                  <Card className="shadow-sm">
-                    <CardBody className="p-3">
-                      <h3 className="text-sm font-medium mb-2 text-danger-600">Anomaly Detection</h3>
-                      <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
-                        {chartConfig && <AnomalyDetectionChart config={chartConfig} showChart isLiveMode={isLiveMode} />}
-                      </div>
-                    </CardBody>
-                  </Card>
+                    <Card className="shadow-sm">
+                      <CardBody className="p-3">
+                        <h3 className="text-sm font-medium mb-2 text-danger-600">Anomaly Detection</h3>
+                        <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
+                          {chartConfig && <AnomalyDetectionChart config={chartConfig} showChart isLiveMode={isLiveMode} />}
+                        </div>
+                      </CardBody>
+                    </Card>
 
-                  <Card className="shadow-sm">
-                    <CardBody className="p-3">
-                      <h3 className="text-sm font-medium mb-2 text-success-600">Correlation Analysis</h3>
-                      <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
-                        {chartConfig && <CorrelationAnalysisChart config={chartConfig} showChart isLiveMode={isLiveMode} />}
-                      </div>
-                    </CardBody>
-                  </Card>
-                </div>
+                    <Card className="shadow-sm">
+                      <CardBody className="p-3">
+                        <h3 className="text-sm font-medium mb-2 text-success-600">Correlation Analysis</h3>
+                        <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
+                          {chartConfig && <CorrelationAnalysisChart config={chartConfig} showChart isLiveMode={isLiveMode} />}
+                        </div>
+                      </CardBody>
+                    </Card>
+                  </div>
+                )}
               </Tab>
             </Tabs>
           </div>
