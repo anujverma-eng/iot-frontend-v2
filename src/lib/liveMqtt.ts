@@ -26,6 +26,7 @@ export interface LiveCallbacks {
 let currentSubscription: any = null;
 let isConnecting = false;
 let connectionCallbacks: LiveCallbacks | null = null;
+let connectionId = 0; // Add unique connection tracking
 
 console.log('[LiveMQTT] Module initialized');
 
@@ -35,24 +36,25 @@ export async function startLive(
   callbacks: LiveCallbacks
 ): Promise<() => void> {
   
-  console.log('[LiveMQTT] startLive called with gatewayIds:', gatewayIds);
-  console.log('[LiveMQTT] Current connection state - isConnecting:', isConnecting, 'hasSubscription:', !!currentSubscription);
+  const currentConnectionId = ++connectionId;
+  console.log(`[LiveMQTT:${currentConnectionId}] startLive called with gatewayIds:`, gatewayIds);
+  console.log(`[LiveMQTT:${currentConnectionId}] Current connection state - isConnecting:`, isConnecting, 'hasSubscription:', !!currentSubscription);
   
   // Prevent duplicate connections
   if (isConnecting) {
-    console.warn('[LiveMQTT] Connection already in progress, ignoring duplicate request');
+    console.warn(`[LiveMQTT:${currentConnectionId}] Connection already in progress, ignoring duplicate request`);
     return () => {};
   }
 
   // If already connected, unsubscribe first
   if (currentSubscription) {
-    console.log('[LiveMQTT] Cleaning up existing connection before starting new one');
+    console.log(`[LiveMQTT:${currentConnectionId}] Cleaning up existing connection before starting new one`);
     stopLive();
   }
 
   if (!gatewayIds?.length) {
     const error = new Error('No gatewayIds provided');
-    console.error('[LiveMQTT] Error - no gateway IDs provided');
+    console.error(`[LiveMQTT:${currentConnectionId}] Error - no gateway IDs provided`);
     callbacks.onError(error);
     throw error;
   }
@@ -60,31 +62,36 @@ export async function startLive(
   isConnecting = true;
   connectionCallbacks = callbacks;
   callbacks.onConnectionChange('connecting');
-  console.log('[LiveMQTT] Connection state changed to: connecting');
+  console.log(`[LiveMQTT:${currentConnectionId}] Connection state changed to: connecting`);
 
   try {
-    console.log('[LiveMQTT] Starting live connection for gateways:', gatewayIds);
+    console.log(`[LiveMQTT:${currentConnectionId}] Starting live connection for gateways:`, gatewayIds);
 
     // 1) Ensure IoT policy is attached
-    console.log('[LiveMQTT] Ensuring IoT policy is attached...');
-    await ensureIotPolicyAttached();
-    console.log('[LiveMQTT] IoT policy attachment completed');
+    console.log(`[LiveMQTT:${currentConnectionId}] Ensuring IoT policy is attached...`);
+    try {
+      await ensureIotPolicyAttached();
+      console.log(`[LiveMQTT:${currentConnectionId}] IoT policy attachment completed successfully`);
+    } catch (policyError: any) {
+      console.error(`[LiveMQTT:${currentConnectionId}] IoT policy attachment failed:`, policyError);
+      throw new Error(`IoT policy attachment failed: ${policyError.message || policyError}`);
+    }
 
     // 2) Build topics for data and presence
     const dataTopics = gatewayIds.map(id => `${id}/data`);
-    const presenceTopics = gatewayIds.map(id => `$aws/events/presence/+/${id}`);
+    const presenceTopics = gatewayIds.map(id => `presence/state/${id}`);
     const topics = [...dataTopics, ...presenceTopics];
 
-    console.log('[LiveMQTT] Subscribing to topics:', topics);
-    console.log('[LiveMQTT] Data topics:', dataTopics);
-    console.log('[LiveMQTT] Presence topics:', presenceTopics);
+    console.log(`[LiveMQTT:${currentConnectionId}] Subscribing to topics:`, topics);
+    console.log(`[LiveMQTT:${currentConnectionId}] Data topics:`, dataTopics);
+    console.log(`[LiveMQTT:${currentConnectionId}] Presence topics:`, presenceTopics);
 
     // 3) Subscribe with enhanced error handling
-    console.log('[LiveMQTT] Creating pubsub subscription...');
+    console.log(`[LiveMQTT:${currentConnectionId}] Creating pubsub subscription...`);
     currentSubscription = pubsub.subscribe({ topics }).subscribe({
       next: (msg: any) => {
         try {
-          console.log('[LiveMQTT] Raw message received:', JSON.stringify(msg, null, 2));
+          console.log(`[LiveMQTT:${currentConnectionId}] Raw message received:`, JSON.stringify(msg, null, 2));
           
           // Check if this is already a parsed sensor data message
           if (msg.sensors && Array.isArray(msg.sensors)) {
@@ -108,8 +115,25 @@ export async function startLive(
           }
           
           // Handle traditional topic-based messages
-          const topic = msg.topic as string;
-          const message = msg.message;
+          // Try to get topic from multiple possible locations
+          let topic = msg.topic as string;
+          
+          // Check if topic is in Symbol(topic) - AWS IoT sometimes uses symbols
+          if (!topic && msg[Symbol.for('topic')]) {
+            topic = msg[Symbol.for('topic')] as string;
+          }
+          
+          // Check all symbol properties for topic
+          if (!topic) {
+            const topicSymbol = Object.getOwnPropertySymbols(msg).find(sym => 
+              sym.toString().includes('topic')
+            );
+            if (topicSymbol) {
+              topic = msg[topicSymbol] as string;
+            }
+          }
+          
+          const message = msg.message || msg;
           
           console.log('[LiveMQTT] Processing message - Topic:', topic, 'Message type:', typeof message);
           
@@ -131,10 +155,54 @@ export async function startLive(
           }
           
           // Handle different message types
-          if (topic.includes('$aws/events/presence')) {
-            // Presence event
-            console.log('[LiveMQTT] Presence event received:', topic, message);
-            callbacks.onPresence(topic, message);
+          if (topic.includes('presence/state')) {
+            // Presence event - handle the exact format from user's example
+            console.log('[LiveMQTT] Presence event received:', topic, 'Full message object:', msg);
+            
+            // For presence messages, the data might be directly in the msg object
+            // rather than in a nested message property
+            let presenceData = message;
+            
+            // If message is the same as msg, then the presence data is in the root
+            if (message === msg || !message) {
+              presenceData = msg;
+              // Remove Symbol properties before processing
+              const cleanPresenceData = { ...presenceData };
+              Object.getOwnPropertySymbols(cleanPresenceData).forEach(sym => {
+                delete cleanPresenceData[sym];
+              });
+              presenceData = cleanPresenceData;
+            }
+            
+            // Parse the presence message if it's a string
+            if (typeof presenceData === 'string') {
+              try {
+                presenceData = JSON.parse(presenceData);
+              } catch (e) {
+                console.warn('[LiveMQTT] Failed to parse presence message:', e);
+                return;
+              }
+            }
+            
+            // Handle wrapped payload
+            if (presenceData.payload && typeof presenceData.payload === 'string') {
+              try {
+                presenceData = JSON.parse(presenceData.payload);
+              } catch (e) {
+                console.warn('[LiveMQTT] Failed to parse presence payload:', e);
+                return;
+              }
+            }
+            
+            console.log('[LiveMQTT] Parsed presence data:', presenceData);
+            
+            // Validate presence data has required fields
+            if (presenceData && presenceData.gatewayId && typeof presenceData.isConnected === 'boolean') {
+              console.log('[LiveMQTT] Valid presence data, calling onPresence callback');
+              callbacks.onPresence(topic, presenceData);
+            } else {
+              console.warn('[LiveMQTT] Invalid presence data format:', presenceData);
+            }
           } else if (topic.endsWith('/data')) {
             // Data event - parse and validate
             console.log('[LiveMQTT] Data event received from topic:', topic);
@@ -159,46 +227,53 @@ export async function startLive(
 
           // Mark as connected after first successful message
           if (isConnecting) {
-            console.log('[LiveMQTT] First message received, marking as connected');
+            console.log(`[LiveMQTT:${currentConnectionId}] First message received, marking as connected`);
             isConnecting = false;
             callbacks.onConnectionChange('connected');
           }
         } catch (error) {
-          console.error('[LiveMQTT] Error processing message:', error);
+          console.error(`[LiveMQTT:${currentConnectionId}] Error processing message:`, error);
           callbacks.onError(error);
         }
       },
       error: (err) => {
-        console.error('[LiveMQTT] Connection error:', err);
+        console.error(`[LiveMQTT:${currentConnectionId}] Connection error:`, err);
         isConnecting = false;
         callbacks.onConnectionChange('error');
         callbacks.onError(err);
         currentSubscription = null;
       },
       complete: () => {
-        console.log('[LiveMQTT] Connection completed/closed');
+        console.log(`[LiveMQTT:${currentConnectionId}] Connection completed/closed`);
         isConnecting = false;
         callbacks.onConnectionChange('disconnected');
         currentSubscription = null;
       },
     });
 
-    console.log('[LiveMQTT] Subscription created successfully');
+    console.log(`[LiveMQTT:${currentConnectionId}] Subscription created successfully`);
 
     // Simulate connection delay for more realistic UX
-    setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       if (isConnecting) {
-        console.log('[LiveMQTT] Connection timeout reached, marking as connected');
+        console.log(`[LiveMQTT:${currentConnectionId}] Connection timeout reached, marking as connected`);
         isConnecting = false;
         callbacks.onConnectionChange('connected');
+      } else {
+        console.log(`[LiveMQTT:${currentConnectionId}] Connection timeout reached but already connected/disconnected`);
       }
     }, 1500);
 
     // Return cleanup function
-    return stopLive;
+    return () => {
+      console.log(`[LiveMQTT:${currentConnectionId}] Cleanup function called - only clearing timeout`);
+      clearTimeout(timeoutId);
+      // Don't call stopLive() here to avoid immediate disconnection
+      // Let the connection persist until explicitly stopped
+    };
 
   } catch (error) {
-    console.error('[LiveMQTT] Failed to start live connection:', error);
+    console.error(`[LiveMQTT:${currentConnectionId}] Failed to start live connection:`, error);
     isConnecting = false;
     callbacks.onConnectionChange('error');
     callbacks.onError(error);
@@ -208,27 +283,29 @@ export async function startLive(
 
 // Clean unsubscribe function
 export function stopLive(): void {
-  console.log('[LiveMQTT] stopLive called');
-  console.log('[LiveMQTT] Current state - hasSubscription:', !!currentSubscription, 'isConnecting:', isConnecting);
+  const stopCallId = ++connectionId;
+  console.log(`[LiveMQTT:${stopCallId}] stopLive called`);
+  console.log(`[LiveMQTT:${stopCallId}] Current state - hasSubscription:`, !!currentSubscription, 'isConnecting:', isConnecting);
   
   if (currentSubscription) {
     try {
+      console.log(`[LiveMQTT:${stopCallId}] Unsubscribing from MQTT topics...`);
       currentSubscription.unsubscribe();
-      console.log('[LiveMQTT] Successfully unsubscribed from MQTT topics');
+      console.log(`[LiveMQTT:${stopCallId}] Successfully unsubscribed from MQTT topics`);
     } catch (error) {
-      console.error('[LiveMQTT] Error during unsubscribe:', error);
+      console.error(`[LiveMQTT:${stopCallId}] Error during unsubscribe:`, error);
     }
     currentSubscription = null;
   }
 
   if (connectionCallbacks) {
-    console.log('[LiveMQTT] Notifying connection change to disconnected');
+    console.log(`[LiveMQTT:${stopCallId}] Notifying connection change to disconnected`);
     connectionCallbacks.onConnectionChange('disconnected');
     connectionCallbacks = null;
   }
 
   isConnecting = false;
-  console.log('[LiveMQTT] stopLive completed');
+  console.log(`[LiveMQTT:${stopCallId}] stopLive completed`);
 }
 
 // Parse and validate incoming data messages

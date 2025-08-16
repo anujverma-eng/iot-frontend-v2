@@ -216,7 +216,7 @@ const initialState: State = {
   lastUpdated: undefined,
   isLiveMode: true, // Default to live mode enabled
   liveStatus: 'disconnected',
-  maxLiveReadings: 1000,
+  maxLiveReadings: 100,
   unknownSensors: [], // Track MACs that need auto-discovery
 };
 
@@ -369,14 +369,26 @@ const telemetrySlice = createSlice({
     },
 
     updateMaxLiveReadings: (state, action: PayloadAction<number>) => {
-      state.maxLiveReadings = action.payload;
+      console.log('[TelemetrySlice] updateMaxLiveReadings called with:', action.payload);
+      console.log('[TelemetrySlice] Previous maxLiveReadings:', state.maxLiveReadings);
+      
+      const newMaxReadings = action.payload;
+      state.maxLiveReadings = newMaxReadings;
+      
+      console.log('[TelemetrySlice] Updated maxLiveReadings to:', state.maxLiveReadings);
       
       // Trim existing data if needed
+      let trimmedSensors = 0;
       Object.values(state.data).forEach(sensor => {
-        if (sensor.series.length > action.payload) {
-          sensor.series = sensor.series.slice(-action.payload);
+        if (sensor.series.length > newMaxReadings) {
+          const beforeLength = sensor.series.length;
+          sensor.series = sensor.series.slice(-newMaxReadings);
+          console.log(`[TelemetrySlice] Trimmed sensor data: ${beforeLength} -> ${sensor.series.length}`);
+          trimmedSensors++;
         }
       });
+      
+      console.log(`[TelemetrySlice] Trimmed ${trimmedSensors} sensors to new limit: ${newMaxReadings}`);
     }
   },
   extraReducers: (builder) => {

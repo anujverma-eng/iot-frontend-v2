@@ -1,6 +1,7 @@
 import { Button } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import React from "react";
+import { useSelector } from "react-redux";
 import {
   Area,
   Brush,
@@ -15,6 +16,7 @@ import {
 } from "recharts";
 import { formatNumericValue } from "../../utils/numberUtils";
 import { ChartConfig, MultiSeriesConfig } from "../../types/sensor";
+import { selectMaxLiveReadings } from "../../store/telemetrySlice";
 
 interface LineChartProps {
   config: ChartConfig | MultiSeriesConfig;
@@ -36,7 +38,60 @@ export const LineChart: React.FC<LineChartProps> = ({
   // Add clear check for empty data
   const hasData = isMultiSeries ? config.series?.some((s: any) => s.data?.length > 0) : config.series?.length > 0;
 
+  // Get current max live readings setting
+  const maxLiveReadings = useSelector(selectMaxLiveReadings);
+  
+  // Debug logging for live mode
+  React.useEffect(() => {
+    if (isLiveMode) {
+      console.log('[LineChart] maxLiveReadings updated to:', maxLiveReadings);
+    }
+  }, [maxLiveReadings, isLiveMode]);
 
+  // Early returns MUST happen before any hooks to avoid Rules of Hooks violations
+  // Check for empty data first
+  if (!hasData) {
+    return (
+      <div className="h-full w-full flex items-center justify-center flex-col">
+        <Icon icon="lucide:calendar-x" className="text-default-300 mb-2" width={32} height={32} />
+        <p className="text-default-500">No data available for the selected time range</p>
+      </div>
+    );
+  }
+
+  // Check for empty multi-series data
+  if (isMultiSeries) {
+    const multiConfig = config as MultiSeriesConfig;
+    if (
+      !multiConfig.series ||
+      multiConfig.series.length === 0 ||
+      multiConfig.series.every((s) => !s.data || s.data.length === 0)
+    ) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center">
+            <Icon icon="lucide:bar-chart-2" className="text-default-300 mb-2 mx-auto" width={32} height={32} />
+            <p className="text-default-500">No data available for selected sensors</p>
+          </div>
+        </div>
+      );
+    }
+  } else {
+    // Check for empty single-series data
+    const singleConfig = config as ChartConfig;
+    if (!singleConfig.series || singleConfig.series.length === 0) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center">
+            <Icon icon="lucide:bar-chart-2" className="text-default-300 mb-2 mx-auto" width={32} height={32} />
+            <p className="text-default-500">No data available for this sensor</p>
+          </div>
+        </div>
+      );
+    }
+  }
+
+  // Now ALL hooks can be declared safely after early returns
   // Optimize data for performance - limit data points for smooth rendering
   const optimizeDataForRendering = React.useCallback((data: any[]) => {
     // For large datasets, sample data points intelligently
@@ -57,16 +112,6 @@ export const LineChart: React.FC<LineChartProps> = ({
   const [brushDomain, setBrushDomain] = React.useState<{ startIndex?: number; endIndex?: number }>({});
   const [isZoomedIn, setIsZoomedIn] = React.useState(false);
   const [isInitialBrushSetup, setIsInitialBrushSetup] = React.useState(true);
-
-  // If no data for the selected range, show a clear message
-  if (!hasData) {
-    return (
-      <div className="h-full w-full flex items-center justify-center flex-col">
-        <Icon icon="lucide:calendar-x" className="text-default-300 mb-2" width={32} height={32} />
-        <p className="text-default-500">No data available for the selected time range</p>
-      </div>
-    );
-  }
 
   // Enhanced date formatting functions
   const formatTooltipDate = (timestamp: number) => {
@@ -179,37 +224,6 @@ export const LineChart: React.FC<LineChartProps> = ({
       onZoomChange(isZoomedIn);
     }
   }, [isZoomedIn, onZoomChange]);
-
-  // Add check for empty data with better error handling
-  if (isMultiSeries) {
-    const multiConfig = config as MultiSeriesConfig;
-    if (
-      !multiConfig.series ||
-      multiConfig.series.length === 0 ||
-      multiConfig.series.every((s) => !s.data || s.data.length === 0)
-    ) {
-      return (
-        <div className="flex items-center justify-center h-full">
-          <div className="text-center">
-            <Icon icon="lucide:bar-chart-2" className="text-default-300 mb-2 mx-auto" width={32} height={32} />
-            <p className="text-default-500">No data available for selected sensors</p>
-          </div>
-        </div>
-      );
-    }
-  } else {
-    const singleConfig = config as ChartConfig;
-    if (!singleConfig.series || singleConfig.series.length === 0) {
-      return (
-        <div className="flex items-center justify-center h-full">
-          <div className="text-center">
-            <Icon icon="lucide:bar-chart-2" className="text-default-300 mb-2 mx-auto" width={32} height={32} />
-            <p className="text-default-500">No data available for this sensor</p>
-          </div>
-        </div>
-      );
-    }
-  }
 
   const handleDownloadCSV = () => {
     if (!onDownloadCSV) return;
@@ -459,10 +473,45 @@ export const LineChart: React.FC<LineChartProps> = ({
     return { span: spanMs, type: 'monthly' };
   }, [orderedData]);
 
-  // Enhanced X-axis formatting based on time span
+  // Enhanced X-axis formatting based on time span with live mode optimization
   const formatXAxis = (timestamp: number) => {
     const d = new Date(timestamp);
     
+    // Special formatting for live mode - prioritize seconds/minutes for real-time updates
+    if (isLiveMode) {
+      // For live mode, always show time with seconds for real-time feel
+      const now = new Date();
+      const diffMs = now.getTime() - timestamp;
+      const diffMinutes = diffMs / (1000 * 60);
+      
+      if (diffMinutes < 60) {
+        // Last hour: show HH:MM:SS for precise real-time tracking
+        return d.toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false 
+        });
+      } else if (diffMinutes < 1440) {
+        // Last day: show HH:MM
+        return d.toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          hour12: false 
+        });
+      } else {
+        // Older data: show date + time
+        return d.toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false 
+        });
+      }
+    }
+    
+    // Original formatting for non-live mode
     switch (timeSpanInfo.type) {
       case 'minutes':
         return d.toLocaleTimeString('en-US', { 
@@ -514,6 +563,19 @@ export const LineChart: React.FC<LineChartProps> = ({
 
   // Calculate optimal number of ticks based on chart width and time span
   const getOptimalTickCount = () => {
+    // For live mode, show more ticks to better visualize real-time progression
+    if (isLiveMode) {
+      // Live mode: show more frequent time markers for better real-time tracking
+      const isMobile = window.innerWidth < 768;
+      const maxTicks = isMobile ? 6 : 10;
+      const dataPoints = orderedData.length;
+      
+      if (dataPoints < 50) return Math.min(dataPoints / 5, maxTicks);
+      if (dataPoints < 200) return maxTicks;
+      return maxTicks;
+    }
+    
+    // Original logic for non-live mode
     const baseTickCount = timeSpanInfo.type === 'minutes' ? 8 : 
                          timeSpanInfo.type === 'hours' ? 6 :
                          timeSpanInfo.type === 'hourly' ? 8 :
@@ -576,6 +638,11 @@ export const LineChart: React.FC<LineChartProps> = ({
           <div className="text-sm font-medium text-primary-600">
             {isMultiSeries ? "Comparison Chart" : `${config.type.charAt(0).toUpperCase() + config.type.slice(1)} Data`}
             <span className="text-sm text-gray-500 ml-2">{config.unit}</span>
+            {isLiveMode && (
+              <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full ml-2 animate-pulse">
+                🔴 LIVE
+              </span>
+            )}
             {isZoomedIn && (
               <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full ml-2">
                 Zoomed View
@@ -603,6 +670,16 @@ export const LineChart: React.FC<LineChartProps> = ({
                   </span>
                 </div>
               </div>
+            </div>
+          )}
+          {/* Live mode info */}
+          {isLiveMode && (
+            <div className="text-xs text-default-500 mt-1">
+              <span className="font-medium">Real-time data:</span> 
+              <span className="ml-1">Showing last {orderedData.length}/{maxLiveReadings} readings</span>
+              {orderedData.length >= maxLiveReadings && (
+                <span className="text-orange-600 ml-1">(sliding window - oldest data automatically removed)</span>
+              )}
             </div>
           )}
         </div>

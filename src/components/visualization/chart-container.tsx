@@ -7,6 +7,7 @@ import { formatNumericValue } from "../../utils/numberUtils";
 import { ChartConfig, MultiSeriesConfig, VisualizationType } from "../../types/sensor";
 import { TableView } from "../analytics/table-view";
 import { TimeRangeSelector } from "../analytics/time-range-selector";
+import { LiveReadingsSelector } from "../analytics/live-readings-selector";
 import { AreaChart } from "./area-chart";
 import { BarChart } from "./bar-chart";
 import { BatteryChart } from "./battery-chart";
@@ -469,7 +470,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       case "humidity":
         switch (visualizationType) {
           case "area":
-            return <AreaChart config={enhancedConfig} onBrushChange={onBrushChange} />;
+            return <AreaChart config={enhancedConfig} onBrushChange={onBrushChange} isLiveMode={isLiveMode} />;
           case "gauge":
             return <GaugeChart config={singleConfig} size="lg" />;
           default:
@@ -496,7 +497,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       case "motion":
         switch (visualizationType) {
           case "spark":
-            return <SparkTimelineChart config={enhancedConfig} onBrushChange={onBrushChange} />;
+            return <SparkTimelineChart config={enhancedConfig} onBrushChange={onBrushChange} isLiveMode={isLiveMode} />;
           default:
             return <BarChart config={enhancedConfig} onBrushChange={onBrushChange} />;
         }
@@ -580,7 +581,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
               {/* Time Range Selector */}
               {timeRange && onTimeRangeChange && (
                 <TimeRangeSelector
@@ -595,6 +596,12 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                   gatewayIds={gatewayIds}
                 />
               )}
+
+              {/* Live Readings Selector - only shown in live mode */}
+              <LiveReadingsSelector 
+                isLiveMode={isLiveMode}
+                className="flex-shrink-0"
+              />
 
               {/* <Button isIconOnly size="sm" variant="light" onPress={handleToggleStar} className="text-warning">
                 <Icon

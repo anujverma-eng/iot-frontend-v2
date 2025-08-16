@@ -4,6 +4,7 @@ import { DashboardNavbar } from "../dashboard/DashboardNavbar";
 import { DashboardSidebar } from "../dashboard/DashboardSidebar";
 import { useAppSelector } from "../hooks/useAppDispatch";
 import { useUnknownSensorDiscovery } from "../hooks/useUnknownSensorDiscovery";
+import { useLiveDataConnection } from "../hooks/useLiveDataConnection";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -14,6 +15,9 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
   // DISABLED: Unknown sensor auto-discovery to prevent API spam
   // useUnknownSensorDiscovery();
+
+  // Initialize centralized live data connection
+  useLiveDataConnection();
 
   if (profile.loaded && !profile.data?.orgId && location.pathname !== "/onboarding") {
     return;

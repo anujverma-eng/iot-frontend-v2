@@ -167,6 +167,18 @@ const gatewaySlice = createSlice({
       state.detail.sortColumn = action.payload.column;
       state.detail.sortDirection = action.payload.direction;
       state.detail.pagination.page = 1;
+    },
+    // Update gateway presence from WebSocket
+    updateGatewayPresence: (state, action: PayloadAction<{ gatewayId: string; isConnected: boolean }>) => {
+      const { gatewayId, isConnected } = action.payload;
+      const gateway = state.data.find(g => g._id === gatewayId);
+      if (gateway) {
+        gateway.isConnected = isConnected;
+      }
+      // Also update detail gateway if it matches
+      if (state.detail.gateway && state.detail.gateway._id === gatewayId) {
+        state.detail.gateway.isConnected = isConnected;
+      }
     }
   },
   extraReducers: builder => {
@@ -307,7 +319,8 @@ export const {
   setDetailShowClaimed,
   setDetailPage,
   setDetailSearchQuery,
-  setDetailSort
+  setDetailSort,
+  updateGatewayPresence
 } = gatewaySlice.actions;
 export default gatewaySlice.reducer;
 

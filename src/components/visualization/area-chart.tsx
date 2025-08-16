@@ -18,9 +18,16 @@ interface AreaChartProps {
   isMultiSeries?: boolean;
   onBrushChange?: (start: Date, end: Date) => void;
   onZoomChange?: (isZoomed: boolean) => void;
+  isLiveMode?: boolean; // Add live mode support
 }
 
-export const AreaChart: React.FC<AreaChartProps> = ({ config, isMultiSeries = false, onBrushChange, onZoomChange }) => {
+export const AreaChart: React.FC<AreaChartProps> = ({ 
+  config, 
+  isMultiSeries = false, 
+  onBrushChange, 
+  onZoomChange,
+  isLiveMode = false 
+}) => {
   // Prepare data for single or multi-series
   const chartData = React.useMemo(() => {
     if (isMultiSeries) {
@@ -172,11 +179,14 @@ export const AreaChart: React.FC<AreaChartProps> = ({ config, isMultiSeries = fa
             />
           )}
 
-          <Brush
-            dataKey="timestamp"
-            {...brushConfig}
-            tickFormatter={formatXAxis}
-          />
+          {/* Disable brush in live mode */}
+          {!isLiveMode && (
+            <Brush
+              dataKey="timestamp"
+              {...brushConfig}
+              tickFormatter={formatXAxis}
+            />
+          )}
         </RechartsAreaChart>
       </ResponsiveContainer>
     </div>

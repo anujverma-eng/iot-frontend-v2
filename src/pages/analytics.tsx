@@ -1,4 +1,4 @@
-import { addToast, Button, Checkbox, CheckboxGroup, DateRangePicker, Input, Spinner, Switch } from "@heroui/react";
+import { addToast, Button, Checkbox, CheckboxGroup, DateRangePicker, Input, Spinner } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { CalendarDate, DateValue, getLocalTimeZone } from "@internationalized/date";
 import React from "react";
@@ -43,11 +43,9 @@ import {
   selectTelemetryData, 
   selectTelemetryLoading, 
   setTimeRange,
-  selectIsLiveMode,
-  selectLiveStatus,
-  toggleLiveMode,
   selectLiveSensors
 } from "../store/telemetrySlice";
+import { selectIsLiveMode, selectIsConnecting, toggleLiveMode } from "../store/liveDataSlice";
 import { useDebouncedSensorSelection } from "../hooks/useDebouncedSensorSelection";
 import { useOptimizedDataFetch } from "../hooks/useOptimizedDataFetch";
 import { useCompareSelection } from "../hooks/useCompareSelection";
@@ -103,9 +101,9 @@ export const AnalyticsPage: React.FC = () => {
   const pagination = useSelector(selectSensorPagination);
   const gateways = useSelector(selectGateways);
   
-  // Live mode Redux state
+  // Live mode Redux state (now centralized)
   const isLiveMode = useSelector(selectIsLiveMode);
-  const liveStatus = useSelector(selectLiveStatus);
+  const isConnecting = useSelector(selectIsConnecting);
   const liveSensors = useSelector(selectLiveSensors);
 
   const stats = useSelector(selectSensorStats);
@@ -195,39 +193,8 @@ export const AnalyticsPage: React.FC = () => {
     dispatch(fetchGateways({ page: 1, limit: 1000, search: "" }));
   }, [dispatch, filters.search, filters.types, filters.status]);
 
-  // Auto-enable live mode when analytics page loads
-  React.useEffect(() => {
-    let autoEnableTimer: NodeJS.Timeout;
-    
-    // Wait for gateways to be loaded first
-    if (gateways.length > 0 && !isLiveMode) {
-      console.log('[Analytics] Auto-enabling live mode with', gateways.length, 'gateways');
-      
-      // Small delay to ensure everything is initialized
-      autoEnableTimer = setTimeout(async () => {
-        try {
-          const gatewayIds = gateways
-            .map(gateway => gateway._id)
-            .slice(0, 10); // Limit to prevent too many subscriptions
-
-          console.log('[Analytics] Auto-starting live mode for gateways:', gatewayIds);
-          
-          if (gatewayIds.length > 0) {
-            await dispatch(toggleLiveMode({ enable: true, gatewayIds })).unwrap();
-            console.log('[Analytics] Live mode auto-enabled successfully');
-          }
-        } catch (error) {
-          console.error('[Analytics] Failed to auto-enable live mode:', error);
-        }
-      }, 1000);
-    }
-
-    return () => {
-      if (autoEnableTimer) {
-        clearTimeout(autoEnableTimer);
-      }
-    };
-  }, [gateways, isLiveMode, dispatch]);
+  // Note: Live mode is now controlled only via navbar and time-range-selector
+  // Removed auto-enable logic to prevent conflicts with manual user controls
 
   // Refresh sensor data (for use after sensor updates/deletions)
   const refreshSensorData = React.useCallback(() => {
@@ -334,19 +301,8 @@ export const AnalyticsPage: React.FC = () => {
     }
   }, [sensorId, filteredSensors, selectedSensor, dispatch, navigate]);
 
-  // Cleanup live MQTT connection on unmount (handled by Redux now)
-  React.useEffect(() => {
-    console.log('[Analytics] Component mounted/unmounted effect');
-    return () => {
-      console.log('[Analytics] Component unmounting, cleaning up live mode');
-      // Redux will handle cleanup automatically
-      if (isLiveMode) {
-        console.log('[Analytics] Dispatching live mode toggle to false on unmount');
-        dispatch(toggleLiveMode({ enable: false, gatewayIds: [] }));
-        console.log('[Analytics] Cleaned up live MQTT connection on unmount');
-      }
-    };
-  }, [isLiveMode, dispatch]);
+  // Note: Live mode cleanup is now handled centrally by the live data system
+  // No need for page-specific cleanup
 
   const toISO = (d: Date | string) => new Date(d).toISOString();
 
@@ -702,60 +658,7 @@ export const AnalyticsPage: React.FC = () => {
     }
   };
 
-  // Add handler for live MQTT toggle using Redux
-  const handleLiveToggle = async (enableLive: boolean) => {
-    console.log('[Analytics] handleLiveToggle called with:', enableLive);
-    console.log('[Analytics] Current state - isLiveMode:', isLiveMode, 'gateways count:', gateways.length);
-    
-    try {
-      if (enableLive) {
-        console.log('[Analytics] Starting live mode...');
-        // Get active gateway IDs from the gateways state
-        const gatewayIds = gateways
-          .map(gateway => gateway._id) // Use gateway ID directly
-          .slice(0, 10); // Limit to first 10 gateways to avoid too many subscriptions
 
-        console.log('[Analytics] Available gateways:', gateways.map(g => ({ id: g._id, status: g.status })));
-        console.log('[Analytics] Selected gateway IDs:', gatewayIds);
-
-        if (gatewayIds.length === 0) {
-          console.warn('[Analytics] No active gateways found');
-          addToast({
-            title: "No Active Gateways",
-            description: "No active gateways found to connect to.",
-          });
-          return;
-        }
-
-        console.log('[Analytics] Starting live mode for gateways:', gatewayIds);
-        
-        // Use Redux action to toggle live mode
-        await dispatch(toggleLiveMode({ enable: true, gatewayIds })).unwrap();
-        
-        console.log('[Analytics] Live mode started successfully');
-        addToast({
-          title: "Live Mode Enabled",
-          description: `Connected to ${gatewayIds.length} gateway(s)`,
-        });
-      } else {
-        console.log('[Analytics] Stopping live mode...');
-        // Stop live mode using Redux
-        await dispatch(toggleLiveMode({ enable: false, gatewayIds: [] })).unwrap();
-        
-        console.log('[Analytics] Live mode stopped successfully');
-        addToast({
-          title: "Live Mode Disabled",
-          description: "Disconnected from live data stream",
-        });
-      }
-    } catch (error) {
-      console.error('[Analytics] Live toggle error:', error);
-      addToast({
-        title: "Live Mode Error",
-        description: error instanceof Error ? error.message : "Failed to toggle live mode",
-      });
-    }
-  };
 
   // Optional: Test publish command function
   const handleSendTestCommand = async () => {
@@ -992,16 +895,7 @@ export const AnalyticsPage: React.FC = () => {
                 isMobile={false}
               />
               <div className="flex items-center gap-2">
-                <Switch
-                  size="sm"
-                  color="success"
-                  isSelected={isLiveMode}
-                  onValueChange={handleLiveToggle}
-                  startContent={<Icon icon="lucide:wifi" width={12} />}
-                  endContent={<Icon icon="lucide:wifi-off" width={12} />}
-                >
-                  <span className="text-xs">Live</span>
-                </Switch>
+                {/* Live mode switch removed - now controlled via navbar and time-range-selector only */}
                 <Button
                   size="sm"
                   variant={isCompareMode ? "solid" : "flat"}
@@ -1090,16 +984,7 @@ export const AnalyticsPage: React.FC = () => {
                 )}
 
                 <div className="flex items-center gap-2">
-                  <Switch
-                    size="sm"
-                    color="success"
-                    isSelected={isLiveMode}
-                    onValueChange={handleLiveToggle}
-                    startContent={<Icon icon="lucide:wifi" width={12} />}
-                    endContent={<Icon icon="lucide:wifi-off" width={12} />}
-                  >
-                    <span className="text-xs">Live</span>
-                  </Switch>
+                  {/* Live mode switch removed - now controlled via navbar and time-range-selector only */}
                   <Button
                     size="sm"
                     color={isCompareMode ? "primary" : "default"}
@@ -1227,7 +1112,7 @@ export const AnalyticsPage: React.FC = () => {
                     showTimeRangeApplyButtons={true}
                     isMobileView={isMobile}
                     isLiveMode={isLiveMode}
-                    liveStatus={liveStatus}
+                    liveStatus={isConnecting ? "connecting" : isLiveMode ? "connected" : "disconnected"}
                   />
                 </div>
 

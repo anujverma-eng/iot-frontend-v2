@@ -7,9 +7,9 @@ import { timeRangePresets } from "../../data/analytics";
 import { useAppDispatch, useAppSelector } from "../../hooks/useAppDispatch";
 import { 
   selectIsLiveMode, 
-  selectLiveStatus,
+  selectIsConnecting,
   toggleLiveMode as toggleLiveModeAction
-} from "../../store/telemetrySlice";
+} from "../../store/liveDataSlice"; // Use centralized live data slice
 
 type RangeValue<T> = { start: T | null; end: T | null };
 
@@ -40,11 +40,13 @@ export const TimeRangeSelector: React.FC<{
 }) => {
   const dispatch = useAppDispatch();
   const reduxIsLiveMode = useAppSelector(selectIsLiveMode);
-  const reduxLiveStatus = useAppSelector(selectLiveStatus);
+  const reduxIsConnecting = useAppSelector(selectIsConnecting);
   
   // Use external props if available, otherwise use Redux state
   const isLiveMode = externalIsLiveMode !== undefined ? externalIsLiveMode : reduxIsLiveMode;
-  const liveStatus = externalLiveStatus !== undefined ? externalLiveStatus : reduxLiveStatus;
+  // Derive live status from connection state
+  const liveStatus = externalLiveStatus !== undefined ? externalLiveStatus : 
+    (reduxIsConnecting ? 'connecting' : (reduxIsLiveMode ? 'connected' : 'disconnected'));
   
   const [open, setOpen] = React.useState(false);
   const [pendingTimeRange, setPendingTimeRange] = React.useState(timeRange);
@@ -105,10 +107,10 @@ export const TimeRangeSelector: React.FC<{
     if (!showApplyButtons || isMobile) {
       if (onLiveModeChange) {
         onLiveModeChange(newLiveMode);
-      } else if (gatewayIds.length > 0) {
-        // Use Redux action if gateway IDs are available
+      } else {
+        // Use centralized Redux action (no gatewayIds needed, it fetches them automatically)
         try {
-          await dispatch(toggleLiveModeAction({ enable: newLiveMode, gatewayIds })).unwrap();
+          await dispatch(toggleLiveModeAction({ enable: newLiveMode })).unwrap();
         } catch (error) {
           console.error('Failed to toggle live mode:', error);
           // Revert the pending state on error
@@ -162,9 +164,9 @@ export const TimeRangeSelector: React.FC<{
     if (pendingLiveMode) {
       if (onLiveModeChange) {
         onLiveModeChange(true);
-      } else if (gatewayIds.length > 0) {
+      } else {
         try {
-          await dispatch(toggleLiveModeAction({ enable: true, gatewayIds })).unwrap();
+          await dispatch(toggleLiveModeAction({ enable: true })).unwrap();
         } catch (error) {
           console.error('Failed to enable live mode:', error);
           return;
@@ -175,7 +177,7 @@ export const TimeRangeSelector: React.FC<{
         onLiveModeChange(false);
       } else {
         try {
-          await dispatch(toggleLiveModeAction({ enable: false, gatewayIds: [] })).unwrap();
+          await dispatch(toggleLiveModeAction({ enable: false })).unwrap();
         } catch (error) {
           console.error('Failed to disable live mode:', error);
         }
@@ -215,7 +217,7 @@ export const TimeRangeSelector: React.FC<{
         onLiveModeChange(false);
       } else {
         try {
-          await dispatch(toggleLiveModeAction({ enable: false, gatewayIds: [] })).unwrap();
+          await dispatch(toggleLiveModeAction({ enable: false })).unwrap();
         } catch (error) {
           console.error('Failed to disable live mode:', error);
         }

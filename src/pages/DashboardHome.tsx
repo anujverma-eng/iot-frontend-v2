@@ -48,6 +48,26 @@ interface Alert {
   timestamp: string;
 }
 
+// Helper function to determine gateway online status
+const getGatewayOnlineStatus = (gateway: Gateway) => {
+  // Priority: WebSocket presence data > API isConnected field > fallback to offline
+  if (gateway.isConnected !== undefined) {
+    return gateway.isConnected;
+  }
+  // Fallback to offline if no presence data
+  return false;
+};
+
+// Helper function to get status color
+const getStatusColor = (isOnline: boolean) => {
+  return isOnline ? "success" : "danger";
+};
+
+// Helper function to get status text
+const getStatusText = (isOnline: boolean) => {
+  return isOnline ? "online" : "offline";
+};
+
 export const DashboardHome: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
 
@@ -97,11 +117,11 @@ export const DashboardHome: React.FC = () => {
   const stats = React.useMemo(
     () => ({
       totalGateways: gatewayStats?.totalGateways || 0,
-      activeGateways: gatewayStats?.liveGateways || 0,
+      activeGateways: gateways.filter(gateway => getGatewayOnlineStatus(gateway)).length,
       totalSensors: sensorStats?.claimed || 0,
       activeSensors: sensorStats?.liveSensors || 0,
     }),
-    [gatewayStats, sensorStats]
+    [gatewayStats, sensorStats, gateways]
   );
 
   if (isLoading) {
@@ -190,14 +210,25 @@ export const DashboardHome: React.FC = () => {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Chip
-                        className="capitalize"
-                        color={gateway.status === "active" ? "success" : "warning"}
-                        size="sm"
-                        variant="flat"
-                      >
-                        {gateway.status}
-                      </Chip>
+                      {(() => {
+                        const isOnline = getGatewayOnlineStatus(gateway);
+                        return (
+                          <Chip
+                            className="capitalize"
+                            color={getStatusColor(isOnline)}
+                            size="sm"
+                            variant="flat"
+                            startContent={
+                              <Icon 
+                                icon={isOnline ? "lucide:wifi" : "lucide:wifi-off"} 
+                                className="w-3 h-3" 
+                              />
+                            }
+                          >
+                            {getStatusText(isOnline)}
+                          </Chip>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       {gateway.lastSeen

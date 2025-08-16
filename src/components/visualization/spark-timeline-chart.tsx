@@ -18,12 +18,14 @@ interface SparkTimelineChartProps {
   config: ChartConfig;
   onBrushChange?: (start: Date, end: Date) => void;
   onZoomChange?: (isZoomed: boolean) => void;
+  isLiveMode?: boolean;
 }
 
 export const SparkTimelineChart: React.FC<SparkTimelineChartProps> = ({
   config,
   onBrushChange,
-  onZoomChange
+  onZoomChange,
+  isLiveMode = false
 }) => {
   const [zoomDomain, setZoomDomain] = React.useState<{x: [number, number], y: [number, number]} | null>(null);
   
@@ -168,13 +170,16 @@ export const SparkTimelineChart: React.FC<SparkTimelineChartProps> = ({
               />
             ))}
             
-            <Brush 
-              dataKey="timestamp" 
-              height={30} 
-              stroke="var(--heroui-primary)"
-              tickFormatter={formatXAxis}
-              onChange={handleBrushChange}
-            />
+            {/* Disable brush in live mode */}
+            {!isLiveMode && (
+              <Brush 
+                dataKey="timestamp" 
+                height={30} 
+                stroke="var(--heroui-primary)"
+                tickFormatter={formatXAxis}
+                onChange={handleBrushChange}
+              />
+            )}
           </ComposedChart>
         </ResponsiveContainer>
       </div>

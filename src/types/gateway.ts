@@ -7,6 +7,7 @@ export interface Gateway {
   label?: string;
   createdAt: string;
   updatedAt: string;
+  isConnected?: boolean; // Real-time connection status from WebSocket
   sensors: {
     claimed: number;
     unclaimed: number;

@@ -38,11 +38,9 @@ import {
 import { 
   fetchTelemetry, 
   selectTelemetryData, 
-  selectTelemetryLoading,
-  toggleLiveMode,
-  selectIsLiveMode,
-  selectLiveStatus
+  selectTelemetryLoading
 } from "../../store/telemetrySlice";
+import { selectIsLiveMode, selectIsConnecting, toggleLiveMode } from "../../store/liveDataSlice";
 import { fetchGateways, selectGateways } from "../../store/gatewaySlice";
 import { ChartConfig } from "../../types/sensor";
 import { LineChart } from "../visualization/line-chart";
@@ -51,6 +49,7 @@ import { CorrelationAnalysisChart } from "./distribution-charts/correlation-anal
 import { DistributionChart } from "./distribution-charts/distribution-chart";
 import { TrendAnalysisChart } from "./distribution-charts/trend-analysis-chart";
 import { FilterBar } from "./filter-bar";
+import { LiveReadingsSelector } from "./live-readings-selector";
 import { TableView } from "./table-view";
 import { TimeRangeSelector } from "./time-range-selector";
 
@@ -87,42 +86,24 @@ export const SoloView: React.FC = () => {
   const [starLoading, setStarLoading] = React.useState(false);
   const chartRef = React.useRef<HTMLDivElement>(null);
 
-  // Live mode state - sync with Redux
-  const reduxIsLiveMode = useSelector(selectIsLiveMode);
-  const reduxLiveStatus = useSelector(selectLiveStatus);
-  const [isLiveMode, setIsLiveMode] = React.useState(reduxIsLiveMode);
-  const [liveStatus, setLiveStatus] = React.useState<'disconnected' | 'connecting' | 'connected' | 'error' | 'slow_network'>(reduxLiveStatus);
+  // Live mode state - use centralized Redux state directly (no local state)
+  const isLiveMode = useSelector(selectIsLiveMode);
+  const isConnecting = useSelector(selectIsConnecting);
+  
+  // Derive live status from centralized state
+  const liveStatus = isConnecting ? 'connecting' : isLiveMode ? 'connected' : 'disconnected';
 
   // Use optimized data fetch hook for efficient live data updates
   const { fetchData: fetchOptimizedData, cancelPendingRequests } = useOptimizedDataFetch();
 
-    // Sync Redux isLiveMode with local state
-  React.useEffect(() => {
-    console.log('[SoloView] Redux live mode sync effect - Redux isLiveMode:', reduxIsLiveMode, 'Local isLiveMode:', isLiveMode);
-    if (reduxIsLiveMode !== isLiveMode) {
-      console.log('[SoloView] Syncing local state with Redux state:', reduxIsLiveMode);
-      setIsLiveMode(reduxIsLiveMode);
-    }
-  }, [reduxIsLiveMode, isLiveMode]);
-
-  React.useEffect(() => {
-    setLiveStatus(reduxLiveStatus);
-  }, [reduxLiveStatus]);
-
-  // Cleanup on unmount - cancel any pending data requests and live mode
+  // Cleanup on unmount - cancel any pending data requests only
+  // Live mode cleanup is handled centrally, no need for component-specific cleanup
   React.useEffect(() => {
     return () => {
       console.log('[SoloView] Component unmounting, cancelling pending requests');
       cancelPendingRequests();
-      
-      // Clean up live mode connection if active
-      if (isLiveMode) {
-        console.log('[SoloView] Dispatching live mode toggle to false on unmount');
-        dispatch(toggleLiveMode({ enable: false, gatewayIds: [] }));
-        console.log('[SoloView] Cleaned up live MQTT connection on unmount');
-      }
     };
-  }, [cancelPendingRequests, isLiveMode, dispatch]);
+  }, [cancelPendingRequests]);
 
   const sensorsLoaded = useSelector((s: RootState) => s.sensors.loaded);
   const sensorsLoading = useSelector(selectSensorsLoading);
@@ -197,8 +178,7 @@ export const SoloView: React.FC = () => {
           console.log('[SoloView] Auto-starting live mode for gateways:', gatewayIds);
           
           if (gatewayIds.length > 0) {
-            await dispatch(toggleLiveMode({ enable: true, gatewayIds })).unwrap();
-            setIsLiveMode(true); // Update local state
+            await dispatch(toggleLiveMode({ enable: true })).unwrap();
             console.log('[SoloView] Live mode auto-enabled successfully');
           }
         } catch (error) {
@@ -444,89 +424,34 @@ export const SoloView: React.FC = () => {
 
   const handleLiveModeChange = async (isLive: boolean) => {
     console.log('[SoloView] Live mode toggle requested:', isLive);
-    setIsLiveMode(isLive);
     
     try {
-      if (isLive) {
-        // Use gateway IDs like analytics.tsx does - don't filter by status
-        console.log('[SoloView] Available gateways:', gateways.length);
-        
-        const gatewayIds = gateways
-          .map(gateway => gateway._id) // Use gateway ID directly
-          .slice(0, 10); // Limit to first 10 gateways to avoid too many subscriptions
-
-        console.log('[SoloView] Available gateways:', gateways.map(g => ({ id: g._id, status: g.status })));
-        console.log('[SoloView] Selected gateway IDs:', gatewayIds);
-        
-        if (gatewayIds.length === 0) {
-          console.warn('[SoloView] No gateways found');
-          // Revert local state
-          setIsLiveMode(false);
-          return;
-        }
-        
-        console.log('[SoloView] Enabling live mode for gateways:', gatewayIds);
-        
-        await dispatch(toggleLiveMode({ 
-          enable: true, 
-          gatewayIds 
-        })).unwrap();
-        
-        console.log('[SoloView] Live mode enabled successfully');
-      } else {
-        console.log('[SoloView] Disabling live mode');
-        await dispatch(toggleLiveMode({ 
-          enable: false, 
-          gatewayIds: [] 
-        })).unwrap();
-        
-        console.log('[SoloView] Live mode disabled successfully');
-      }
+      // Use centralized toggle - it handles all gateway discovery and connection logic
+      await dispatch(toggleLiveMode({ enable: isLive })).unwrap();
+      console.log('[SoloView] Live mode', isLive ? 'enabled' : 'disabled', 'successfully');
     } catch (error) {
       console.error('[SoloView] Live mode toggle failed:', error);
-      // Revert local state on error
-      setIsLiveMode(!isLive);
     }
   };
 
   const handleRetryConnection = async () => {
     console.log('[SoloView] Retrying connection...');
-    setLiveStatus('connecting');
     
     try {
-      // First disable live mode
-      await dispatch(toggleLiveMode({ 
-        enable: false, 
-        gatewayIds: [] 
-      })).unwrap();
+      // Simply disable and re-enable using centralized logic
+      await dispatch(toggleLiveMode({ enable: false })).unwrap();
       
       // Small delay before reconnecting
       setTimeout(async () => {
         try {
-          // Use same gateway logic as live mode toggle
-          const gatewayIds = gateways
-            .map(gateway => gateway._id)
-            .slice(0, 10);
-            
-          if (gatewayIds.length === 0) {
-            console.warn('[SoloView] No gateways available for retry');
-            setLiveStatus('error');
-            return;
-          }
-          
-          await dispatch(toggleLiveMode({ 
-            enable: true, 
-            gatewayIds 
-          })).unwrap();
+          await dispatch(toggleLiveMode({ enable: true })).unwrap();
           console.log('[SoloView] Connection retry successful');
         } catch (retryError) {
           console.error('[SoloView] Connection retry failed:', retryError);
-          setLiveStatus('error');
         }
       }, 1000);
     } catch (error) {
-      console.error('[SoloView] Retry connection failed:', error);
-      setLiveStatus('error');
+      console.error('[SoloView] Failed to retry connection:', error);
     }
   };
 
@@ -779,6 +704,12 @@ export const SoloView: React.FC = () => {
                         liveStatus={liveStatus}
                         onRetryConnection={handleRetryConnection}
                         gatewayIds={gateways.map(g => g._id)}
+                      />
+                      
+                      {/* Live Readings Selector */}
+                      <LiveReadingsSelector 
+                        isLiveMode={isLiveMode}
+                        className="flex-shrink-0"
                       />
                       
                       {starLoading ? (
