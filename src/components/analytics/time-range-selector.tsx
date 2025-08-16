@@ -5,6 +5,7 @@ import { CalendarDate, DateValue, getLocalTimeZone } from "@internationalized/da
 import React from "react";
 import { timeRangePresets } from "../../data/analytics";
 import { useAppDispatch, useAppSelector } from "../../hooks/useAppDispatch";
+import { useBreakpoints } from "../../hooks/use-media-query";
 import { 
   selectIsLiveMode, 
   selectIsConnecting,
@@ -41,9 +42,12 @@ export const TimeRangeSelector: React.FC<{
   const dispatch = useAppDispatch();
   const reduxIsLiveMode = useAppSelector(selectIsLiveMode);
   const reduxIsConnecting = useAppSelector(selectIsConnecting);
+  const { isMobile: isBreakpointMobile, isMobileDevice: isEnhancedMobile, isSmallScreen } = useBreakpoints();
   
   // Use external props if available, otherwise use Redux state
   const isLiveMode = externalIsLiveMode !== undefined ? externalIsLiveMode : reduxIsLiveMode;
+  // Use prop, enhanced mobile detection, or breakpoint detection for mobile
+  const isMobileDevice = isMobile || isEnhancedMobile || isBreakpointMobile;
   // Derive live status from connection state
   const liveStatus = externalLiveStatus !== undefined ? externalLiveStatus : 
     (reduxIsConnecting ? 'connecting' : (reduxIsLiveMode ? 'connected' : 'disconnected'));
@@ -95,6 +99,14 @@ export const TimeRangeSelector: React.FC<{
 
   const toggleLiveMode = async () => {
     const newLiveMode = !pendingLiveMode;
+    console.log('[TimeRangeSelector] Live mode toggled:', {
+      from: pendingLiveMode,
+      to: newLiveMode,
+      showApplyButtons,
+      isMobileDevice,
+      willAutoApply: !showApplyButtons
+    });
+    
     setPendingLiveMode(newLiveMode);
     
     if (newLiveMode) {
@@ -103,8 +115,9 @@ export const TimeRangeSelector: React.FC<{
       setRangeIdx(1); // Default to "Last 24 Hours"
     }
     
-    // Apply immediately if not using apply buttons or on mobile
-    if (!showApplyButtons || isMobile) {
+    // Apply immediately only if NOT using apply buttons
+    if (!showApplyButtons) {
+      console.log('[TimeRangeSelector] Auto-applying live mode toggle (no apply buttons)');
       if (onLiveModeChange) {
         onLiveModeChange(newLiveMode);
       } else {
@@ -124,20 +137,33 @@ export const TimeRangeSelector: React.FC<{
         onTimeRangeChange(defaultRange);
       }
       setOpen(false);
+    } else {
+      console.log('[TimeRangeSelector] Live mode toggled, waiting for Apply button');
     }
   };
 
   const choosePreset = (i: number) => {
+    console.log('[TimeRangeSelector] Preset selected:', {
+      presetIndex: i,
+      presetLabel: timeRangePresets[i]?.label,
+      showApplyButtons,
+      isMobileDevice,
+      willAutoApply: !showApplyButtons
+    });
+    
     setRangeIdx(i);
     setPendingLiveMode(false);
     const newRange = timeRangePresets[i].getValue();
     setPendingTimeRange(newRange);
     
-    // Apply immediately if not using apply buttons or on mobile
-    if (!showApplyButtons || isMobile) {
+    // Apply immediately only if NOT using apply buttons
+    if (!showApplyButtons) {
+      console.log('[TimeRangeSelector] Auto-applying preset (no apply buttons)');
       onLiveModeChange?.(false);
       onTimeRangeChange(newRange);
       setOpen(false);
+    } else {
+      console.log('[TimeRangeSelector] Preset selected, waiting for Apply button');
     }
   };
 
@@ -151,8 +177,8 @@ export const TimeRangeSelector: React.FC<{
       setPendingTimeRange(newRange);
       setPendingLiveMode(false);
       
-      // Apply immediately if not using apply buttons or on mobile
-      if (!showApplyButtons || isMobile) {
+      // Apply immediately only if NOT using apply buttons
+      if (!showApplyButtons) {
         onLiveModeChange?.(false);
         onTimeRangeChange(newRange);
         setOpen(false);
@@ -161,6 +187,14 @@ export const TimeRangeSelector: React.FC<{
   };
 
   const handleApply = async () => {
+    console.log('[TimeRangeSelector] Apply clicked:', {
+      pendingLiveMode,
+      pendingTimeRange,
+      showApplyButtons,
+      isMobileDevice,
+      hasPendingChanges
+    });
+    
     if (pendingLiveMode) {
       if (onLiveModeChange) {
         onLiveModeChange(true);
@@ -212,7 +246,8 @@ export const TimeRangeSelector: React.FC<{
     setPendingTimeRange(defaultRange);
     setPendingLiveMode(false);
     
-    if (!showApplyButtons || isMobile) {
+    // Apply immediately only if NOT using apply buttons
+    if (!showApplyButtons) {
       if (onLiveModeChange) {
         onLiveModeChange(false);
       } else {
@@ -236,6 +271,26 @@ export const TimeRangeSelector: React.FC<{
     ))
   );
 
+  // Debug logging for pending changes
+  React.useEffect(() => {
+    if (showApplyButtons) {
+      console.log('[TimeRangeSelector] Pending changes check:', {
+        hasPendingChanges,
+        showApplyButtons,
+        isMobileDevice,
+        currentLiveMode: isLiveMode,
+        pendingLiveMode,
+        liveModeChanged: pendingLiveMode !== isLiveMode,
+        currentTimeRange: { start: timeRange.start.toISOString(), end: timeRange.end.toISOString() },
+        pendingTimeRange: { start: pendingTimeRange.start.toISOString(), end: pendingTimeRange.end.toISOString() },
+        timeRangeChanged: !pendingLiveMode && (
+          pendingTimeRange.start.getTime() !== timeRange.start.getTime() ||
+          pendingTimeRange.end.getTime() !== timeRange.end.getTime()
+        )
+      });
+    }
+  }, [hasPendingChanges, showApplyButtons, isMobileDevice, isLiveMode, pendingLiveMode, timeRange, pendingTimeRange]);
+
   const getCurrentLabel = () => {
     if (isLiveMode || pendingLiveMode) return "Live Data";
     if (rangeIdx >= 0 && rangeIdx < timeRangePresets.length - 1) {
@@ -251,36 +306,36 @@ export const TimeRangeSelector: React.FC<{
           return {
             color: 'warning' as const,
             variant: 'solid' as const,
-            className: 'animate-pulse',
-            startContent: <Spinner size="sm" color="current" />
+            className: `animate-pulse ${isMobileDevice ? 'min-w-[60px] px-2' : 'min-w-[140px]'}`,
+            startContent: isMobileDevice ? undefined : <Spinner size="sm" color="current" />
           };
         case 'connected':
           return {
             color: 'success' as const,
             variant: 'solid' as const,
-            className: 'animate-none',
-            startContent: <Icon icon="lucide:radio" width={16} className="animate-pulse" />
+            className: `animate-none ${isMobileDevice ? 'min-w-[60px] px-2' : 'min-w-[140px]'}`,
+            startContent: isMobileDevice ? undefined : <Icon icon="lucide:radio" width={16} className="animate-pulse" />
           };
         case 'error':
           return {
             color: 'danger' as const,
             variant: 'solid' as const,
-            className: 'animate-none',
-            startContent: <Icon icon="lucide:wifi-off" width={16} />
+            className: `animate-none ${isMobileDevice ? 'min-w-[60px] px-2' : 'min-w-[140px]'}`,
+            startContent: isMobileDevice ? undefined : <Icon icon="lucide:wifi-off" width={16} />
           };
         case 'slow_network':
           return {
             color: 'warning' as const,
             variant: 'solid' as const,
-            className: 'animate-none',
-            startContent: <Icon icon="lucide:signal-low" width={16} />
+            className: `animate-none ${isMobileDevice ? 'min-w-[60px] px-2' : 'min-w-[140px]'}`,
+            startContent: isMobileDevice ? undefined : <Icon icon="lucide:signal-low" width={16} />
           };
         default:
           return {
             color: 'default' as const,
             variant: 'flat' as const,
-            className: 'animate-none',
-            startContent: <Icon icon="lucide:calendar" width={16} />
+            className: `animate-none ${isMobileDevice ? 'min-w-[60px] px-2' : 'min-w-[140px]'}`,
+            startContent: isMobileDevice ? undefined : <Icon icon="lucide:calendar" width={16} />
           };
       }
     }
@@ -289,17 +344,55 @@ export const TimeRangeSelector: React.FC<{
       return {
         color: 'primary' as const,
         variant: 'solid' as const,
-        className: 'animate-pulse',
-        startContent: <Icon icon="lucide:calendar" width={16} />
+        className: `animate-pulse ${isMobileDevice ? 'min-w-[60px] px-2' : 'min-w-[140px]'}`,
+        startContent: isMobileDevice ? undefined : <Icon icon="lucide:calendar" width={16} />
       };
     }
 
     return {
       color: 'default' as const,
       variant: 'flat' as const,
-      className: 'animate-none',
-      startContent: <Icon icon="lucide:calendar" width={16} />
+      className: `animate-none ${isMobileDevice ? 'min-w-[60px] px-2' : 'min-w-[140px]'}`,
+      startContent: isMobileDevice ? undefined : <Icon icon="lucide:calendar" width={16} />
     };
+  };
+
+  const getButtonContent = () => {
+    if (isLiveMode) {
+      if (isMobileDevice) {
+        // Compact mobile version with status indicators
+        return (
+          <div className="flex items-center gap-1">
+            {liveStatus === 'connecting' && <Spinner size="sm" color="current" />}
+            {liveStatus === 'connected' && <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />}
+            {liveStatus === 'error' && <Icon icon="lucide:wifi-off" width={12} />}
+            {liveStatus === 'slow_network' && <Icon icon="lucide:signal-low" width={12} />}
+            <span className="text-xs font-medium">LIVE</span>
+          </div>
+        );
+      }
+      // Desktop version
+      switch (liveStatus) {
+        case 'connecting': return "Connecting...";
+        case 'connected': return "Live Data";
+        case 'error': return "Connection Failed";
+        case 'slow_network': return "Slow Network";
+        default: return "Live Data";
+      }
+    }
+    
+    // Non-live mode
+    if (isMobileDevice) {
+      return (
+        <div className="flex items-center gap-1">
+          <Icon icon="lucide:calendar" width={12} />
+          <span className="text-xs">{getCurrentLabel().replace('Time Range: ', '').split(' ')[0]}</span>
+          {hasPendingChanges && showApplyButtons && <span className="text-warning">*</span>}
+        </div>
+      );
+    }
+    
+    return hasPendingChanges && showApplyButtons ? "Time Range*" : `Time Range: ${getCurrentLabel()}`;
   };
 
   const buttonProps = getButtonProps();
@@ -316,15 +409,12 @@ export const TimeRangeSelector: React.FC<{
           <Button
             size="sm"
             {...buttonProps}
+            endContent={<Icon icon="lucide:chevron-down" width={isMobileDevice ? 12 : 16} />}
           >
-            {isLiveMode && liveStatus === 'connecting' && "Connecting..."}
-            {isLiveMode && liveStatus === 'connected' && "Live Data"}
-            {isLiveMode && liveStatus === 'error' && "Connection Failed"}
-            {isLiveMode && liveStatus === 'slow_network' && "Slow Network"}
-            {!isLiveMode && (hasPendingChanges && showApplyButtons ? "Time Range*" : `Time Range: ${getCurrentLabel()}`)}
+            {getButtonContent()}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-96 p-4">
+        <PopoverContent className={`${isMobileDevice ? 'w-80' : 'w-96'} p-4`}>
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h4 className="text-sm font-semibold text-default-700">Data Source</h4>
@@ -449,33 +539,33 @@ export const TimeRangeSelector: React.FC<{
               </>
             )}
 
-            {/* APPLY BUTTONS for desktop mode */}
-            {showApplyButtons && !isMobile && (
+            {/* APPLY BUTTONS for both desktop and mobile */}
+            {showApplyButtons && (
               <>
                 <Divider />
-                <div className="flex gap-2">
+                <div className={`flex gap-2 ${isMobileDevice ? 'flex-col' : ''}`}>
                   <Button
-                    size="sm"
+                    size={isMobileDevice ? "md" : "sm"}
                     variant="flat"
                     onPress={handleCancel}
-                    className="flex-1"
+                    className={isMobileDevice ? "w-full" : "flex-1"}
                   >
                     Cancel
                   </Button>
                   <Button
-                    size="sm"
+                    size={isMobileDevice ? "md" : "sm"}
                     variant="flat"
                     color="warning"
                     onPress={handleReset}
-                    className="flex-1"
+                    className={isMobileDevice ? "w-full" : "flex-1"}
                   >
                     Reset
                   </Button>
                   <Button
-                    size="sm"
+                    size={isMobileDevice ? "md" : "sm"}
                     color="primary"
                     onPress={handleApply}
-                    className="flex-1"
+                    className={isMobileDevice ? "w-full" : "flex-1"}
                     isDisabled={!hasPendingChanges}
                   >
                     Apply

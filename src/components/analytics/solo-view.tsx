@@ -52,6 +52,7 @@ import { FilterBar } from "./filter-bar";
 import { LiveReadingsSelector } from "./live-readings-selector";
 import { TableView } from "./table-view";
 import { TimeRangeSelector } from "./time-range-selector";
+import { useBreakpoints } from "../../hooks/use-media-query";
 
 // Fix the interface to satisfy the Record<string, string | undefined> constraint
 interface SoloViewParams {
@@ -63,6 +64,9 @@ export const SoloView: React.FC = () => {
   const navigate = useNavigate();
   const { sensorId } = useParams<SoloViewParams>();
   const dispatch = useDispatch<AppDispatch>();
+
+  // Use enhanced responsive breakpoints
+  const { isMobile, isSmallScreen, isLandscape, isMobileLandscape, isMobileDevice } = useBreakpoints();
 
   // Get state from Redux
   const filters = useSelector(selectFilters);
@@ -800,89 +804,54 @@ export const SoloView: React.FC = () => {
               </Card>
             </div>
 
-            {/* Tabs */}
-            <Tabs selectedKey={selectedTab} onSelectionChange={setSelectedTab as any} className="mb-4">
-              <Tab key="chart" title="Chart View">
+            {/* Tabs - responsive */}
+            <Tabs 
+              selectedKey={selectedTab} 
+              onSelectionChange={setSelectedTab as any} 
+              className={`mb-${isSmallScreen ? '2' : '4'}`}
+              size={isSmallScreen ? 'sm' : 'md'}
+            >
+              <Tab key="chart" title={isSmallScreen ? "Chart" : "Chart View"}>
                 {chartConfig && (
-                  <div className="w-full h-[400px] rounded-lg bg-white dark:bg-content1 p-4" ref={chartRef}>
+                  <div 
+                    className={`w-full rounded-lg bg-white dark:bg-content1 p-${isSmallScreen ? '2' : '4'} ${
+                      isMobileDevice 
+                        ? (isMobileLandscape ? 'h-[400px]' : 'h-[350px]') 
+                        : 'h-[500px]'
+                    }`} 
+                    ref={chartRef}
+                  >
                     <LineChart config={chartConfig} isLiveMode={isLiveMode} />
                   </div>
                 )}
               </Tab>
-              <Tab key="table" title="Table View">
-                {chartConfig && <TableView config={chartConfig} onDownloadCSV={handleDownloadCSV} />}
+              <Tab key="table" title={isSmallScreen ? "Table" : "Table View"}>
+                <div className={`${isMobileDevice ? 'h-[400px] overflow-auto' : ''}`}>
+                  {chartConfig && <TableView config={chartConfig} onDownloadCSV={handleDownloadCSV} />}
+                </div>
               </Tab>
-              {/* <Tab key="table" title="Table Viewss">
-                <Card>
-                  <CardBody>
-                    <div className="flex justify-between items-center mb-4">
-                      <h3 className="text-lg font-medium">Sensor Readings</h3>
-                      <div className="flex items-center gap-2">
-                        <Dropdown>
-                          <DropdownTrigger>
-                            <Button
-                              variant="flat"
-                              size="sm"
-                              endContent={<Icon icon="lucide:chevron-down" width={16} />}
-                            >
-                              {groupBy === "none"
-                                ? "No Grouping"
-                                : groupBy === "hourly"
-                                  ? "Group by Hour"
-                                  : groupBy === "daily"
-                                    ? "Group by Day"
-                                    : "Group by Week"}
-                            </Button>
-                          </DropdownTrigger>
-                          <DropdownMenu
-                            aria-label="Group By Options"
-                            onAction={(key) => handleGroupByChange(key as any)}
-                          >
-                            <DropdownItem key="none">No Grouping</DropdownItem>
-                            <DropdownItem key="hourly">Group by Hour</DropdownItem>
-                            <DropdownItem key="daily">Group by Day</DropdownItem>
-                            <DropdownItem key="weekly">Group by Week</DropdownItem>
-                          </DropdownMenu>
-                        </Dropdown>
 
-                        <Button
-                          size="sm"
-                          variant="light"
-                          onPress={handleDownloadCSV}
-                          startContent={<Icon icon="lucide:download" width={16} />}
-                        >
-                          Export CSV
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="p-4 h-[600px]">
-                      <TableView config={chartConfig as ChartConfig} onDownloadCSV={handleDownloadCSV} />
-                    </div>
-                  </CardBody>
-                </Card>
-              </Tab> */}
               <Tab key="analytics" title="Analytics">
                 <Card>
                   <CardBody>
                     <Tabs aria-label="Analytics tabs" color="primary" variant="underlined" className="mb-4">
                       <Tab key="distribution" title="Distribution">
-                        <div className="h-[700px] mt-4">
+                        <div className={`mt-4 ${isMobileDevice ? 'h-[500px]' : 'h-[700px]'}`}>
                           {chartConfig && <DistributionChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />}
                         </div>
                       </Tab>
                       <Tab key="trend" title="Trend Analysis">
-                        <div className="h-[700px] mt-4">
+                        <div className={`mt-4 ${isMobileDevice ? 'h-[500px]' : 'h-[700px]'}`}>
                           {chartConfig && <TrendAnalysisChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />}
                         </div>
                       </Tab>
                       <Tab key="anomaly" title="Anomaly Detection">
-                        <div className="h-[700px] mt-4">
+                        <div className={`mt-4 ${isMobileDevice ? 'h-[500px]' : 'h-[700px]'}`}>
                           {chartConfig && <AnomalyDetectionChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />}
                         </div>
                       </Tab>
                       <Tab key="correlation" title="Correlation">
-                        <div className="h-[700px] mt-4">
+                        <div className={`mt-4 ${isMobileDevice ? 'h-[500px]' : 'h-[700px]'}`}>
                           {chartConfig && <CorrelationAnalysisChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />}
                         </div>
                       </Tab>
@@ -891,12 +860,12 @@ export const SoloView: React.FC = () => {
                 </Card>
               </Tab>
 
-              <Tab key="multichart" title="Multi-Chart View">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Tab key="multichart" title={isMobileDevice ? "Multi" : "Multi-Chart View"}>
+                <div className={`grid ${isMobileDevice ? 'grid-cols-1 gap-3' : 'grid-cols-1 md:grid-cols-2 gap-4'}`}>
                   <Card className="shadow-sm">
                     <CardBody className="p-3">
                       <h3 className="text-sm font-medium mb-2 text-primary-600">Value Distribution</h3>
-                      <div className="h-[250px]">
+                      <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
                         {chartConfig && <DistributionChart config={chartConfig} showChart isLiveMode={isLiveMode} />}
                       </div>
                     </CardBody>
@@ -905,7 +874,7 @@ export const SoloView: React.FC = () => {
                   <Card className="shadow-sm">
                     <CardBody className="p-3">
                       <h3 className="text-sm font-medium mb-2 text-secondary-600">Trend Analysis</h3>
-                      <div className="h-[250px]">
+                      <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
                         {chartConfig && <TrendAnalysisChart config={chartConfig} showChart isLiveMode={isLiveMode} />}
                       </div>
                     </CardBody>
@@ -914,7 +883,7 @@ export const SoloView: React.FC = () => {
                   <Card className="shadow-sm">
                     <CardBody className="p-3">
                       <h3 className="text-sm font-medium mb-2 text-danger-600">Anomaly Detection</h3>
-                      <div className="h-[250px]">
+                      <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
                         {chartConfig && <AnomalyDetectionChart config={chartConfig} showChart isLiveMode={isLiveMode} />}
                       </div>
                     </CardBody>
@@ -923,7 +892,7 @@ export const SoloView: React.FC = () => {
                   <Card className="shadow-sm">
                     <CardBody className="p-3">
                       <h3 className="text-sm font-medium mb-2 text-success-600">Correlation Analysis</h3>
-                      <div className="h-[250px]">
+                      <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
                         {chartConfig && <CorrelationAnalysisChart config={chartConfig} showChart isLiveMode={isLiveMode} />}
                       </div>
                     </CardBody>

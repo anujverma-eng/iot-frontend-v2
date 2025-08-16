@@ -20,6 +20,7 @@ import { LineChart } from "./line-chart";
 import { PressureChart } from "./pressure-chart";
 import { SparkTimelineChart } from "./spark-timeline-chart";
 import { GatewayResolver } from "../../utils/gatewayResolver";
+import { useBreakpoints } from "../../hooks/use-media-query";
 
 import { ChartLoadingSkeleton } from './chart-loading-skeleton';
 import { MobileChartLoading } from './mobile-chart-loading';
@@ -526,19 +527,14 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
 
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const [activeTab, setActiveTab] = React.useState("chart");
+  const [isFullscreen, setIsFullscreen] = React.useState(false);
   
-  // Detect if mobile
-  const [isMobile, setIsMobile] = React.useState(false);
-  React.useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
+  // Use enhanced responsive breakpoints
+  const { isMobile, isTablet, isLandscape, isSmallScreen, isMobileLandscape, isMobileDevice } = useBreakpoints();
 
   // Show loading skeleton when loading and no data available
   if (isLoading && (!config || (isMultiSeries && (!config.series || config.series.length === 0)) || (!isMultiSeries && (!config.series || config.series.length === 0)))) {
-    return isMobile ? (
+    return isSmallScreen ? (
       <MobileChartLoading 
         sensorName={sensor?.displayName || sensor?.mac}
         sensorMac={sensor?.mac}
@@ -548,68 +544,56 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
     );
   }
 
-  return (
-    <Card className="w-full h-full border border-default-200 shadow-md">
-      <div className="p-4 border-b border-divider bg-default-50">
-        {sensor && (
+  // Mobile header component
+  const renderMobileHeader = () => (
+    <div className="p-3 border-b border-divider bg-default-50">
+      {sensor && (
+        <div className="space-y-3">
+          {/* Top row - sensor name and essential controls */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
               {isEditing ? (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-1">
                   <Input
                     size="sm"
                     value={displayName}
                     onValueChange={setDisplayName}
                     placeholder="Enter Display Name"
-                    className="w-48"
+                    className="flex-1"
                     autoFocus
                   />
-                  <Button size="sm" color="primary" onPress={handleDisplayNameSubmit}>
-                    Save
+                  <Button size="sm" color="primary" onPress={handleDisplayNameSubmit} isIconOnly>
+                    <Icon icon="lucide:check" width={16} />
                   </Button>
-                  <Button size="sm" variant="flat" onPress={() => setIsEditing(false)}>
-                    Cancel
+                  <Button size="sm" variant="flat" onPress={() => setIsEditing(false)} isIconOnly>
+                    <Icon icon="lucide:x" width={16} />
                   </Button>
                 </div>
               ) : (
                 <>
-                  <h3 className="text-lg font-medium text-primary-600">{sensor.displayName || sensor.mac}</h3>
+                  <h3 className="text-base font-medium text-primary-600 truncate">
+                    {sensor.displayName || sensor.mac}
+                  </h3>
                   <Button isIconOnly size="sm" variant="light" onPress={() => setIsEditing(true)}>
-                    <Icon icon="lucide:edit-3" width={16} className="text-primary-500" />
+                    <Icon icon="lucide:edit-3" width={14} className="text-primary-500" />
                   </Button>
                 </>
               )}
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-              {/* Time Range Selector */}
-              {timeRange && onTimeRangeChange && (
-                <TimeRangeSelector
-                  timeRange={timeRange}
-                  onTimeRangeChange={onTimeRangeChange}
-                  showApplyButtons={showTimeRangeApplyButtons}
-                  isMobile={isMobileView}
-                  isLiveMode={isLiveMode}
-                  onLiveModeChange={onLiveModeChange}
-                  liveStatus={liveStatus}
-                  onRetryConnection={onRetryConnection}
-                  gatewayIds={gatewayIds}
-                />
-              )}
-
-              {/* Live Readings Selector - only shown in live mode */}
-              <LiveReadingsSelector 
-                isLiveMode={isLiveMode}
-                className="flex-shrink-0"
-              />
-
-              {/* <Button isIconOnly size="sm" variant="light" onPress={handleToggleStar} className="text-warning">
-                <Icon
-                  icon={isStarred ? "lucide:star" : "lucide:star"}
-                  className={isStarred ? "text-warning fill-warning" : "text-default-400"}
-                />
-              </Button> */}
-
+            {/* Essential controls */}
+            <div className="flex items-center gap-1">
+              <Button
+                size="sm"
+                variant="light"
+                color="primary"
+                isIconOnly
+                onPress={() => setIsFullscreen(!isFullscreen)}
+                title="Toggle fullscreen"
+              >
+                <Icon icon={isFullscreen ? "lucide:minimize" : "lucide:maximize"} width={16} />
+              </Button>
+              
               <Dropdown>
                 <DropdownTrigger>
                   <Button size="sm" variant="light" color="primary" isIconOnly>
@@ -622,55 +606,182 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                     startContent={<Icon icon="lucide:download" width={16} />}
                     onPress={() => handleDownload("csv")}
                   >
-                    Download as CSV
+                    Download CSV
                   </DropdownItem>
-                  {/* <DropdownItem
-                    key="png"
-                    startContent={<Icon icon="lucide:image" width={16} />}
-                    onPress={() => handleDownload("png")}
-                  >
-                    Download as PNG
-                  </DropdownItem> */}
                 </DropdownMenu>
               </Dropdown>
-
-              {onOpenInNewTab && (
-                <Button
-                  size="sm"
-                  variant="flat"
-                  onPress={onOpenInNewTab}
-                  startContent={<Icon icon="lucide:external-link" width={16} />}
-                >
-                  Show Details
-                </Button>
-              )}
             </div>
           </div>
+
+          {/* Second row - Time range and live controls (collapsed by default) */}
+          <div className="flex flex-col gap-2">
+            {timeRange && onTimeRangeChange && (
+              <div className="flex-1">
+                <TimeRangeSelector
+                  timeRange={timeRange}
+                  onTimeRangeChange={onTimeRangeChange}
+                  showApplyButtons={showTimeRangeApplyButtons}
+                  isMobile={true}
+                  isLiveMode={isLiveMode}
+                  onLiveModeChange={onLiveModeChange}
+                  liveStatus={liveStatus}
+                  onRetryConnection={onRetryConnection}
+                  gatewayIds={gatewayIds}
+                />
+              </div>
+            )}
+            
+            {/* Live readings selector - only visible in live mode */}
+            {isLiveMode && (
+              <LiveReadingsSelector 
+                isLiveMode={isLiveMode}
+                className="flex-shrink-0"
+              />
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // Desktop header component
+  const renderDesktopHeader = () => (
+    <div className="p-4 border-b border-divider bg-default-50">
+      {sensor && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {isEditing ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  size="sm"
+                  value={displayName}
+                  onValueChange={setDisplayName}
+                  placeholder="Enter Display Name"
+                  className="w-48"
+                  autoFocus
+                />
+                <Button size="sm" color="primary" onPress={handleDisplayNameSubmit}>
+                  Save
+                </Button>
+                <Button size="sm" variant="flat" onPress={() => setIsEditing(false)}>
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <>
+                <h3 className="text-lg font-medium text-primary-600">{sensor.displayName || sensor.mac}</h3>
+                <Button isIconOnly size="sm" variant="light" onPress={() => setIsEditing(true)}>
+                  <Icon icon="lucide:edit-3" width={16} className="text-primary-500" />
+                </Button>
+              </>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            {/* Time Range Selector */}
+            {timeRange && onTimeRangeChange && (
+              <TimeRangeSelector
+                timeRange={timeRange}
+                onTimeRangeChange={onTimeRangeChange}
+                showApplyButtons={showTimeRangeApplyButtons}
+                isMobile={false}
+                isLiveMode={isLiveMode}
+                onLiveModeChange={onLiveModeChange}
+                liveStatus={liveStatus}
+                onRetryConnection={onRetryConnection}
+                gatewayIds={gatewayIds}
+              />
+            )}
+
+            {/* Live Readings Selector - only shown in live mode */}
+            <LiveReadingsSelector 
+              isLiveMode={isLiveMode}
+              className="flex-shrink-0"
+            />
+
+            <Dropdown>
+              <DropdownTrigger>
+                <Button size="sm" variant="light" color="primary" isIconOnly>
+                  <Icon icon="lucide:download" width={16} />
+                </Button>
+              </DropdownTrigger>
+              <DropdownMenu aria-label="Download options">
+                <DropdownItem
+                  key="csv"
+                  startContent={<Icon icon="lucide:download" width={16} />}
+                  onPress={() => handleDownload("csv")}
+                >
+                  Download as CSV
+                </DropdownItem>
+              </DropdownMenu>
+            </Dropdown>
+
+            {onOpenInNewTab && (
+              <Button
+                size="sm"
+                variant="flat"
+                onPress={onOpenInNewTab}
+                startContent={<Icon icon="lucide:external-link" width={16} />}
+              >
+                Show Details
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // Dynamic chart height based on screen size and fullscreen mode
+  const getChartHeight = () => {
+    if (isFullscreen) {
+      if (isMobileLandscape) return "h-[calc(100vh-6rem)]"; // More space in landscape
+      if (isMobileDevice) return "h-[calc(100vh-10rem)]";
+      return "h-[calc(100vh-8rem)]";
+    }
+    
+    // Non-fullscreen heights
+    if (isMobileLandscape) return "h-[350px]"; // Taller in landscape
+    if (isMobileDevice) return "h-[300px]"; // Increased from 250px
+    if (isTablet) return "h-[400px]";
+    return "h-[500px]";
+  };
+
+  return (
+    <Card className={`w-full border border-default-200 shadow-md ${isFullscreen && isMobileDevice ? 'fixed inset-0 z-50 rounded-none' : 'h-full'}`}>
+      {/* Responsive header */}
+      {isMobileDevice ? renderMobileHeader() : renderDesktopHeader()}
+
+      <div className="flex flex-col h-full">
+        {/* Tab headers - hide on mobile fullscreen to save space */}
+        {!(isFullscreen && isMobile) && (
+          <Tabs
+            selectedKey={activeTab}
+            onSelectionChange={setActiveTab as any}
+            variant="underlined"
+            color="primary"
+            className={`${isSmallScreen ? 'px-3 mb-2' : 'px-4 mb-4'}`}
+          >
+            <Tab key="chart" title={isSmallScreen ? "Chart" : "Chart View"} />
+            <Tab key="table" title={isSmallScreen ? "Table" : "Table View"} />
+          </Tabs>
         )}
-      </div>
 
-      <div className="p-4 h-[calc(100%-64px)] flex flex-col">
-        {/* tab headers */}
-        <Tabs
-          selectedKey={activeTab}
-          onSelectionChange={setActiveTab as any}
-          variant="underlined"
-          color="primary"
-          className="mb-4"
-        >
-          <Tab key="chart" title="Chart View" />
-          <Tab key="table" title="Table View" />
-        </Tabs>
-
-        {/* tab bodies — one is shown at a time */}
-        {activeTab === "chart" && (
-          <div className="flex-1 overflow-auto rounded-lg bg-white dark:bg-content1" ref={chartRef}>
+        {/* Chart content */}
+        {(activeTab === "chart" || (isFullscreen && isMobile)) && (
+          <div 
+            className={`flex-1 overflow-hidden rounded-lg bg-white dark:bg-content1 ${
+              isSmallScreen ? 'mx-3 mb-3' : 'mx-4 mb-4'
+            } ${getChartHeight()}`} 
+            ref={chartRef}
+          >
             {renderChart()}
           </div>
         )}
 
-        {activeTab === "table" && (
-          <div className="flex-1 overflow-auto">
+        {/* Table content */}
+        {activeTab === "table" && !(isFullscreen && isMobile) && (
+          <div className={`flex-1 overflow-auto ${isSmallScreen ? 'mx-3 mb-3' : 'mx-4 mb-4'} ${getChartHeight()}`}>
             <TableView
               config={{
                 ...config,

@@ -1,4 +1,4 @@
-import { addToast, Button, Checkbox, CheckboxGroup, DateRangePicker, Input, Spinner } from "@heroui/react";
+import { addToast, Button, Checkbox, CheckboxGroup, DateRangePicker, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger, Input, Spinner } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { CalendarDate, DateValue, getLocalTimeZone } from "@internationalized/date";
 import React from "react";
@@ -13,6 +13,7 @@ import { ClaimSensorModal } from "../components/sensors/claim-sensor-modal";
 import { StatsCard } from "../components/stats-card";
 import { ChartContainer } from "../components/visualization/chart-container";
 import { ComparisonChart } from "../components/visualization/comparison-chart";
+import { useBreakpoints } from "../hooks/use-media-query";
 import { GaugeChart } from "../components/visualization/gauge-chart";
 import { chartColors, sensorTypes, statusOptions, timeRangePresets } from "../data/analytics";
 import { AppDispatch, RootState } from "../store";
@@ -66,25 +67,10 @@ export const AnalyticsPage: React.FC = () => {
   const location = useLocation();
   const isSoloMode = new URLSearchParams(location.search).get("solo") === "true";
 
-  // Replace useMediaQuery with a simple window check
-  const [isMobile, setIsMobile] = React.useState(false);
+  // Use responsive breakpoints
+  const { isMobile, isSmallScreen, isLandscape } = useBreakpoints();
 
-  // Check window width on mount and resize
-  React.useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-
-    // Initial check
-    checkMobile();
-
-    // Add resize listener
-    window.addEventListener("resize", checkMobile);
-
-    // Cleanup
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
-
+  // Legacy mobile states for drawer management
   const [isMobileSensorDrawerOpen, setIsMobileSensorDrawerOpen] = React.useState(false);
   const [isMobileFilterDrawerOpen, setIsMobileFilterDrawerOpen] = React.useState(false);
   const [selectedTimeRangeIndex, setSelectedTimeRangeIndex] = React.useState(1);
@@ -855,33 +841,97 @@ export const AnalyticsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* stats grid – re-use the component from SensorsPage */}
-        <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-4 gap-3">
-          <StatsCard
-            title="Total Sensors"
-            value={(stats?.claimed ?? 0).toString()}
-            icon="lucide:radio"
-            color="primary"
-          />
-          <StatsCard
-            title="Live Sensors"
-            value={(stats?.liveSensors ?? 0).toString()}
-            icon="lucide:wifi"
-            color="success"
-          />
-          <StatsCard
-            title="Offline Sensors"
-            value={(stats?.offlineSensors ?? 0).toString()}
-            icon="lucide:wifi-off"
-            color="danger"
-          />
-          <StatsCard
-            title="Low Battery Sensors"
-            value="0"
-            icon="lucide:battery-warning"
-            color="warning"
-          />
-        </div>
+        {/* stats section - responsive design */}
+        {isSmallScreen ? (
+          // Mobile compact stats - dropdown style
+          <div className="px-4">
+            <Dropdown>
+              <DropdownTrigger>
+                <Button
+                  size="sm"
+                  variant="bordered"
+                  startContent={<Icon icon="lucide:bar-chart-3" width={16} />}
+                  endContent={<Icon icon="lucide:chevron-down" width={16} />}
+                  className="w-full justify-between"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs">Sensors:</span>
+                    <span className="font-semibold text-success">{stats?.liveSensors ?? 0}</span>
+                    <span className="text-xs text-default-500">/{stats?.claimed ?? 0}</span>
+                  </div>
+                </Button>
+              </DropdownTrigger>
+              <DropdownMenu aria-label="Sensor statistics">
+                <DropdownItem key="total" textValue="Total Sensors">
+                  <div className="flex justify-between items-center w-full">
+                    <div className="flex items-center gap-2">
+                      <Icon icon="lucide:radio" width={16} className="text-primary" />
+                      <span className="text-sm">Total</span>
+                    </div>
+                    <span className="font-semibold">{stats?.claimed ?? 0}</span>
+                  </div>
+                </DropdownItem>
+                <DropdownItem key="live" textValue="Live Sensors">
+                  <div className="flex justify-between items-center w-full">
+                    <div className="flex items-center gap-2">
+                      <Icon icon="lucide:wifi" width={16} className="text-success" />
+                      <span className="text-sm">Live</span>
+                    </div>
+                    <span className="font-semibold text-success">{stats?.liveSensors ?? 0}</span>
+                  </div>
+                </DropdownItem>
+                <DropdownItem key="offline" textValue="Offline Sensors">
+                  <div className="flex justify-between items-center w-full">
+                    <div className="flex items-center gap-2">
+                      <Icon icon="lucide:wifi-off" width={16} className="text-danger" />
+                      <span className="text-sm">Offline</span>
+                    </div>
+                    <span className="font-semibold text-danger">{stats?.offlineSensors ?? 0}</span>
+                  </div>
+                </DropdownItem>
+                <DropdownItem key="battery" textValue="Low Battery">
+                  <div className="flex justify-between items-center w-full">
+                    <div className="flex items-center gap-2">
+                      <Icon icon="lucide:battery-warning" width={16} className="text-warning" />
+                      <span className="text-sm">Low Battery</span>
+                    </div>
+                    <span className="font-semibold text-warning">0</span>
+                  </div>
+                </DropdownItem>
+              </DropdownMenu>
+            </Dropdown>
+          </div>
+        ) : (
+          // Desktop stats grid
+          <div className="px-4">
+            <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-4 gap-3">
+              <StatsCard
+                title="Total Sensors"
+                value={(stats?.claimed ?? 0).toString()}
+                icon="lucide:radio"
+                color="primary"
+              />
+              <StatsCard
+                title="Live Sensors"
+                value={(stats?.liveSensors ?? 0).toString()}
+                icon="lucide:wifi"
+                color="success"
+              />
+              <StatsCard
+                title="Offline Sensors"
+                value={(stats?.offlineSensors ?? 0).toString()}
+                icon="lucide:wifi-off"
+                color="danger"
+              />
+              <StatsCard
+                title="Low Battery Sensors"
+                value="0"
+                icon="lucide:battery-warning"
+                color="warning"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-1 overflow-hidden">

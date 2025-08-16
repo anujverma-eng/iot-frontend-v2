@@ -4,6 +4,7 @@ import { Icon } from '@iconify/react';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../../store';
 import { updateMaxLiveReadings, selectMaxLiveReadings } from '../../store/telemetrySlice';
+import { useBreakpoints } from '../../hooks/use-media-query';
 
 // Predefined options for live readings
 const LIVE_READINGS_OPTIONS = [
@@ -27,6 +28,7 @@ export const LiveReadingsSelector: React.FC<LiveReadingsSelectorProps> = ({
 }) => {
   const dispatch = useDispatch<AppDispatch>();
   const currentMaxReadings = useSelector(selectMaxLiveReadings);
+  const { isMobile, isSmallScreen } = useBreakpoints();
   
   // Force re-render when maxLiveReadings changes
   const [, forceUpdate] = React.useReducer(x => x + 1, 0);
@@ -68,7 +70,6 @@ export const LiveReadingsSelector: React.FC<LiveReadingsSelectorProps> = ({
   }
 
   const currentOption = getCurrentOption();
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
   
   console.log('🎯 Current option calculated:', currentOption);
   console.log('🔑 Selected keys for dropdown:', new Set([String(currentMaxReadings)]));
@@ -83,13 +84,15 @@ export const LiveReadingsSelector: React.FC<LiveReadingsSelectorProps> = ({
           <Button 
             variant="bordered" 
             size="sm"
-            className="min-w-[140px] sm:min-w-[180px] justify-between border-green-200 bg-green-50 hover:bg-green-100"
+            className={`justify-between border-green-200 bg-green-50 hover:bg-green-100 ${
+              isMobile ? 'min-w-[100px] px-2' : 'min-w-[140px] sm:min-w-[180px]'
+            }`}
             endContent={<Icon icon="lucide:chevron-down" width={14} />}
             startContent={<Icon icon="lucide:activity" width={14} className="text-green-600" />}
           >
             <div className="flex flex-col items-start">
               <span className="text-xs text-default-500">
-                {isMobile ? `${currentOption.value} pts` : currentOption.label}
+                {isMobile ? `${currentOption.value}` : currentOption.label}
               </span>
             </div>
           </Button>

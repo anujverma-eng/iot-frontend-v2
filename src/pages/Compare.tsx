@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { FilterBar } from '../components/analytics/filter-bar';
 import { ChartContainer } from '../components/visualization/chart-container';
 import { chartColors, sensorTypes, statusOptions, timeRangePresets } from '../data/analytics';
+import { useBreakpoints } from '../hooks/use-media-query';
 import { AppDispatch } from '../store';
 import {
   addSelectedSensorId,
@@ -37,6 +38,9 @@ export const ComparePage: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch<AppDispatch>();
   
+  // Get enhanced responsive breakpoints
+  const { isMobile, isTablet, isLandscape, isMobileLandscape, isMobileDevice } = useBreakpoints();
+  
   // Get state from Redux
   const filters = useSelector(selectFilters);
   const selectedSensorIds = useSelector(selectSelectedSensorIds);
@@ -45,27 +49,10 @@ export const ComparePage: React.FC = () => {
   const sensors = useSelector(selectSensors);
   const loading = useSelector(selectSensorsLoading);
   
-  // State for mobile view
-  const [isMobile, setIsMobile] = React.useState(false);
+  // State for mobile drawers
   const [isSensorDrawerOpen, setIsSensorDrawerOpen] = React.useState(false);
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = React.useState(false);
   const [searchText, setSearchText] = React.useState('');
-  
-  // Check window width on mount and resize
-  React.useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    
-    // Initial check
-    checkMobile();
-    
-    // Add resize listener
-    window.addEventListener('resize', checkMobile);
-    
-    // Cleanup
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
   
   // Load sensors on component mount
   React.useEffect(() => {
@@ -218,7 +205,7 @@ export const ComparePage: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-2">
-            {!isMobile && (
+            {!isMobileDevice && (
               <Input
                 placeholder="Search sensors"
                 value={searchText}
@@ -230,7 +217,7 @@ export const ComparePage: React.FC = () => {
               />
             )}
             
-            {isMobile && (
+            {isMobileDevice && (
               <>
                 <Button
                   variant="flat"
@@ -257,7 +244,7 @@ export const ComparePage: React.FC = () => {
       {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
         {/* Sensor list - desktop only */}
-        {!isMobile && (
+        {!isMobileDevice && (
           <div className="w-80 border-r border-divider flex flex-col">
             <div className="p-4 border-b border-divider">
               <Input
@@ -360,18 +347,20 @@ export const ComparePage: React.FC = () => {
           />
           
           {/* Chart */}
-          <div className="flex-1 p-4 overflow-auto">
+          <div className={`flex-1 p-4 overflow-auto ${isMobileDevice ? 'p-2' : 'p-4'}`}>
             {isLoadingData ? (
               <div className="flex items-center justify-center h-full">
                 <Spinner />
               </div>
             ) : selectedSensorIds.length > 0 && multiSeriesConfig ? (
-              <ChartContainer 
-                config={multiSeriesConfig}
-                isMultiSeries={true}
-                onBrushChange={handleBrushChange}
-                onDownloadCSV={handleDownloadCSV}
-              />
+              <div className={`h-full ${isMobileDevice ? (isMobileLandscape ? 'min-h-[400px]' : 'min-h-[350px]') : 'min-h-[500px]'}`}>
+                <ChartContainer 
+                  config={multiSeriesConfig}
+                  isMultiSeries={true}
+                  onBrushChange={handleBrushChange}
+                  onDownloadCSV={handleDownloadCSV}
+                />
+              </div>
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-center">
                 <Icon icon="lucide:bar-chart-2" className="text-default-300 mb-4" width={48} height={48} />
@@ -379,7 +368,7 @@ export const ComparePage: React.FC = () => {
                 <p className="text-default-500 mb-6 max-w-md">
                   Select two or more sensors from the list to compare their data.
                 </p>
-                {isMobile && (
+                {isMobileDevice && (
                   <Button
                     color="primary"
                     onPress={() => setIsSensorDrawerOpen(true)}
@@ -395,7 +384,7 @@ export const ComparePage: React.FC = () => {
       </div>
       
       {/* Mobile Sensor Drawer */}
-      {isMobile && (
+      {isMobileDevice && (
         <div className={`fixed inset-0 bg-overlay/50 z-50 transition-opacity ${isSensorDrawerOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
              onClick={() => setIsSensorDrawerOpen(false)}>
           <div 
@@ -519,7 +508,7 @@ export const ComparePage: React.FC = () => {
       )}
       
       {/* Mobile Filter Drawer */}
-      {isMobile && (
+      {isMobileDevice && (
         <div className={`fixed inset-0 bg-overlay/50 z-50 transition-opacity ${isFilterDrawerOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
              onClick={() => setIsFilterDrawerOpen(false)}>
           <div 

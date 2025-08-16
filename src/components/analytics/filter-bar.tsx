@@ -179,39 +179,38 @@ export const FilterBar: React.FC<FilterBarProps> = ({ filters, onFiltersChange, 
           ))}
         </section>
 
-        {/* ACTION BUTTONS - only show on desktop */}
-        {!isMobile && (
-          <>
-            <Divider className="my-4" />
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="flat"
-                onPress={handleCancel}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                variant="flat"
-                color="warning"
-                onPress={handleReset}
-                className="flex-1"
-              >
-                Reset
-              </Button>
-              <Button
-                size="sm"
-                color="primary"
-                onPress={handleApply}
-                className="flex-1"
-              >
-                Apply
-              </Button>
-            </div>
-          </>
-        )}
+        {/* ACTION BUTTONS - show for both mobile and desktop */}
+        <>
+          <Divider className="my-4" />
+          <div className={`flex gap-2 ${isMobile ? 'flex-col' : ''}`}>
+            <Button
+              size={isMobile ? "md" : "sm"}
+              variant="flat"
+              onPress={handleCancel}
+              className={isMobile ? "w-full" : "flex-1"}
+            >
+              Cancel
+            </Button>
+            <Button
+              size={isMobile ? "md" : "sm"}
+              variant="flat"
+              color="warning"
+              onPress={handleReset}
+              className={isMobile ? "w-full" : "flex-1"}
+            >
+              Reset
+            </Button>
+            <Button
+              size={isMobile ? "md" : "sm"}
+              color="primary"
+              onPress={handleApply}
+              className={isMobile ? "w-full" : "flex-1"}
+              isDisabled={!hasPendingChanges && !isMobile}
+            >
+              Apply
+            </Button>
+          </div>
+        </>
       </PopoverContent>
     </Popover>
   );
