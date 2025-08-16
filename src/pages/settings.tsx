@@ -12,8 +12,9 @@ import {
   BreadcrumbItem,
 } from '@heroui/react';
 import { Icon } from '@iconify/react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../hooks/useAppDispatch';
+import { useBreadcrumbNavigation } from '../hooks/useBreadcrumbNavigation';
 import {
   loadSettings,
   updateSensorSettings,
@@ -28,7 +29,7 @@ import { offlineDetectionService } from '../services/offlineDetectionService';
 
 // Timeout options
 const TIMEOUT_OPTIONS = [
-  { value: 0.5, label: '1 minutes', description: 'Quick response detection' },
+  { value: 1, label: '1 minutes', description: 'Quick response detection' },
   { value: 5, label: '5 minutes', description: 'Quick response detection' },
   { value: 10, label: '10 minutes', description: 'Balanced monitoring' },
   { value: 30, label: '30 minutes', description: 'Standard intervals' },
@@ -38,7 +39,9 @@ const TIMEOUT_OPTIONS = [
 
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const dispatch = useAppDispatch();
+  const { getPageBreadcrumb } = useBreadcrumbNavigation();
   
   // Redux state
   const settings = useAppSelector(selectSettings);
@@ -47,6 +50,9 @@ export const SettingsPage: React.FC = () => {
   
   // Local state
   const [hasChanges, setHasChanges] = useState(false);
+
+  // Get breadcrumb items
+  const breadcrumbItems = getPageBreadcrumb('Settings', 'lucide:settings');
 
   // Load settings on mount
   useEffect(() => {
@@ -83,17 +89,17 @@ export const SettingsPage: React.FC = () => {
       {/* Header with Breadcrumbs */}
       <div className="flex flex-col gap-4">
         <Breadcrumbs className="mb-2">
-          <BreadcrumbItem 
-            onPress={() => navigate('/dashboard/home')}
-            className="cursor-pointer hover:text-primary"
-          >
-            <Icon icon="lucide:home" className="w-4 h-4 mr-1" />
-            Dashboard
-          </BreadcrumbItem>
-          <BreadcrumbItem>
-            <Icon icon="lucide:settings" className="w-4 h-4 mr-1" />
-            Settings
-          </BreadcrumbItem>
+          {breadcrumbItems.map((item, index) => (
+            <BreadcrumbItem 
+              key={index}
+              onPress={item.action}
+              className={index === 0 ? "cursor-pointer hover:text-primary transition-colors" : ""}
+              title={index === 0 ? `Go back to ${item.label}` : undefined}
+            >
+              <Icon icon={item.icon} className="w-4 h-4 mr-1" />
+              {item.label}
+            </BreadcrumbItem>
+          ))}
         </Breadcrumbs>
 
         <div className="flex items-center justify-between">
