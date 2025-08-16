@@ -13,6 +13,7 @@ import {
   Brush
 } from "recharts";
 import { ChartConfig } from "../../../types/sensor";
+import { formatNumericValue } from '../../../utils/numberUtils';
 
 interface TrendAnalysisChartProps {
   config: ChartConfig;
@@ -32,10 +33,21 @@ export const TrendAnalysisChart: React.FC<TrendAnalysisChartProps> = ({
   const trendData = React.useMemo(() => {
     if (!config.series || config.series.length < 2) return null;
 
-    const values = config.series.map((point) => point.value);
-    const timestamps = config.series.map((point) => point.timestamp);
+    // Safely extract numeric values and filter out invalid data
+    const validData = config.series.filter(point => {
+      const numValue = Number(point.value);
+      return !isNaN(numValue) && isFinite(numValue);
+    });
 
-    // Calculate moving average
+    if (validData.length < 2) return null;
+
+    const values = validData.map((point) => {
+      const numValue = Number(point.value);
+      return isNaN(numValue) ? 0 : numValue;
+    });
+    const timestamps = validData.map((point) => point.timestamp);
+
+    // Calculate moving average with safe math
     const windowSize = Math.max(5, Math.floor(values.length / 20)); // Dynamic window size
     const movingAvg = [];
 
@@ -44,18 +56,22 @@ export const TrendAnalysisChart: React.FC<TrendAnalysisChartProps> = ({
       let count = 0;
 
       for (let j = Math.max(0, i - windowSize + 1); j <= i; j++) {
-        sum += values[j];
-        count++;
+        const value = values[j];
+        if (!isNaN(value) && isFinite(value)) {
+          sum += value;
+          count++;
+        }
       }
 
+      const avgValue = count > 0 ? sum / count : 0;
       movingAvg.push({
         timestamp: timestamps[i],
         value: values[i],
-        ma: sum / count,
+        ma: isNaN(avgValue) ? 0 : avgValue,
       });
     }
 
-    // Calculate linear regression
+    // Calculate linear regression with safe math
     let sumX = 0;
     let sumY = 0;
     let sumXY = 0;
@@ -67,44 +83,51 @@ export const TrendAnalysisChart: React.FC<TrendAnalysisChartProps> = ({
 
     normalizedX.forEach((x, i) => {
       const y = values[i];
-      sumX += x;
-      sumY += y;
-      sumXY += x * y;
-      sumX2 += x * x;
+      if (!isNaN(x) && !isNaN(y) && isFinite(x) && isFinite(y)) {
+        sumX += x;
+        sumY += y;
+        sumXY += x * y;
+        sumX2 += x * x;
+      }
     });
 
     const n = values.length;
-    const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-    const intercept = (sumY - slope * sumX) / n;
+    const denominator = n * sumX2 - sumX * sumX;
+    const slope = denominator !== 0 ? (n * sumXY - sumX * sumY) / denominator : 0;
+    const intercept = n > 0 ? (sumY - slope * sumX) / n : 0;
 
     // Calculate trend line points
     const trendLine = [
       {
         timestamp: timestamps[0],
-        trend: intercept,
+        trend: isNaN(intercept) ? 0 : intercept,
       },
       {
         timestamp: timestamps[timestamps.length - 1],
-        trend: intercept + slope * normalizedX[normalizedX.length - 1],
+        trend: isNaN(intercept + slope * normalizedX[normalizedX.length - 1]) ? 0 : intercept + slope * normalizedX[normalizedX.length - 1],
       },
     ];
 
     // Calculate trend direction and strength
     const trendDirection = slope > 0 ? "up" : slope < 0 ? "down" : "neutral";
 
-    // Calculate R-squared to measure trend strength
-    const meanY = sumY / n;
+    // Calculate R-squared to measure trend strength with safe math
+    const meanY = n > 0 ? sumY / n : 0;
     let totalVariation = 0;
     let explainedVariation = 0;
 
     normalizedX.forEach((x, i) => {
       const y = values[i];
-      const yPred = intercept + slope * x;
-      totalVariation += Math.pow(y - meanY, 2);
-      explainedVariation += Math.pow(yPred - meanY, 2);
+      if (!isNaN(x) && !isNaN(y) && isFinite(x) && isFinite(y)) {
+        const yPred = intercept + slope * x;
+        if (!isNaN(yPred) && isFinite(yPred)) {
+          totalVariation += Math.pow(y - meanY, 2);
+          explainedVariation += Math.pow(yPred - meanY, 2);
+        }
+      }
     });
 
-    const rSquared = explainedVariation / totalVariation;
+    const rSquared = totalVariation > 0 ? explainedVariation / totalVariation : 0;
 
     // Identify significant changes (segments where slope changes significantly)
     const segments = [];
@@ -176,7 +199,7 @@ export const TrendAnalysisChart: React.FC<TrendAnalysisChartProps> = ({
     let rate = "";
 
     if (absSlope > 0) {
-      rate = ` at ${absSlope.toFixed(2)} ${config.unit}/day`;
+      rate = ` at ${formatNumericValue(absSlope)} ${config.unit}/day`;
     }
 
     return `${strength} ${trendDirection} trend${rate}`;
@@ -243,7 +266,7 @@ export const TrendAnalysisChart: React.FC<TrendAnalysisChartProps> = ({
                     </Chip>
 
                     <Chip variant="flat" color="secondary">
-                      R² = {trendData.rSquared.toFixed(2)}
+                      R² = {formatNumericValue(trendData.rSquared)}
                     </Chip>
                   </div>
                 </div>
@@ -298,9 +321,9 @@ export const TrendAnalysisChart: React.FC<TrendAnalysisChartProps> = ({
                 />
                 <Tooltip
                   formatter={(value: number, name: string) => {
-                    if (name === "ma") return [`${value.toFixed(4)} ${config.unit}`, "Moving Avg"];
-                    if (name === "value") return [`${value.toFixed(4)} ${config.unit}`, "Value"];
-                    return [`${value.toFixed(4)} ${config.unit}`, name];
+                    if (name === "ma") return [`${formatNumericValue(value)} ${config.unit}`, "Moving Avg"];
+                    if (name === "value") return [`${formatNumericValue(value)} ${config.unit}`, "Value"];
+                    return [`${formatNumericValue(value)} ${config.unit}`, name];
                   }}
                   labelFormatter={(timestamp) => new Date(timestamp).toLocaleString("en-US", {
                     month: "short",

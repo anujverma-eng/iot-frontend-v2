@@ -15,6 +15,7 @@ import {
 import { Card, CardBody, Chip } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { ChartConfig } from "../../../types/sensor";
+import { formatNumericValue } from '../../../utils/numberUtils';
 
 interface AnomalyDetectionChartProps {
   config: ChartConfig;
@@ -110,7 +111,7 @@ export const AnomalyDetectionChart: React.FC<AnomalyDetectionChartProps> = ({
                     </Chip>
 
                     <Chip variant="flat" color="secondary">
-                      {anomalyData.stats.anomalyPercentage.toFixed(1)}% of data
+                      {formatNumericValue(anomalyData.stats.anomalyPercentage)}% of data
                     </Chip>
                   </div>
                 </div>
@@ -169,8 +170,8 @@ export const AnomalyDetectionChart: React.FC<AnomalyDetectionChartProps> = ({
                 <ZAxis dataKey="zScore" range={[20, 200]} name="Z-score" />
                 <Tooltip
                   formatter={(value: number, name: string) => {
-                    if (name === "Value") return [`${value.toFixed(4)} ${config.unit}`, name];
-                    if (name === "Z-score") return [`${value.toFixed(4)}`, name];
+                    if (name === "Value") return [`${formatNumericValue(value)} ${config.unit}`, name];
+                    if (name === "Z-score") return [`${formatNumericValue(value)}`, name];
                     return [`${value}`, name];
                   }}
                   labelFormatter={(timestamp) => new Date(timestamp).toLocaleString("en-US", {
@@ -301,9 +302,9 @@ export const AnomalyDetectionChart: React.FC<AnomalyDetectionChartProps> = ({
                             {new Date(anomaly.timestamp).toLocaleString()}
                           </td>
                           <td className="px-3 py-2 whitespace-nowrap text-xs font-medium">
-                            {anomaly.value.toFixed(4)} {config.unit}
+                            {formatNumericValue(anomaly.value)} {config.unit}
                           </td>
-                          <td className="px-3 py-2 whitespace-nowrap text-xs">{anomaly.zScore.toFixed(4)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-xs">{formatNumericValue(anomaly.zScore)}</td>
                           <td className="px-3 py-2 whitespace-nowrap">
                             <Chip
                               size="sm"

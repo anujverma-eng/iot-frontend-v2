@@ -16,6 +16,7 @@ import {
   Cell
 } from 'recharts';
 import { ChartConfig } from '../../../types/sensor';
+import { formatNumericValue } from '../../../utils/numberUtils';
 
 interface CorrelationAnalysisChartProps {
   config: ChartConfig;
@@ -225,7 +226,7 @@ export const CorrelationAnalysisChart: React.FC<CorrelationAnalysisChartProps> =
                         </Chip>
                         
                         <Chip variant="flat" color="secondary">
-                          r = {(correlationData.correlation ?? 0).toFixed(2)}
+                          r = {formatNumericValue(correlationData.correlation ?? 0)}
                         </Chip>
                       </div>
                     </div>
@@ -284,12 +285,12 @@ export const CorrelationAnalysisChart: React.FC<CorrelationAnalysisChartProps> =
                   <Tooltip
                     formatter={(value: number, name: string) => {
                       if (name === correlationData.primaryType) 
-                        return [`${value.toFixed(2)} ${correlationData.primaryUnit}`, name];
+                        return [`${formatNumericValue(value)} ${correlationData.primaryUnit}`, name];
                       if (name === correlationData.secondaryType) 
-                        return [`${value.toFixed(2)} ${correlationData.secondaryUnit}`, name];
+                        return [`${formatNumericValue(value)} ${correlationData.secondaryUnit}`, name];
                       return [`${value}`, name];
                     }}
-                    labelFormatter={() => `Correlation: ${(correlationData.correlation ?? 0).toFixed(2)}`}
+                    labelFormatter={() => `Correlation: ${formatNumericValue(correlationData.correlation ?? 0)}`}
                     contentStyle={{
                       backgroundColor: "#ffffff",
                       border: "1px solid #e5e7eb",
@@ -322,7 +323,7 @@ export const CorrelationAnalysisChart: React.FC<CorrelationAnalysisChartProps> =
                       height={30}
                       stroke="#6366f1"
                       fill="rgba(99, 102, 241, 0.1)"
-                      tickFormatter={(value) => value.toFixed(2)}
+                      tickFormatter={(value) => formatNumericValue(value)}
                     />
                   )}
                 </ScatterChart>
@@ -380,7 +381,7 @@ export const CorrelationAnalysisChart: React.FC<CorrelationAnalysisChartProps> =
                               variant="flat"
                               size="sm"
                             >
-                              Lag {lag.lag}: {lag.correlation.toFixed(2)}
+                              Lag {lag.lag}: {formatNumericValue(lag.correlation)}
                             </Chip>
                           ))}
                         </div>
@@ -437,7 +438,7 @@ export const CorrelationAnalysisChart: React.FC<CorrelationAnalysisChartProps> =
                   />
                   <Tooltip
                     formatter={(value: number, name: string) => {
-                      if (name === 'correlation') return [`${value.toFixed(3)}`, 'Correlation'];
+                      if (name === 'correlation') return [`${formatNumericValue(value)}`, 'Correlation'];
                       return [`${value}`, name];
                     }}
                     labelFormatter={(lag) => `Lag: ${lag} time steps`}

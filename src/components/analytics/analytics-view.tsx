@@ -23,6 +23,7 @@ import { DistributionChart } from './distribution-charts/distribution-chart';
 import { TrendAnalysisChart } from './distribution-charts/trend-analysis-chart';
 import { AnomalyDetectionChart } from './distribution-charts/anomaly-detection-chart';
 import { CorrelationAnalysisChart } from './distribution-charts/correlation-analysis-chart';
+import { formatNumericValue } from '../../utils/numberUtils';
 interface AnalyticsViewProps {
   config: ChartConfig;
 }
@@ -45,11 +46,33 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ config }) => {
       };
     }
 
-    const values = config.series.map(point => point.value);
+    // Safely extract numeric values and filter out invalid data
+    const validData = config.series.filter(point => {
+      const numValue = Number(point.value);
+      return !isNaN(numValue) && isFinite(numValue);
+    });
+
+    if (validData.length === 0) {
+      return {
+        min: 0,
+        max: 0,
+        avg: 0,
+        median: 0,
+        stdDev: 0,
+        count: 0,
+        trend: 'neutral'
+      };
+    }
+
+    const values = validData.map(point => {
+      const numValue = Number(point.value);
+      return isNaN(numValue) ? 0 : numValue;
+    });
+
     const min = Math.min(...values);
     const max = Math.max(...values);
     const sum = values.reduce((acc, val) => acc + val, 0);
-    const avg = sum / values.length;
+    const avg = values.length > 0 ? sum / values.length : 0;
     
     // Calculate median
     const sortedValues = [...values].sort((a, b) => a - b);
@@ -58,12 +81,12 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ config }) => {
       ? (sortedValues[mid - 1] + sortedValues[mid]) / 2
       : sortedValues[mid];
     
-    // Calculate standard deviation
+    // Calculate standard deviation with safe math
     const squareDiffs = values.map(value => {
       const diff = value - avg;
       return diff * diff;
     });
-    const avgSquareDiff = squareDiffs.reduce((acc, val) => acc + val, 0) / values.length;
+    const avgSquareDiff = values.length > 0 ? squareDiffs.reduce((acc, val) => acc + val, 0) / values.length : 0;
     const stdDev = Math.sqrt(avgSquareDiff);
     
     // Determine trend (simple version)
@@ -72,8 +95,8 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ config }) => {
       const firstHalf = values.slice(0, Math.floor(values.length / 2));
       const secondHalf = values.slice(Math.floor(values.length / 2));
       
-      const firstAvg = firstHalf.reduce((acc, val) => acc + val, 0) / firstHalf.length;
-      const secondAvg = secondHalf.reduce((acc, val) => acc + val, 0) / secondHalf.length;
+      const firstAvg = firstHalf.length > 0 ? firstHalf.reduce((acc, val) => acc + val, 0) / firstHalf.length : 0;
+      const secondAvg = secondHalf.length > 0 ? secondHalf.reduce((acc, val) => acc + val, 0) / secondHalf.length : 0;
       
       if (secondAvg > firstAvg * 1.05) {
         trend = 'up';
@@ -83,11 +106,11 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ config }) => {
     }
     
     return {
-      min,
-      max,
-      avg,
-      median,
-      stdDev,
+      min: isNaN(min) ? 0 : min,
+      max: isNaN(max) ? 0 : max,
+      avg: isNaN(avg) ? 0 : avg,
+      median: isNaN(median) ? 0 : median,
+      stdDev: isNaN(stdDev) ? 0 : stdDev,
       count: values.length,
       trend: trend as 'up' | 'down' | 'neutral'
     };
@@ -128,11 +151,26 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ config }) => {
       return { p25: 0, p50: 0, p75: 0, p90: 0, p95: 0, p99: 0 };
     }
     
-    const values = [...config.series.map(point => point.value)].sort((a, b) => a - b);
+    // Safely extract numeric values and filter out invalid data
+    const validData = config.series.filter(point => {
+      const numValue = Number(point.value);
+      return !isNaN(numValue) && isFinite(numValue);
+    });
+
+    if (validData.length === 0) {
+      return { p25: 0, p50: 0, p75: 0, p90: 0, p95: 0, p99: 0 };
+    }
+    
+    const values = validData.map(point => {
+      const numValue = Number(point.value);
+      return isNaN(numValue) ? 0 : numValue;
+    }).sort((a, b) => a - b);
     
     const getPercentile = (p: number) => {
+      if (values.length === 0) return 0;
       const index = Math.ceil((p / 100) * values.length) - 1;
-      return values[Math.max(0, Math.min(index, values.length - 1))];
+      const value = values[Math.max(0, Math.min(index, values.length - 1))];
+      return isNaN(value) ? 0 : value;
     };
     
     return {
@@ -151,26 +189,49 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ config }) => {
       return [];
     }
     
-    const values = config.series.map(point => point.value);
+    // Safely extract numeric values and filter out invalid data
+    const validData = config.series.filter(point => {
+      const numValue = Number(point.value);
+      return !isNaN(numValue) && isFinite(numValue);
+    });
+
+    if (validData.length === 0) {
+      return [];
+    }
+    
+    const values = validData.map(point => {
+      const numValue = Number(point.value);
+      return isNaN(numValue) ? 0 : numValue;
+    });
+    
     const sortedValues = [...values].sort((a, b) => a - b);
     
     const q1Index = Math.floor(sortedValues.length * 0.25);
     const q3Index = Math.floor(sortedValues.length * 0.75);
     
-    const q1 = sortedValues[q1Index];
-    const q3 = sortedValues[q3Index];
+    const q1 = sortedValues[q1Index] || 0;
+    const q3 = sortedValues[q3Index] || 0;
     const iqr = q3 - q1;
     
     const lowerBound = q1 - 1.5 * iqr;
     const upperBound = q3 + 1.5 * iqr;
     
-    return config.series
-      .filter(point => point.value < lowerBound || point.value > upperBound)
-      .map(point => ({
-        ...point,
-        isHigh: point.value > upperBound,
-        isLow: point.value < lowerBound
-      }));
+    return validData
+      .filter(point => {
+        const numValue = Number(point.value);
+        const safeValue = isNaN(numValue) ? 0 : numValue;
+        return safeValue < lowerBound || safeValue > upperBound;
+      })
+      .map(point => {
+        const numValue = Number(point.value);
+        const safeValue = isNaN(numValue) ? 0 : numValue;
+        return {
+          ...point,
+          value: safeValue,
+          isHigh: safeValue > upperBound,
+          isLow: safeValue < lowerBound
+        };
+      });
   }, [config.series]);
 
   return (
@@ -215,7 +276,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ config }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
             <StatsCard
               title="Average"
-              value={stats.avg.toFixed(4)}
+              value={formatNumericValue(stats.avg)}
               unit={config.unit}
               icon="lucide:bar-chart-2"
               trend={stats.trend as 'up' | 'down' | 'neutral'}
@@ -224,7 +285,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ config }) => {
             
             <StatsCard
               title="Min / Max"
-              value={`${stats.min.toFixed(4)} - ${stats.max.toFixed(4)}`}
+              value={`${formatNumericValue(stats.min)} - ${formatNumericValue(stats.max)}`}
               unit={config.unit}
               icon="lucide:arrow-up-down"
               color="secondary"
@@ -235,7 +296,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ config }) => {
               value={stats.count.toString()}
               icon="lucide:database"
               color="success"
-              subtitle={`Median: ${stats.median.toFixed(4)} ${config.unit}`}
+              subtitle={`Median: ${formatNumericValue(stats.median)} ${config.unit}`}
             />
           </div>
           
@@ -246,14 +307,14 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ config }) => {
                 <div>
                   <div className="flex justify-between text-sm mb-1">
                     <span>25th Percentile</span>
-                    <span className="font-medium">{percentiles.p25.toFixed(4)} {config.unit}</span>
+                    <span className="font-medium">{formatNumericValue(percentiles.p25)} {config.unit}</span>
                   </div>
                   <Progress 
                     value={((percentiles.p25 - stats.min) / (stats.max - stats.min)) * 100} 
                     color="primary"
                     size="sm"
                     showValueLabel={true}
-                    valueLabel={`${((percentiles.p25 - stats.min) / (stats.max - stats.min) * 100).toFixed(0)}%`}
+                    valueLabel={`${formatNumericValue(((percentiles.p25 - stats.min) / (stats.max - stats.min) * 100))}%`}
                     className="h-2"
                   />
                 </div>
@@ -261,14 +322,14 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ config }) => {
                 <div>
                   <div className="flex justify-between text-sm mb-1">
                     <span>Median (50th)</span>
-                    <span className="font-medium">{percentiles.p50.toFixed(4)} {config.unit}</span>
+                    <span className="font-medium">{formatNumericValue(percentiles.p50)} {config.unit}</span>
                   </div>
                   <Progress 
                     value={((percentiles.p50 - stats.min) / (stats.max - stats.min)) * 100} 
                     color="primary"
                     size="sm"
                     showValueLabel={true}
-                    valueLabel={`${((percentiles.p50 - stats.min) / (stats.max - stats.min) * 100).toFixed(0)}%`}
+                    valueLabel={`${formatNumericValue(((percentiles.p50 - stats.min) / (stats.max - stats.min) * 100))}%`}
                     className="h-2"
                   />
                 </div>
@@ -276,14 +337,14 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ config }) => {
                 <div>
                   <div className="flex justify-between text-sm mb-1">
                     <span>75th Percentile</span>
-                    <span className="font-medium">{percentiles.p75.toFixed(4)} {config.unit}</span>
+                    <span className="font-medium">{formatNumericValue(percentiles.p75)} {config.unit}</span>
                   </div>
                   <Progress 
                     value={((percentiles.p75 - stats.min) / (stats.max - stats.min)) * 100} 
                     color="primary"
                     size="sm"
                     showValueLabel={true}
-                    valueLabel={`${((percentiles.p75 - stats.min) / (stats.max - stats.min) * 100).toFixed(0)}%`}
+                    valueLabel={`${formatNumericValue(((percentiles.p75 - stats.min) / (stats.max - stats.min) * 100))}%`}
                     className="h-2"
                   />
                 </div>
@@ -291,14 +352,14 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ config }) => {
                 <div>
                   <div className="flex justify-between text-sm mb-1">
                     <span>95th Percentile</span>
-                    <span className="font-medium">{percentiles.p95.toFixed(4)} {config.unit}</span>
+                    <span className="font-medium">{formatNumericValue(percentiles.p95)} {config.unit}</span>
                   </div>
                   <Progress 
                     value={((percentiles.p95 - stats.min) / (stats.max - stats.min)) * 100} 
                     color="primary"
                     size="sm"
                     showValueLabel={true}
-                    valueLabel={`${((percentiles.p95 - stats.min) / (stats.max - stats.min) * 100).toFixed(0)}%`}
+                    valueLabel={`${formatNumericValue(((percentiles.p95 - stats.min) / (stats.max - stats.min) * 100))}%`}
                     className="h-2"
                   />
                 </div>
@@ -334,7 +395,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ config }) => {
                             {new Date(point.timestamp).toLocaleString()}
                           </td>
                           <td className="px-4 py-2 text-sm font-medium">
-                            {point.value.toFixed(4)} {config.unit}
+                            {formatNumericValue(point.value)} {config.unit}
                           </td>
                           <td className="px-4 py-2 text-sm">
                             {point.isHigh ? (

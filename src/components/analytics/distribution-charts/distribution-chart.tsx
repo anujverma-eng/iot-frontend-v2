@@ -14,6 +14,7 @@ import {
 import { Card, CardBody } from '@heroui/react';
 import { Icon } from '@iconify/react';
 import { ChartConfig } from '../../../types/sensor';
+import { formatNumericValue } from '../../../utils/numberUtils';
 
 interface DistributionChartProps {
   config: ChartConfig;
@@ -45,9 +46,49 @@ export const DistributionChart: React.FC<DistributionChartProps> = ({
       };
     }
     
-    const values = config.series.map(point => point.value);
+    // Safely extract numeric values
+    const values = config.series
+      .map(point => {
+        const numValue = Number(point.value);
+        return isNaN(numValue) ? 0 : numValue;
+      })
+      .filter(value => !isNaN(value) && isFinite(value));
+    
+    if (values.length === 0) {
+      return {
+        bins: [],
+        stats: {
+          min: 0,
+          max: 0,
+          mean: 0,
+          stdDev: 0,
+          count: 0
+        }
+      };
+    }
+    
     const min = Math.min(...values);
     const max = Math.max(...values);
+    
+    // Handle edge case where min === max
+    if (min === max) {
+      return {
+        bins: [{
+          range: `${formatNumericValue(min)} - ${formatNumericValue(max)}`,
+          lowerBound: min,
+          upperBound: max,
+          count: values.length,
+          percentage: 100
+        }],
+        stats: {
+          min,
+          max,
+          mean: min,
+          stdDev: 0,
+          count: values.length
+        }
+      };
+    }
     
     // Create 10 bins
     const binCount = 10;
@@ -58,7 +99,7 @@ export const DistributionChart: React.FC<DistributionChartProps> = ({
       const lowerBound = min + i * binSize;
       const upperBound = min + (i + 1) * binSize;
       return {
-        range: `${lowerBound.toFixed(4)} - ${upperBound.toFixed(4)}`,
+        range: `${formatNumericValue(lowerBound)} - ${formatNumericValue(upperBound)}`,
         lowerBound,
         upperBound,
         count: 0,
@@ -82,14 +123,14 @@ export const DistributionChart: React.FC<DistributionChartProps> = ({
     // Calculate percentages
     const total = values.length;
     bins.forEach(bin => {
-      bin.percentage = (bin.count / total) * 100;
+      bin.percentage = total > 0 ? (bin.count / total) * 100 : 0;
     });
     
-    // Calculate statistics
+    // Calculate statistics with safe math
     const sum = values.reduce((acc, val) => acc + val, 0);
-    const mean = sum / values.length;
+    const mean = total > 0 ? sum / total : 0;
     const squaredDiffs = values.map(val => Math.pow(val - mean, 2));
-    const variance = squaredDiffs.reduce((acc, val) => acc + val, 0) / values.length;
+    const variance = total > 0 ? squaredDiffs.reduce((acc, val) => acc + val, 0) / total : 0;
     const stdDev = Math.sqrt(variance);
     
     return {
@@ -98,8 +139,8 @@ export const DistributionChart: React.FC<DistributionChartProps> = ({
         min,
         max,
         mean,
-        stdDev,
-        count: values.length
+        stdDev: isNaN(stdDev) ? 0 : stdDev,
+        count: total
       }
     };
   }, [config.series]);
@@ -122,7 +163,7 @@ export const DistributionChart: React.FC<DistributionChartProps> = ({
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-default-500">Mean</p>
-                    <p className="text-lg font-semibold">{histogramData.stats.mean.toFixed(4)}</p>
+                    <p className="text-lg font-semibold">{formatNumericValue(histogramData.stats.mean)}</p>
                     <p className="text-xs text-default-400">{config.unit}</p>
                   </div>
                   <div className="p-2 rounded-lg bg-primary-50 text-primary">
@@ -137,7 +178,7 @@ export const DistributionChart: React.FC<DistributionChartProps> = ({
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-default-500">Std Deviation</p>
-                    <p className="text-lg font-semibold">{histogramData.stats.stdDev.toFixed(4)}</p>
+                    <p className="text-lg font-semibold">{formatNumericValue(histogramData.stats.stdDev)}</p>
                     <p className="text-xs text-default-400">{config.unit}</p>
                   </div>
                   <div className="p-2 rounded-lg bg-secondary-50 text-secondary">
@@ -152,7 +193,7 @@ export const DistributionChart: React.FC<DistributionChartProps> = ({
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-default-500">Minimum</p>
-                    <p className="text-lg font-semibold">{histogramData.stats.min.toFixed(4)}</p>
+                    <p className="text-lg font-semibold">{formatNumericValue(histogramData.stats.min)}</p>
                     <p className="text-xs text-default-400">{config.unit}</p>
                   </div>
                   <div className="p-2 rounded-lg bg-danger-50 text-danger">
@@ -167,7 +208,7 @@ export const DistributionChart: React.FC<DistributionChartProps> = ({
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-default-500">Maximum</p>
-                    <p className="text-lg font-semibold">{histogramData.stats.max.toFixed(4)}</p>
+                    <p className="text-lg font-semibold">{formatNumericValue(histogramData.stats.max)}</p>
                     <p className="text-xs text-default-400">{config.unit}</p>
                   </div>
                   <div className="p-2 rounded-lg bg-success-50 text-success">
@@ -182,7 +223,7 @@ export const DistributionChart: React.FC<DistributionChartProps> = ({
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-default-500">Count</p>
-                    <p className="text-lg font-semibold">{histogramData.stats.count}</p>
+                    <p className="text-lg font-semibold">{formatNumericValue(histogramData.stats.count)}</p>
                     <p className="text-xs text-default-400">readings</p>
                   </div>
                   <div className="p-2 rounded-lg bg-warning-50 text-warning">
