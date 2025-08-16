@@ -4,7 +4,20 @@ import { chooseBucketSize } from "../utils/bucketSize";
 import TelemetryService from "../api/telemetry.service";
 import { TelemetryQueryParams, SensorTelemetryResponse } from "../types/telemetry";
 import { startLive, stopLive, LiveDataMessage, LiveCallbacks, getConnectionStatus } from '../lib/liveMqtt';
-import { updateSensorLastSeen, markSensorsOffline } from './sensorsSlice';
+import { updateSensorLastSeen, markSensorsOffline, fetchSensorDetails } from './sensorsSlice';
+
+// Rate limiting cache for unknown sensor discovery (1 minute cooldown)
+const unknownSensorCache = new Map<string, number>();
+const UNKNOWN_SENSOR_COOLDOWN = 60000; // 60 seconds
+
+// Additional cache for when sensors are added to unknownSensors list (prevents spam)
+const unknownSensorListCache = new Map<string, number>();
+const UNKNOWN_SENSOR_LIST_COOLDOWN = 30000; // 30 seconds
+const UNKNOWN_SENSOR_DISCOVERY_COOLDOWN = 60000; // 1 minute cooldown for auto-discovery
+
+// Throttle mechanism for lastSeen updates
+const lastSeenUpdateThrottleMap = new Map<string, number>();
+const LAST_SEEN_UPDATE_THROTTLE_MS = 10000; // Only update lastSeen every 10 seconds per sensor
 
 /** Re-use the point & sensor-data shapes already consumed by the charts */
 export interface DataPoint {
@@ -74,6 +87,34 @@ export const fetchTelemetry = createAsyncThunk<
   }
 });
 
+// Auto-discovery thunk for unknown sensors with rate limiting
+export const autoDiscoverSensor = createAsyncThunk(
+  'telemetry/autoDiscoverSensor',
+  async (mac: string, { dispatch }) => {
+    const now = Date.now();
+    const lastAttempt = unknownSensorCache.get(mac);
+    
+    // Check rate limiting
+    if (lastAttempt && (now - lastAttempt) < UNKNOWN_SENSOR_COOLDOWN) {
+      console.log(`[TelemetrySlice] Rate limiting: skipping auto-discovery for ${mac} (last attempt ${now - lastAttempt}ms ago)`);
+      return { skipped: true, mac };
+    }
+    
+    // Update cache
+    unknownSensorCache.set(mac, now);
+    console.log(`[TelemetrySlice] Attempting auto-discovery for unknown sensor: ${mac}`);
+    
+    // Fetch sensor details in background
+    try {
+      await dispatch(fetchSensorDetails(mac));
+      return { success: true, mac };
+    } catch (error) {
+      console.error(`[TelemetrySlice] Auto-discovery failed for ${mac}:`, error);
+      return { success: false, mac, error };
+    }
+  }
+);
+
 // New live data thunk for managing MQTT connections
 export const toggleLiveMode = createAsyncThunk(
   'telemetry/toggleLiveMode',
@@ -92,13 +133,21 @@ export const toggleLiveMode = createAsyncThunk(
           console.log('[TelemetrySlice] Received live data callback:', JSON.stringify(data, null, 2));
           dispatch(addLiveData(data));
           
-          // Update lastSeen for each sensor that sent data
+          // Update lastSeen for each sensor that sent data (throttled to prevent spam)
+          const now = new Date().toISOString();
+          const currentTime = Date.now();
+          
           data.sensors.forEach(reading => {
-            const now = new Date().toISOString();
-            dispatch(updateSensorLastSeen({ 
-              mac: reading.mac, 
-              lastSeen: now 
-            }));
+            const lastUpdateTime = lastSeenUpdateThrottleMap.get(reading.mac) || 0;
+            
+            // Only update if it's been at least LAST_SEEN_UPDATE_THROTTLE_MS since last update
+            if (currentTime - lastUpdateTime >= LAST_SEEN_UPDATE_THROTTLE_MS) {
+              lastSeenUpdateThrottleMap.set(reading.mac, currentTime);
+              dispatch(updateSensorLastSeen({ 
+                mac: reading.mac, 
+                lastSeen: now 
+              }));
+            }
           });
         },
         onPresence: (topic: string, message: any) => {
@@ -154,6 +203,7 @@ interface State {
   isLiveMode: boolean;
   liveStatus: 'connecting' | 'connected' | 'disconnected' | 'error';
   maxLiveReadings: number;
+  unknownSensors: string[]; // MACs of sensors that need auto-discovery
 }
 const initialState: State = {
   loading: false,
@@ -167,6 +217,7 @@ const initialState: State = {
   isLiveMode: true, // Default to live mode enabled
   liveStatus: 'disconnected',
   maxLiveReadings: 1000,
+  unknownSensors: [], // Track MACs that need auto-discovery
 };
 
 const telemetrySlice = createSlice({
@@ -206,6 +257,17 @@ const telemetrySlice = createSlice({
       state.liveStatus = 'error';
     },
 
+    clearUnknownSensor: (state, action: PayloadAction<string>) => {
+      const mac = action.payload;
+      state.unknownSensors = state.unknownSensors.filter(unknownMac => unknownMac !== mac);
+      
+      // Clean up cache entries for this MAC
+      unknownSensorListCache.delete(mac);
+      unknownSensorCache.delete(mac);
+      
+      console.log(`[TelemetrySlice] Removed ${mac} from unknown sensors list and cleared cache`);
+    },
+
     addLiveData: (state, action: PayloadAction<LiveDataMessage>) => {
       const { sensors } = action.payload;
       const now = Date.now();
@@ -225,13 +287,18 @@ const telemetrySlice = createSlice({
         const sensorKey = Object.keys(state.data).find(key => state.data[key].mac === mac);
 
         // If no sensor with this MAC exists in our state, we cannot update it.
-        // Log an error and skip this reading. This prevents polluting the state.
+        // Log a warning and skip this reading. This prevents polluting the state.
         if (!sensorKey) {
           console.warn(`[TelemetrySlice] Received live data for an unknown sensor MAC: ${mac}. Skipping.`);
           console.warn(`[TelemetrySlice] Available sensors:`, Object.keys(state.data).map(key => ({ 
             key, 
             mac: state.data[key].mac 
           })));
+          
+          // DISABLED: Automatic sensor auto-discovery to prevent API spam
+          // If you need to discover this sensor, please use the manual discovery feature
+          console.log(`[TelemetrySlice] Auto-discovery disabled for sensor ${mac}. Use manual discovery if needed.`);
+          
           return; // "return" here exits the forEach loop for this iteration.
         }
         // --- END REVISED LOGIC ---
@@ -405,7 +472,8 @@ export const {
   setLiveError,
   addLiveData,
   clearLiveData,
-  updateMaxLiveReadings
+  updateMaxLiveReadings,
+  clearUnknownSensor
 } = telemetrySlice.actions;
 
 /* ──────────────────────────────────────────────────────────── */

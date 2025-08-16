@@ -28,6 +28,7 @@ import {
   fetchSensors,
   selectFilters,
   selectSelectedSensor,
+  selectSelectedSensorId,
   selectSensors,
   selectSensorsLoading,
   setFilters,
@@ -70,6 +71,8 @@ export const SoloView: React.FC = () => {
   const isLoadingData = useSelector(selectTelemetryLoading);
   const sensors = useSelector(selectSensors);
   const loading = useSelector(selectSensorsLoading);
+  // Get selectedSensorData with stable ID reference to prevent unnecessary re-fetches
+  const selectedSensorId = useSelector(selectSelectedSensorId);
   const selectedSensorData = useSelector(selectSelectedSensor);
   const gateways = useSelector(selectGateways);
 
@@ -221,9 +224,13 @@ export const SoloView: React.FC = () => {
 
     /* a) we have an id in the URL ----------------------------------------- */
     if (sensorId) {
-      if (selectedSensorData.data?._id !== sensorId) {
-        console.log('[SoloView] Fetching sensor by ID:', sensorId);
+      // Only fetch if we don't have the sensor data OR if the sensor ID is different
+      // Use stable selectedSensorId to prevent re-fetches on lastSeen/status updates
+      if (!selectedSensorId || selectedSensorId !== sensorId) {
+        console.log('[SoloView] Fetching sensor by ID:', sensorId, 'Current selected ID:', selectedSensorId);
         dispatch(fetchSensorById(sensorId));
+      } else {
+        console.log('[SoloView] Sensor already loaded, skipping fetch for:', sensorId);
       }
       return;
     }
@@ -234,14 +241,14 @@ export const SoloView: React.FC = () => {
       console.log('[SoloView] Redirecting to first sensor:', firstId);
       navigate(`/dashboard/sensors/${firstId}?solo=true`, { replace: true });
     }
-  }, [sensorId, filteredIds, sensorsLoaded, selectedSensorData.data?._id, dispatch, navigate]);
+  }, [sensorId, filteredIds, sensorsLoaded, selectedSensorId, dispatch, navigate]);
 
   // Fetch telemetry data when selected sensor or time range changes - FIXED DEPENDENCIES
   React.useEffect(() => {
     console.log('[SoloView] Sensor selection effect:', { 
       sensorId, 
       filteredIds, 
-      selectedId: selectedSensorData.data?._id 
+      selectedId: selectedSensorId 
     });
 
     if (initialLoading) return; // wait until list call finished

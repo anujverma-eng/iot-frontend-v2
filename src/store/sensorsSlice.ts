@@ -3,6 +3,13 @@ import { FilterState, Sensor } from "../types/sensor";
 import { RootState } from ".";
 import SensorService from "../api/sensor.service";
 
+// Rate limiting cache for sensor fetches (30 seconds cooldown)
+const sensorFetchCache = new Map<string, number>();
+const FETCH_COOLDOWN_MS = 30000; // 30 seconds
+
+// Global promise cache to prevent duplicate concurrent requests
+const ongoingRequests = new Map<string, Promise<any>>();
+
 /* ─────────────────  thunks  ───────────────── */
 export const fetchSensors = createAsyncThunk(
   "sensors/fetch",
@@ -31,10 +38,53 @@ export const fetchSensorStats = createAsyncThunk("sensors/fetchStats", async () 
   return response;
 });
 
-export const fetchSensorDetails = createAsyncThunk("sensors/fetchDetails", async (mac: string) => {
-  const response = await SensorService.getSensorByMac(mac);
-  return response;
-});
+export const fetchSensorDetails = createAsyncThunk(
+  "sensors/fetchDetails", 
+  async (mac: string, { rejectWithValue }) => {
+    // Check if there's already an ongoing request for this MAC
+    if (ongoingRequests.has(mac)) {
+      console.log(`[SensorsSlice] Reusing ongoing request for sensor: ${mac}`);
+      try {
+        return await ongoingRequests.get(mac);
+      } catch (error) {
+        // If the ongoing request fails, we'll fall through to make a new one
+        ongoingRequests.delete(mac);
+      }
+    }
+
+    // Rate limiting check
+    const now = Date.now();
+    const lastFetch = sensorFetchCache.get(mac);
+    
+    if (lastFetch && (now - lastFetch) < FETCH_COOLDOWN_MS) {
+      const timeSinceLastFetch = Math.round((now - lastFetch) / 1000);
+      console.log(`[SensorsSlice] Rate limiting: Skipping fetch for ${mac} (last fetch was ${timeSinceLastFetch}s ago)`);
+      return rejectWithValue(`Rate limited: Recently fetched sensor ${mac} (${timeSinceLastFetch}s ago)`);
+    }
+    
+    // Create and cache the request promise
+    const requestPromise = (async () => {
+      try {
+        console.log(`[SensorsSlice] Fetching sensor details for MAC: ${mac}`);
+        sensorFetchCache.set(mac, now);
+        const response = await SensorService.getSensorByMac(mac);
+        return response;
+      } catch (error) {
+        // Remove from cache on error so we can retry later
+        sensorFetchCache.delete(mac);
+        throw error;
+      } finally {
+        // Always clean up the ongoing request
+        ongoingRequests.delete(mac);
+      }
+    })();
+
+    // Cache the promise to prevent duplicate concurrent requests
+    ongoingRequests.set(mac, requestPromise);
+    
+    return await requestPromise;
+  }
+);
 
 export const updateSensorLabel = createAsyncThunk(
   "sensors/updateLabel",
@@ -199,21 +249,30 @@ const sensorSlice = createSlice({
     updateSensorLastSeen: (state, action: PayloadAction<{ mac: string; lastSeen: string }>) => {
       const { mac, lastSeen } = action.payload;
       
-      // Update in main sensors list
+      // Update in main sensors list - use more direct mutation to avoid reference changes
       const sensorIndex = state.data.findIndex((sensor: Sensor) => sensor.mac === mac);
       if (sensorIndex !== -1) {
-        state.data[sensorIndex].lastSeen = lastSeen;
-        // Also mark as live status if needed
-        state.data[sensorIndex].status = "live";
+        // Only update if the values are actually different to avoid unnecessary updates
+        const sensor = state.data[sensorIndex];
+        const newStatus = "live";
+        
+        if (sensor.lastSeen !== lastSeen || sensor.status !== newStatus) {
+          sensor.lastSeen = lastSeen;
+          sensor.status = newStatus;
+          console.log('[SensorsSlice] Updated lastSeen for sensor', mac, 'to', lastSeen);
+        }
       }
       
-      // Update in selected sensor if it matches
+      // Update in selected sensor if it matches - only update if different
       if (state.selectedSensor.data && state.selectedSensor.data.mac === mac) {
-        state.selectedSensor.data.lastSeen = lastSeen;
-        state.selectedSensor.data.status = "live";
+        const selectedSensor = state.selectedSensor.data;
+        const newStatus = "live";
+        
+        if (selectedSensor.lastSeen !== lastSeen || selectedSensor.status !== newStatus) {
+          selectedSensor.lastSeen = lastSeen;
+          selectedSensor.status = newStatus;
+        }
       }
-      
-      console.log('[SensorsSlice] Updated lastSeen for sensor', mac, 'to', lastSeen);
     },
     // Mark all sensors as offline when live mode is disabled
     markSensorsOffline: (state) => {
@@ -423,6 +482,14 @@ export const selectSensorsLoading = (state: RootState) => state.sensors.loading;
 export const selectSensorsError = (state: RootState) => state.sensors.error;
 export const selectPagination = (state: RootState) => state.sensors.pagination;
 export const selectSelectedSensor = (state: RootState) => state.sensors.selectedSensor;
+
+// Stable selector that only changes when the sensor ID changes, not metadata
+export const selectSelectedSensorId = (state: RootState) => state.sensors.selectedSensor.data?._id;
+
+// Stable selector for checking if a sensor is loaded  
+export const selectIsSensorLoaded = (sensorId: string) => (state: RootState) => {
+  return state.sensors.selectedSensor.data?._id === sensorId;
+};
 export const selectCurrentSensorDataLoading = (state: RootState) => state.sensors.currentSensorDataLoading;
 
 export default sensorSlice.reducer;
