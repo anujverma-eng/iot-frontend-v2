@@ -177,45 +177,95 @@ export const SensorCard: React.FC<SensorCardProps> = ({
 
   return (
     <>
-      <Card
-        isPressable={!isComparing}
-        onPress={isComparing ? undefined : onSelect}
-        className={cardClassName}
-      >
-        <CardBody className="p-3 relative">
-          {/* Only show loading overlay after delay and when data is actually loading */}
-          {showDataLoading && (
-            <div className="absolute inset-0 bg-background/30 backdrop-blur-[1px] flex items-center justify-center z-10 rounded-lg">
-              <Spinner size="sm" color="primary" />
+      {/* Online/Offline Status Badge - Outside card, top-left corner */}
+      <div className="relative">
+        <div className="absolute -top-1 -left-1 z-50">
+          <Tooltip content={sensor.isOnline ? "Sensor is online" : "Sensor is offline"}>
+            <div className="flex items-center bg-background rounded-full px-1 py-1 border-2 border-primary-100">
+              <div className={`w-2 h-2 rounded-full ${
+                sensor.isOnline === false ? 'bg-danger animate-pulse' : 
+                sensor.isOnline === true ? 'bg-success animate-pulse' : 
+                'bg-warning'
+              }`} />
+              <span className={`text-xs font-medium ${
+                sensor.isOnline === false ? 'text-danger' : 
+                sensor.isOnline === true ? 'text-success' : 
+                'text-warning'
+              }`}>
+                {/* {sensor.isOnline === false ? 'OFFLINE' : "LIVE"} */}
+              </span>
             </div>
-          )}
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-2">
-              <Icon icon={typeIcon} className="text-primary-500" width={24} />
-              <div>
-                <h3 className="text-sm font-semibold">{sensor.displayName || sensor.name}</h3>
-                <p className="text-xs text-default-500">{sensor.mac}</p>
+          </Tooltip>
+        </div>
+        
+        <Card
+          isPressable={!isComparing}
+          onPress={isComparing ? undefined : onSelect}
+          className={cardClassName}
+        >
+          <CardBody className="p-3 relative">
+            {/* Only show loading overlay after delay and when data is actually loading */}
+            {showDataLoading && (
+              <div className="absolute inset-0 bg-background/30 backdrop-blur-[1px] flex items-center justify-center z-10 rounded-lg">
+                <Spinner size="sm" color="primary" />
+              </div>
+            )}
+
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2">
+                <Icon icon={typeIcon} className="text-primary-500" width={24} />
+                <div>
+                  <h3 className="text-sm font-semibold">{sensor.displayName || sensor.name}</h3>
+                  <p className="text-xs text-default-500">{sensor.mac}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">{isComparing ? (
+                  <Checkbox 
+                    isSelected={isLocallyChecked} // Use local state for immediate feedback
+                    onValueChange={handleCheckboxChange} 
+                    size="sm"
+                    className="z-20" // Ensure checkbox is above loading overlay
+                  />
+                ) : starLoading ? (
+                  <Spinner size="sm" />
+                ) : (
+                  <>
+                    <Icon
+                      icon={sensor.favorite ? "mdi:star" : "mdi:star-outline"}
+                      className={`cursor-pointer ${sensor.favorite ? "text-warning" : "text-default-400"}`}
+                      style={sensor.favorite ? { color: "#fbbf24" } : {}}
+                      onClick={handleStarClick}
+                    />
+                    <Icon
+                      icon="lucide:trash"
+                      className="cursor-pointer text-danger"
+                      onClick={handleDeleteClick}
+                    />
+                  </>
+                )}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {/* Online/Offline Status Indicator */}
-              <Tooltip content={sensor.isOnline ? "Sensor is online" : "Sensor is offline"}>
-                <div className="flex items-center gap-1">
-                  <div className={`w-2 h-2 rounded-full ${
-                    sensor.isOnline === false ? 'bg-danger animate-pulse' : 
-                    sensor.isOnline === true ? 'bg-success animate-pulse' : 
-                    'bg-warning'
-                  }`} />
-                  <span className={`text-xs font-medium ${
-                    sensor.isOnline === false ? 'text-danger' : 
-                    sensor.isOnline === true ? 'text-success' : 
-                    'text-warning'
-                  }`}>
-                    {sensor.isOnline === false ? 'OFFLINE' : "LIVE"}
-                  </span>
-                </div>
-              </Tooltip>
 
+            <div className="mt-2 flex items-center justify-between">
+              <Badge color="primary" variant="flat">
+                {formatNumericValue(sensor.lastValue, 4)} {sensor.unit}
+              </Badge>
+              <span className="text-xs text-default-500">
+                {new Date(sensor.lastSeen).toLocaleString("en-US", {
+                  month: "numeric",
+                  day: "numeric",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit"
+                })}
+              </span>
+            </div>
+
+            <div className="mt-2 flex items-center justify-between text-xs text-default-500">
+              <Tooltip content={`First seen: ${formattedDates.firstSeenTooltip}`}>
+                <span>{formattedDates.firstSeenDistance}</span>
+              </Tooltip>
               {/* Battery indicator with visual cells */}
               <Tooltip content={sensor.battery !== undefined ? `Battery: ${sensor.battery}%` : "Battery: Status unknown"}>
                 <div className="flex items-center gap-1">
@@ -230,63 +280,17 @@ export const SensorCard: React.FC<SensorCardProps> = ({
                   )}
                 </div>
               </Tooltip>
-
-              {isComparing ? (
-                <Checkbox 
-                  isSelected={isLocallyChecked} // Use local state for immediate feedback
-                  onValueChange={handleCheckboxChange} 
-                  size="sm"
-                  className="z-20" // Ensure checkbox is above loading overlay
-                />
-              ) : starLoading ? (
-                <Spinner size="sm" />
-              ) : (
-                <>
-                  <Icon
-                    icon={sensor.favorite ? "mdi:star" : "mdi:star-outline"}
-                    className={`cursor-pointer ${sensor.favorite ? "text-warning" : "text-default-400"}`}
-                    style={sensor.favorite ? { color: "#fbbf24" } : {}}
-                    onClick={handleStarClick}
-                  />
-                  <Icon
-                    icon="lucide:trash"
-                    className="cursor-pointer text-danger"
-                    onClick={handleDeleteClick}
-                  />
-                </>
-              )}
             </div>
-          </div>
 
-          <div className="mt-2 flex items-center justify-between">
-            <Badge color="primary" variant="flat">
-              {formatNumericValue(sensor.lastValue, 4)} {sensor.unit}
-            </Badge>
-            <span className="text-xs text-default-500">
-              {new Date(sensor.lastSeen).toLocaleString("en-US", {
-                month: "numeric",
-                day: "numeric",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit"
-              })}
-            </span>
-          </div>
-
-          <div className="mt-2 flex items-center justify-between text-xs text-default-500">
-            <Tooltip content={`First seen: ${formattedDates.firstSeenTooltip}`}>
-              <span>{formattedDates.firstSeenDistance}</span>
-            </Tooltip>
-          </div>
-
-          {sensor.ignored && (
-            <Badge color="danger" variant="flat" className="mt-2">
-              Ignored
-            </Badge>
-          )}
-        </CardBody>
-      </Card>
+            {sensor.ignored && (
+              <Badge color="danger" variant="flat" className="mt-2">
+                Ignored
+              </Badge>
+            )}
+          </CardBody>
+        </Card>
+      </div>
+      
       <DeleteSensorModal
         isOpen={isDeleteOpen}
         onClose={onDeleteClose}
