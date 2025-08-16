@@ -195,6 +195,42 @@ const sensorSlice = createSlice({
     setLimit: (state, action: PayloadAction<number>) => {
       state.pagination.limit = action.payload;
     },
+    // Update lastSeen for a sensor when live data is received
+    updateSensorLastSeen: (state, action: PayloadAction<{ mac: string; lastSeen: string }>) => {
+      const { mac, lastSeen } = action.payload;
+      
+      // Update in main sensors list
+      const sensorIndex = state.data.findIndex((sensor: Sensor) => sensor.mac === mac);
+      if (sensorIndex !== -1) {
+        state.data[sensorIndex].lastSeen = lastSeen;
+        // Also mark as live status if needed
+        state.data[sensorIndex].status = "live";
+      }
+      
+      // Update in selected sensor if it matches
+      if (state.selectedSensor.data && state.selectedSensor.data.mac === mac) {
+        state.selectedSensor.data.lastSeen = lastSeen;
+        state.selectedSensor.data.status = "live";
+      }
+      
+      console.log('[SensorsSlice] Updated lastSeen for sensor', mac, 'to', lastSeen);
+    },
+    // Mark all sensors as offline when live mode is disabled
+    markSensorsOffline: (state) => {
+      // Update status for all sensors in main list
+      state.data.forEach((sensor: Sensor) => {
+        if (sensor.status === "live") {
+          sensor.status = "offline";
+        }
+      });
+      
+      // Update selected sensor if it's currently live
+      if (state.selectedSensor.data && state.selectedSensor.data.status === "live") {
+        state.selectedSensor.data.status = "offline";
+      }
+      
+      console.log('[SensorsSlice] Marked all sensors as offline');
+    },
   },
   extraReducers: (builder) => {
     /* fetch sensors ------------------------------------- */
@@ -369,6 +405,8 @@ export const {
   clearSelectedSensorIds,
   setCurrentSensorDataLoading,
   setLimit,
+  updateSensorLastSeen,
+  markSensorsOffline,
 } = sensorSlice.actions;
 
 /* ─────────────────  selectors  ─────────────────── */

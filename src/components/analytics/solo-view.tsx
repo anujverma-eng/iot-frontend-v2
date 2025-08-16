@@ -176,6 +176,41 @@ export const SoloView: React.FC = () => {
     dispatch(fetchGateways({ page: 1, limit: 1000, search: "" }));
   }, [dispatch]);
 
+  // Auto-enable live mode when solo-view loads
+  React.useEffect(() => {
+    let autoEnableTimer: NodeJS.Timeout;
+    
+    // Wait for gateways to be loaded and component to be initialized
+    if (gateways.length > 0 && !isLiveMode && !initialLoading) {
+      console.log('[SoloView] Auto-enabling live mode with', gateways.length, 'gateways');
+      
+      // Small delay to ensure everything is initialized
+      autoEnableTimer = setTimeout(async () => {
+        try {
+          const gatewayIds = gateways
+            .map(gateway => gateway._id)
+            .slice(0, 10); // Limit to prevent too many subscriptions
+
+          console.log('[SoloView] Auto-starting live mode for gateways:', gatewayIds);
+          
+          if (gatewayIds.length > 0) {
+            await dispatch(toggleLiveMode({ enable: true, gatewayIds })).unwrap();
+            setIsLiveMode(true); // Update local state
+            console.log('[SoloView] Live mode auto-enabled successfully');
+          }
+        } catch (error) {
+          console.error('[SoloView] Failed to auto-enable live mode:', error);
+        }
+      }, 1500); // Slightly longer delay for solo-view
+    }
+
+    return () => {
+      if (autoEnableTimer) {
+        clearTimeout(autoEnableTimer);
+      }
+    };
+  }, [gateways, isLiveMode, initialLoading, dispatch]);
+
   /*****************************************************************************
    * 2️⃣  Ensure we always have a “selected” sensor
    *****************************************************************************/
@@ -895,22 +930,22 @@ export const SoloView: React.FC = () => {
                     <Tabs aria-label="Analytics tabs" color="primary" variant="underlined" className="mb-4">
                       <Tab key="distribution" title="Distribution">
                         <div className="h-[700px] mt-4">
-                          {chartConfig && <DistributionChart config={chartConfig} showCards showChart />}
+                          {chartConfig && <DistributionChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />}
                         </div>
                       </Tab>
                       <Tab key="trend" title="Trend Analysis">
                         <div className="h-[700px] mt-4">
-                          {chartConfig && <TrendAnalysisChart config={chartConfig} showCards showChart />}
+                          {chartConfig && <TrendAnalysisChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />}
                         </div>
                       </Tab>
                       <Tab key="anomaly" title="Anomaly Detection">
                         <div className="h-[700px] mt-4">
-                          {chartConfig && <AnomalyDetectionChart config={chartConfig} showCards showChart/>}
+                          {chartConfig && <AnomalyDetectionChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />}
                         </div>
                       </Tab>
                       <Tab key="correlation" title="Correlation">
                         <div className="h-[700px] mt-4">
-                          {chartConfig && <CorrelationAnalysisChart config={chartConfig} showCards showChart />}
+                          {chartConfig && <CorrelationAnalysisChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />}
                         </div>
                       </Tab>
                     </Tabs>
@@ -924,7 +959,7 @@ export const SoloView: React.FC = () => {
                     <CardBody className="p-3">
                       <h3 className="text-sm font-medium mb-2 text-primary-600">Value Distribution</h3>
                       <div className="h-[250px]">
-                        {chartConfig && <DistributionChart config={chartConfig} showChart />}
+                        {chartConfig && <DistributionChart config={chartConfig} showChart isLiveMode={isLiveMode} />}
                       </div>
                     </CardBody>
                   </Card>
@@ -933,7 +968,7 @@ export const SoloView: React.FC = () => {
                     <CardBody className="p-3">
                       <h3 className="text-sm font-medium mb-2 text-secondary-600">Trend Analysis</h3>
                       <div className="h-[250px]">
-                        {chartConfig && <TrendAnalysisChart config={chartConfig} showChart />}
+                        {chartConfig && <TrendAnalysisChart config={chartConfig} showChart isLiveMode={isLiveMode} />}
                       </div>
                     </CardBody>
                   </Card>
@@ -942,7 +977,7 @@ export const SoloView: React.FC = () => {
                     <CardBody className="p-3">
                       <h3 className="text-sm font-medium mb-2 text-danger-600">Anomaly Detection</h3>
                       <div className="h-[250px]">
-                        {chartConfig && <AnomalyDetectionChart config={chartConfig} showChart />}
+                        {chartConfig && <AnomalyDetectionChart config={chartConfig} showChart isLiveMode={isLiveMode} />}
                       </div>
                     </CardBody>
                   </Card>
@@ -951,7 +986,7 @@ export const SoloView: React.FC = () => {
                     <CardBody className="p-3">
                       <h3 className="text-sm font-medium mb-2 text-success-600">Correlation Analysis</h3>
                       <div className="h-[250px]">
-                        {chartConfig && <CorrelationAnalysisChart config={chartConfig} showChart />}
+                        {chartConfig && <CorrelationAnalysisChart config={chartConfig} showChart isLiveMode={isLiveMode} />}
                       </div>
                     </CardBody>
                   </Card>

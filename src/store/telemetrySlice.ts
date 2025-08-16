@@ -4,6 +4,7 @@ import { chooseBucketSize } from "../utils/bucketSize";
 import TelemetryService from "../api/telemetry.service";
 import { TelemetryQueryParams, SensorTelemetryResponse } from "../types/telemetry";
 import { startLive, stopLive, LiveDataMessage, LiveCallbacks, getConnectionStatus } from '../lib/liveMqtt';
+import { updateSensorLastSeen, markSensorsOffline } from './sensorsSlice';
 
 /** Re-use the point & sensor-data shapes already consumed by the charts */
 export interface DataPoint {
@@ -90,6 +91,15 @@ export const toggleLiveMode = createAsyncThunk(
         onData: (data: LiveDataMessage) => {
           console.log('[TelemetrySlice] Received live data callback:', JSON.stringify(data, null, 2));
           dispatch(addLiveData(data));
+          
+          // Update lastSeen for each sensor that sent data
+          data.sensors.forEach(reading => {
+            const now = new Date().toISOString();
+            dispatch(updateSensorLastSeen({ 
+              mac: reading.mac, 
+              lastSeen: now 
+            }));
+          });
         },
         onPresence: (topic: string, message: any) => {
           console.log('[TelemetrySlice] Presence event callback:', topic, message);
@@ -119,7 +129,9 @@ export const toggleLiveMode = createAsyncThunk(
       // Stop live connection
       console.log('[TelemetrySlice] Stopping live mode...');
       stopLive();
-      console.log('[TelemetrySlice] stopLive completed');
+      // Mark all sensors as offline when live mode is disabled
+      dispatch(markSensorsOffline());
+      console.log('[TelemetrySlice] stopLive completed and sensors marked offline');
       return { enabled: false };
     }
   }

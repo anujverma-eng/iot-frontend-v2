@@ -18,11 +18,17 @@ interface TrendAnalysisChartProps {
   config: ChartConfig;
   showCards?: boolean;
   showChart?: boolean;
+  isLiveMode?: boolean;
 }
 
-export const TrendAnalysisChart: React.FC<TrendAnalysisChartProps> = ({ config, showCards, showChart }) => {
+export const TrendAnalysisChart: React.FC<TrendAnalysisChartProps> = ({ 
+  config, 
+  showCards, 
+  showChart, 
+  isLiveMode = false 
+}) => {
   const [brushDomain, setBrushDomain] = React.useState<[number, number] | null>(null);
-  // Calculate trend data
+  // Calculate trend data - recalculates in live mode when data changes
   const trendData = React.useMemo(() => {
     if (!config.series || config.series.length < 2) return null;
 
@@ -347,21 +353,22 @@ export const TrendAnalysisChart: React.FC<TrendAnalysisChartProps> = ({ config, 
                   />
                 ))}
 
-                {/* Add brush for interactive time selection */}
-                <Brush 
-                  dataKey="timestamp" 
-                  height={30}
-                  stroke="#4f46e5"
-                  fill="rgba(79, 70, 229, 0.1)"
-                  tickFormatter={(timestamp) => {
-                    const date = new Date(timestamp);
-                    return date.toLocaleDateString("en-US", { 
-                      month: "short", 
-                      day: "numeric" 
-                    });
-                  }}
-                  onChange={(brushData) => {
-                    if (brushData?.startIndex !== undefined && brushData?.endIndex !== undefined) {
+                {/* Add brush for interactive time selection - disabled in live mode */}
+                {!isLiveMode && (
+                  <Brush 
+                    dataKey="timestamp" 
+                    height={30}
+                    stroke="#4f46e5"
+                    fill="rgba(79, 70, 229, 0.1)"
+                    tickFormatter={(timestamp) => {
+                      const date = new Date(timestamp);
+                      return date.toLocaleDateString("en-US", { 
+                        month: "short", 
+                        day: "numeric" 
+                      });
+                    }}
+                    onChange={(brushData) => {
+                      if (brushData?.startIndex !== undefined && brushData?.endIndex !== undefined) {
                       const startTimestamp = trendData.movingAvg[brushData.startIndex]?.timestamp;
                       const endTimestamp = trendData.movingAvg[brushData.endIndex]?.timestamp;
                       if (startTimestamp && endTimestamp) {
@@ -371,7 +378,8 @@ export const TrendAnalysisChart: React.FC<TrendAnalysisChartProps> = ({ config, 
                       setBrushDomain(null);
                     }
                   }}
-                />
+                  />
+                )}
               </LineChart>
             </ResponsiveContainer>
           </div>

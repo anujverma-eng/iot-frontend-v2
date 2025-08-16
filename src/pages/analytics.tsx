@@ -195,6 +195,40 @@ export const AnalyticsPage: React.FC = () => {
     dispatch(fetchGateways({ page: 1, limit: 1000, search: "" }));
   }, [dispatch, filters.search, filters.types, filters.status]);
 
+  // Auto-enable live mode when analytics page loads
+  React.useEffect(() => {
+    let autoEnableTimer: NodeJS.Timeout;
+    
+    // Wait for gateways to be loaded first
+    if (gateways.length > 0 && !isLiveMode) {
+      console.log('[Analytics] Auto-enabling live mode with', gateways.length, 'gateways');
+      
+      // Small delay to ensure everything is initialized
+      autoEnableTimer = setTimeout(async () => {
+        try {
+          const gatewayIds = gateways
+            .map(gateway => gateway._id)
+            .slice(0, 10); // Limit to prevent too many subscriptions
+
+          console.log('[Analytics] Auto-starting live mode for gateways:', gatewayIds);
+          
+          if (gatewayIds.length > 0) {
+            await dispatch(toggleLiveMode({ enable: true, gatewayIds })).unwrap();
+            console.log('[Analytics] Live mode auto-enabled successfully');
+          }
+        } catch (error) {
+          console.error('[Analytics] Failed to auto-enable live mode:', error);
+        }
+      }, 1000);
+    }
+
+    return () => {
+      if (autoEnableTimer) {
+        clearTimeout(autoEnableTimer);
+      }
+    };
+  }, [gateways, isLiveMode, dispatch]);
+
   // Refresh sensor data (for use after sensor updates/deletions)
   const refreshSensorData = React.useCallback(() => {
     dispatch(

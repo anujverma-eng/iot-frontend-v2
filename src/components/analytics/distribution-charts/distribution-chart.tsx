@@ -19,16 +19,18 @@ interface DistributionChartProps {
   config: ChartConfig;
   showCards?: boolean;
   showChart?: boolean;
+  isLiveMode?: boolean;
 }
 
 export const DistributionChart: React.FC<DistributionChartProps> = ({ 
   config, 
   showCards, 
   showChart,
+  isLiveMode = false,
 }) => {
   const displayCards = showCards
   const displayChart = showChart
-  // Generate histogram data
+  // Generate histogram data - recalculates when data changes in live mode
   const histogramData = React.useMemo(() => {
     if (!config.series || config.series.length === 0) {
       return {
@@ -279,14 +281,16 @@ export const DistributionChart: React.FC<DistributionChartProps> = ({
                 ))}
               </Bar>
               
-              {/* Add brush for interactive selection */}
-              <Brush 
-                dataKey="range" 
-                height={30}
-                stroke="#6366f1"
-                fill="rgba(99, 102, 241, 0.1)"
-                tickFormatter={(value) => value.toString().slice(0, 8)}
-              />
+              {/* Add brush for interactive selection - disabled in live mode */}
+              {!isLiveMode && (
+                <Brush 
+                  dataKey="range" 
+                  height={30}
+                  stroke="#6366f1"
+                  fill="rgba(99, 102, 241, 0.1)"
+                  tickFormatter={(value) => value.toString().slice(0, 8)}
+                />
+              )}
             </BarChart>
           </ResponsiveContainer>
         </div>

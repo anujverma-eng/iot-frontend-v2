@@ -20,11 +20,17 @@ interface AnomalyDetectionChartProps {
   config: ChartConfig;
   showChart?: boolean;
   showCards?: boolean;
+  isLiveMode?: boolean;
 }
 
-export const AnomalyDetectionChart: React.FC<AnomalyDetectionChartProps> = ({ config, showChart = false, showCards=false }) => {
+export const AnomalyDetectionChart: React.FC<AnomalyDetectionChartProps> = ({ 
+  config, 
+  showChart = false, 
+  showCards = false, 
+  isLiveMode = false 
+}) => {
   const [brushDomain, setBrushDomain] = React.useState<[number, number] | null>(null);
-  // Calculate anomalies using Z-score method
+  // Calculate anomalies using Z-score method - recalculates in live mode
   const anomalyData = React.useMemo(() => {
     if (!config.series || config.series.length < 10) return null;
 
@@ -233,31 +239,33 @@ export const AnomalyDetectionChart: React.FC<AnomalyDetectionChartProps> = ({ co
                   ))}
                 </Scatter>
 
-                {/* Add brush for interactive time selection */}
-                <Brush 
-                  dataKey="timestamp" 
-                  height={30}
-                  stroke="#ef4444"
-                  fill="rgba(239, 68, 68, 0.1)"
-                  tickFormatter={(timestamp) => {
-                    const date = new Date(timestamp);
-                    return date.toLocaleDateString("en-US", { 
-                      month: "short", 
-                      day: "numeric" 
-                    });
-                  }}
-                  onChange={(brushData) => {
-                    if (brushData?.startIndex !== undefined && brushData?.endIndex !== undefined && anomalyData.dataWithZScores) {
-                      const startTimestamp = anomalyData.dataWithZScores[brushData.startIndex]?.timestamp;
-                      const endTimestamp = anomalyData.dataWithZScores[brushData.endIndex]?.timestamp;
-                      if (startTimestamp && endTimestamp) {
-                        setBrushDomain([startTimestamp, endTimestamp]);
+                {/* Add brush for interactive time selection - disabled in live mode */}
+                {!isLiveMode && (
+                  <Brush 
+                    dataKey="timestamp" 
+                    height={30}
+                    stroke="#ef4444"
+                    fill="rgba(239, 68, 68, 0.1)"
+                    tickFormatter={(timestamp) => {
+                      const date = new Date(timestamp);
+                      return date.toLocaleDateString("en-US", { 
+                        month: "short", 
+                        day: "numeric" 
+                      });
+                    }}
+                    onChange={(brushData) => {
+                      if (brushData?.startIndex !== undefined && brushData?.endIndex !== undefined && anomalyData.dataWithZScores) {
+                        const startTimestamp = anomalyData.dataWithZScores[brushData.startIndex]?.timestamp;
+                        const endTimestamp = anomalyData.dataWithZScores[brushData.endIndex]?.timestamp;
+                        if (startTimestamp && endTimestamp) {
+                          setBrushDomain([startTimestamp, endTimestamp]);
                       }
                     } else {
                       setBrushDomain(null);
                     }
                   }}
-                />
+                  />
+                )}
               </ScatterChart>
             </ResponsiveContainer>
           </div>
