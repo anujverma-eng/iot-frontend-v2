@@ -145,7 +145,8 @@ export const toggleLiveMode = createAsyncThunk(
               lastSeenUpdateThrottleMap.set(reading.mac, currentTime);
               dispatch(updateSensorLastSeen({ 
                 mac: reading.mac, 
-                lastSeen: now 
+                lastSeen: now,
+                battery: reading.battery // Include battery in sensor updates
               }));
             }
           });

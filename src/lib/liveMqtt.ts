@@ -9,6 +9,7 @@ export interface LiveSensorReading {
   unit: string;
   value: number;
   timestamp: number; // Added timestamp
+  battery?: number; // Battery percentage (0-100), optional
 }
 
 export interface LiveDataMessage {

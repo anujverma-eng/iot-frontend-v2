@@ -29,12 +29,12 @@ const sidebarItems: SidebarItem[] = [
     icon: "lucide:bar-chart-2",
     path: "/dashboard/panel",
   },
-  {
-    name: "Monitoring",
-    icon: "lucide:activity",
-    path: "/dashboard/monitoring",
-    badge: "Live",
-  },
+  // {
+  //   name: "Monitoring",
+  //   icon: "lucide:activity",
+  //   path: "/dashboard/monitoring",
+  //   badge: "Live",
+  // },
   {
     name: "Sensors",
     icon: "lucide:cpu",

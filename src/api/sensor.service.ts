@@ -43,8 +43,16 @@ export const SensorService = {
   },
 
   /* ── stats & telemetry ───────────────────────────────────── */
-  getSensorStats(): Promise<{ claimed: number; unclaimed: number; liveSensors: number; offlineSensors: number }> {
-    return http.get("/sensors/stats").then((r) => r.data.data);
+  getSensorStats(): Promise<{ claimed: number; unclaimed: number; liveSensors: number; offlineSensors: number; lowBatterySensors: number }> {
+    return http.get("/sensors/stats").then((r) => {
+      const data = r.data.data;
+      // Note: Backend should ideally provide lowBatterySensors count
+      // For now, we'll calculate it client-side in the reducer
+      return {
+        ...data,
+        lowBatterySensors: data.lowBatterySensors || 0 // Fallback to 0 if not provided by backend
+      };
+    });
   },
 
   telemetry(params: TelemetryQueryParams): Promise<SensorTelemetryResponse[]> {

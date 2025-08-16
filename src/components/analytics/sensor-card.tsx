@@ -8,6 +8,8 @@ import { Sensor } from "../../types/sensor";
 import { DeleteSensorModal } from "../DeleteSensorModal";
 import { AppDispatch } from "../../store";
 import { unclaimSensor } from "../../store/sensorsSlice";
+import { getBatteryLevel, getBatteryColor, getBatteryIcon, getBatteryIconComponent, isLowBattery, getBatteryCardClass, formatBatteryDisplay } from "../../utils/battery";
+import { BatteryIconWithCells } from "./BatteryIconWithCells";
 
 interface SensorCardProps {
   sensor: Sensor;
@@ -114,11 +116,12 @@ export const SensorCard: React.FC<SensorCardProps> = React.memo(({
 
   // Optimize card styling with memoization
   const cardClassName = React.useMemo(() => {
-    const baseClasses = "w-full";
+    const baseClasses = "w-full relative";
     const borderClasses = isSelected || (isComparing && isLocallyChecked) ? "border-primary border-2" : "";
     const loadingClasses = showDataLoading ? "opacity-70" : "";
-    return `${baseClasses} ${borderClasses} ${loadingClasses}`.trim();
-  }, [isSelected, isComparing, isLocallyChecked, showDataLoading]);
+    const batteryClasses = getBatteryCardClass(sensor.battery);
+    return `${baseClasses} ${borderClasses} ${loadingClasses} ${batteryClasses}`.trim();
+  }, [isSelected, isComparing, isLocallyChecked, showDataLoading, sensor.battery]);
 
   // Use useCallback for event handlers to prevent unnecessary re-renders
   const handleStarClick = React.useCallback(async (e: React.MouseEvent) => {
@@ -190,6 +193,21 @@ export const SensorCard: React.FC<SensorCardProps> = React.memo(({
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {/* Battery indicator with visual cells */}
+              <Tooltip content={sensor.battery !== undefined ? `Battery: ${sensor.battery}%` : "Battery: Status unknown"}>
+                <div className="flex items-center gap-1">
+                  <BatteryIconWithCells 
+                    battery={sensor.battery}
+                    size={16}
+                  />
+                  {sensor.battery !== undefined && (
+                    <span className={`text-xs ${getBatteryColor(sensor.battery)}`}>
+                      {formatBatteryDisplay(sensor.battery)}
+                    </span>
+                  )}
+                </div>
+              </Tooltip>
+
               {isComparing ? (
                 <Checkbox 
                   isSelected={isLocallyChecked} // Use local state for immediate feedback

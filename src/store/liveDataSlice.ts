@@ -100,7 +100,8 @@ export const initializeLiveConnection = createAsyncThunk(
             const nowStr = new Date().toISOString();
             dispatch(updateSensorLastSeen({ 
               mac: reading.mac, 
-              lastSeen: nowStr 
+              lastSeen: nowStr,
+              battery: reading.battery // Include battery data from socket
             }));
           });
         },

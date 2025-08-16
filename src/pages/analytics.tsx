@@ -32,6 +32,7 @@ import {
   selectSensors,
   selectSensorsLoading,
   selectSensorStats,
+  selectEnhancedSensorStats, // Import enhanced stats selector
   setClaimModalOpen,
   setFilters,
   setPage,
@@ -51,6 +52,7 @@ import { useDebouncedSensorSelection } from "../hooks/useDebouncedSensorSelectio
 import { useOptimizedDataFetch } from "../hooks/useOptimizedDataFetch";
 import { useCompareSelection } from "../hooks/useCompareSelection";
 import { ChartConfig, FilterState, MultiSeriesConfig, SensorStatus, SensorType } from "../types/sensor";
+import { sortSensorsByBattery } from "../utils/battery"; // Import battery sorting utility
 
 type RangeValue<T> = { start: T | null; end: T | null };
 
@@ -92,7 +94,7 @@ export const AnalyticsPage: React.FC = () => {
   const isConnecting = useSelector(selectIsConnecting);
   const liveSensors = useSelector(selectLiveSensors);
 
-  const stats = useSelector(selectSensorStats);
+  const stats = useSelector(selectEnhancedSensorStats); // Use enhanced stats with battery count
   const [pendingFilters, setPendingFilters] = React.useState<FilterState | null>(null);
 
   const applyPendingFilters = () => {
@@ -242,6 +244,9 @@ export const AnalyticsPage: React.FC = () => {
         return (av > bv ? 1 : -1) * (direction === "asc" ? 1 : -1);
       });
     }
+
+    /* Sort by battery levels (lowest battery at last) */
+    list = sortSensorsByBattery(list);
 
     return list;
   }, [mappedSensors, filters]);
@@ -892,10 +897,10 @@ export const AnalyticsPage: React.FC = () => {
                 <DropdownItem key="battery" textValue="Low Battery">
                   <div className="flex justify-between items-center w-full">
                     <div className="flex items-center gap-2">
-                      <Icon icon="lucide:battery-warning" width={16} className="text-warning" />
+                      <Icon icon="lucide:battery-warning" width={16} className="text-red-500" />
                       <span className="text-sm">Low Battery</span>
                     </div>
-                    <span className="font-semibold text-warning">0</span>
+                    <span className="font-semibold text-red-500">{stats?.lowBatterySensors ?? 0}</span>
                   </div>
                 </DropdownItem>
               </DropdownMenu>
@@ -925,9 +930,9 @@ export const AnalyticsPage: React.FC = () => {
               />
               <StatsCard
                 title="Low Battery Sensors"
-                value="0"
+                value={(stats?.lowBatterySensors ?? 0).toString()}
                 icon="lucide:battery-warning"
-                color="warning"
+                color="danger"
               />
             </div>
           </div>

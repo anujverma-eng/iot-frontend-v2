@@ -1,7 +1,8 @@
-import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
+import { createSlice, createAsyncThunk, PayloadAction, createSelector } from "@reduxjs/toolkit";
 import { FilterState, Sensor } from "../types/sensor";
 import { RootState } from ".";
 import SensorService from "../api/sensor.service";
+import { isLowBattery } from "../utils/battery"; // Import battery utility
 
 // Rate limiting cache for sensor fetches (30 seconds cooldown)
 const sensorFetchCache = new Map<string, number>();
@@ -135,6 +136,7 @@ interface State {
     unclaimed: number;
     liveSensors: number;
     offlineSensors: number;
+    lowBatterySensors: number; // Add low battery sensors count
   } | null;
   selectedSensorIds: string[];
   filters: FilterState;
@@ -246,8 +248,8 @@ const sensorSlice = createSlice({
       state.pagination.limit = action.payload;
     },
     // Update lastSeen for a sensor when live data is received
-    updateSensorLastSeen: (state, action: PayloadAction<{ mac: string; lastSeen: string }>) => {
-      const { mac, lastSeen } = action.payload;
+    updateSensorLastSeen: (state, action: PayloadAction<{ mac: string; lastSeen: string; battery?: number }>) => {
+      const { mac, lastSeen, battery } = action.payload;
       
       // Update in main sensors list - use more direct mutation to avoid reference changes
       const sensorIndex = state.data.findIndex((sensor: Sensor) => sensor.mac === mac);
@@ -256,10 +258,13 @@ const sensorSlice = createSlice({
         const sensor = state.data[sensorIndex];
         const newStatus = "live";
         
-        if (sensor.lastSeen !== lastSeen || sensor.status !== newStatus) {
+        if (sensor.lastSeen !== lastSeen || sensor.status !== newStatus || sensor.battery !== battery) {
           sensor.lastSeen = lastSeen;
           sensor.status = newStatus;
-          console.log('[SensorsSlice] Updated lastSeen for sensor', mac, 'to', lastSeen);
+          if (battery !== undefined) {
+            sensor.battery = battery;
+          }
+          console.log('[SensorsSlice] Updated lastSeen for sensor', mac, 'to', lastSeen, 'battery:', battery);
         }
       }
       
@@ -268,9 +273,12 @@ const sensorSlice = createSlice({
         const selectedSensor = state.selectedSensor.data;
         const newStatus = "live";
         
-        if (selectedSensor.lastSeen !== lastSeen || selectedSensor.status !== newStatus) {
+        if (selectedSensor.lastSeen !== lastSeen || selectedSensor.status !== newStatus || selectedSensor.battery !== battery) {
           selectedSensor.lastSeen = lastSeen;
           selectedSensor.status = newStatus;
+          if (battery !== undefined) {
+            selectedSensor.battery = battery;
+          }
         }
       }
     },
@@ -491,5 +499,27 @@ export const selectIsSensorLoaded = (sensorId: string) => (state: RootState) => 
   return state.sensors.selectedSensor.data?._id === sensorId;
 };
 export const selectCurrentSensorDataLoading = (state: RootState) => state.sensors.currentSensorDataLoading;
+
+// Enhanced selector for stats with computed low battery count
+export const selectEnhancedSensorStats = createSelector(
+  [selectSensorStats, selectSensors],
+  (stats, sensors) => {
+    if (!stats) return null;
+    
+    // Calculate low battery sensors count from sensor data
+    const lowBatterySensors = sensors.filter(sensor => isLowBattery(sensor.battery)).length;
+    
+    return {
+      ...stats,
+      lowBatterySensors
+    };
+  }
+);
+
+// Selector for low battery sensors
+export const selectLowBatterySensors = createSelector(
+  [selectSensors],
+  (sensors) => sensors.filter(sensor => isLowBattery(sensor.battery))
+);
 
 export default sensorSlice.reducer;
