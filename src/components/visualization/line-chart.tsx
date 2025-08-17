@@ -613,8 +613,10 @@ export const LineChart: React.FC<LineChartProps> = ({
     allValues: orderedData.map(p => p.value)
   });
 
-  console.log('[LineChart] About to render Recharts with data length:', orderedData.length);
-  console.log(`[LineChart] Rendering with orderedData length: ${orderedData.length}. Last point:`, orderedData[orderedData.length - 1]);
+  // Reduced logging frequency to prevent memory issues
+  if (Math.random() < 0.01) { // Log only 1% of the time
+    console.log('[LineChart] About to render Recharts with data length:', orderedData.length);
+  }
 
   // Data validation - render placeholder for empty data
   if (!orderedData || orderedData.length === 0) {

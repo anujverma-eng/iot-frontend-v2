@@ -22,18 +22,15 @@ export const useOptimizedDataFetch = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastRequestRef = useRef<string>('');
   const throttleTimeoutRef = useRef<NodeJS.Timeout>();
+  const requestInProgressRef = useRef<boolean>(false);
   
   const fetchData = useCallback((params: DataFetchParams, immediate = false) => {
     const requestId = `${params.sensorIds.join(',')}-${params.timeRange.start}-${params.timeRange.end}`;
     
     // Don't make the same request twice
     if (lastRequestRef.current === requestId) {
+      console.log('[useOptimizedDataFetch] Duplicate request prevented:', requestId);
       return;
-    }
-    
-    // Cancel any existing request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
     }
     
     // Clear any pending throttled request
@@ -42,25 +39,39 @@ export const useOptimizedDataFetch = () => {
     }
     
     const executeFetch = () => {
+      // Only cancel existing request if it's actually in progress and different
+      if (abortControllerRef.current && requestInProgressRef.current && lastRequestRef.current !== requestId) {
+        console.log('[useOptimizedDataFetch] Cancelling previous request:', lastRequestRef.current);
+        abortControllerRef.current.abort();
+      }
+      
       // Create new abort controller for this request
       abortControllerRef.current = new AbortController();
       lastRequestRef.current = requestId;
+      requestInProgressRef.current = true;
+      
+      console.log('[useOptimizedDataFetch] Starting new request:', requestId);
       
       // Dispatch the fetch action
-      dispatch(fetchTelemetry(params));
+      dispatch(fetchTelemetry(params))
+        .finally(() => {
+          requestInProgressRef.current = false;
+        });
     };
     
     if (immediate) {
       executeFetch();
     } else {
-      // Throttle the request by 100ms to prevent rapid consecutive calls
-      throttleTimeoutRef.current = setTimeout(executeFetch, 100);
+      // Throttle the request by 200ms to prevent rapid consecutive calls
+      throttleTimeoutRef.current = setTimeout(executeFetch, 200);
     }
   }, [dispatch]);
   
   const cancelPendingRequests = useCallback(() => {
-    if (abortControllerRef.current) {
+    console.log('[useOptimizedDataFetch] Cancelling pending requests');
+    if (abortControllerRef.current && requestInProgressRef.current) {
       abortControllerRef.current.abort();
+      requestInProgressRef.current = false;
     }
     if (throttleTimeoutRef.current) {
       clearTimeout(throttleTimeoutRef.current);

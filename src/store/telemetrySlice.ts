@@ -273,14 +273,13 @@ const telemetrySlice = createSlice({
       const { sensors } = action.payload;
       const now = Date.now();
 
-      console.log('[TelemetrySlice] addLiveData called with', sensors.length, 'sensors');
-      console.log('[TelemetrySlice] Live data sensors:', JSON.stringify(sensors, null, 2));
-      console.log('[TelemetrySlice] Current state.data keys:', Object.keys(state.data));
+      // Reduced logging frequency to prevent memory issues
+      if (sensors.length > 0 && Math.random() < 0.05) { // Log only 5% of the time
+        console.log('[TelemetrySlice] addLiveData called with', sensors.length, 'sensors');
+      }
 
       sensors.forEach(reading => {
         const { mac, name, type, unit, value, timestamp } = reading;
-        
-        console.log('[TelemetrySlice] Processing sensor reading:', { mac, name, type, unit, value, timestamp });
         
         // --- REVISED SENSOR FINDING LOGIC ---
         // Find the KEY of the sensor that has a matching MAC address.
@@ -290,15 +289,13 @@ const telemetrySlice = createSlice({
         // If no sensor with this MAC exists in our state, we cannot update it.
         // Log a warning and skip this reading. This prevents polluting the state.
         if (!sensorKey) {
-          console.warn(`[TelemetrySlice] Received live data for an unknown sensor MAC: ${mac}. Skipping.`);
-          console.warn(`[TelemetrySlice] Available sensors:`, Object.keys(state.data).map(key => ({ 
-            key, 
-            mac: state.data[key].mac 
-          })));
-          
-          // DISABLED: Automatic sensor auto-discovery to prevent API spam
-          // If you need to discover this sensor, please use the manual discovery feature
-          console.log(`[TelemetrySlice] Auto-discovery disabled for sensor ${mac}. Use manual discovery if needed.`);
+          // Reduced logging to prevent memory issues - only log once per minute per unknown MAC
+          const now = Date.now();
+          const lastLogTime = unknownSensorCache.get(`log_${mac}`) || 0;
+          if (now - lastLogTime > 60000) { // 1 minute cooldown for logs
+            console.warn(`[TelemetrySlice] Unknown sensor MAC: ${mac}. Auto-discovery disabled.`);
+            unknownSensorCache.set(`log_${mac}`, now);
+          }
           
           return; // "return" here exits the forEach loop for this iteration.
         }
@@ -309,7 +306,6 @@ const telemetrySlice = createSlice({
         // Now we are certain that `sensorKey` refers to an existing sensor 
         // (e.g., '6a8e5a7e-...') and we can safely update it.
         const sensor = state.data[sensorKey];
-        console.log('[TelemetrySlice] Current sensor data points before adding:', sensor.series.length);
         
         // Add new data point
         const dataPoint: DataPoint = {
@@ -328,7 +324,10 @@ const telemetrySlice = createSlice({
         if (newSeries.length > state.maxLiveReadings) {
           const removedCount = newSeries.length - state.maxLiveReadings;
           newSeries = newSeries.slice(-state.maxLiveReadings);
-          console.log('[TelemetrySlice] Trimmed', removedCount, 'old data points, now have:', newSeries.length);
+          // Only log trimming occasionally to prevent spam
+          if (removedCount > 0 && sensor.series.length % 50 === 0) {
+            console.log('[TelemetrySlice] Trimmed', removedCount, 'old data points, now have:', newSeries.length);
+          }
         }
 
         // 4. Assign the new, sorted, and trimmed array to the state
@@ -339,21 +338,19 @@ const telemetrySlice = createSlice({
         sensor.isLive = true;
         sensor.current = Number(value);
 
-        console.log('[TelemetrySlice] Added data point:', dataPoint);
-        console.log('[TelemetrySlice] New series assigned. Length:', newSeries.length);
-        console.log('[TelemetrySlice] Current sensor data points after adding:', sensor.series.length);
-
         // Update aggregates for live data
         if (sensor.series.length > 0) {
           const values = sensor.series.map(p => p.value);
           sensor.min = Math.min(...values);
           sensor.max = Math.max(...values);
           sensor.avg = values.reduce((a, b) => a + b, 0) / values.length;
-          console.log('[TelemetrySlice] Updated aggregates - min:', sensor.min, 'max:', sensor.max, 'avg:', sensor.avg);
         }
       });
       
-      console.log('[TelemetrySlice] Final state.data keys after processing:', Object.keys(state.data));
+      // Reduced logging frequency to prevent memory issues
+      if (sensors.length > 0 && Math.random() < 0.1) { // Log only 10% of the time
+        console.log('[TelemetrySlice] Processed', sensors.length, 'sensor readings');
+      }
     },
 
     clearLiveData: (state) => {

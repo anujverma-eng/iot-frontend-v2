@@ -264,7 +264,9 @@ export const SoloView: React.FC = () => {
   /*****************************************************************************
    * 2️⃣  Ensure we always have a “selected” sensor
    *****************************************************************************/
-  const filteredIds = React.useMemo(() => filteredSensors.map((s) => s.id).join("|"), [filteredSensors]);
+  const filteredIds = React.useMemo(() => {
+    return filteredSensors.map((s) => s.id).join("|");
+  }, [filteredSensors.length, filteredSensors.map(s => s.id).join("|")]);
 
   React.useEffect(() => {
     if (!sensorsLoaded) return; // wait for list

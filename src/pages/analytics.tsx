@@ -101,12 +101,11 @@ export const AnalyticsPage: React.FC = () => {
   const stats = useSelector(selectEnhancedSensorStats); // Use enhanced stats with battery count
   const [pendingFilters, setPendingFilters] = React.useState<FilterState | null>(null);
 
-  // DEBUG: Log when sensors or stats change
+  // DEBUG: Log when sensors or stats change (reduced frequency)
   React.useEffect(() => {
-    console.log(`[Analytics] DEBUG: Sensors data changed, count: ${sensors.length}`);
-    sensors.forEach(sensor => {
-      console.log(`[Analytics] DEBUG: Sensor ${sensor.mac} - status: ${sensor.status}, isOnline: ${sensor.isOnline}`);
-    });
+    if (Math.random() < 0.02) { // Log only 2% of the time
+      console.log(`[Analytics] DEBUG: Sensors data changed, count: ${sensors.length}`);
+    }
   }, [sensors]);
 
   React.useEffect(() => {
@@ -336,22 +335,28 @@ export const AnalyticsPage: React.FC = () => {
   }, []);
 
   // Handle URL parameter for selected sensor
+  // CRITICAL FIX: Only depend on sensor IDs, not the entire filteredSensors array
+  // to prevent API calls on every WebSocket message
+  const sensorIds = React.useMemo(() => 
+    filteredSensors?.map(s => s.id) || [], 
+    [filteredSensors?.length, filteredSensors?.map(s => s.id).join(',')]
+  );
+  
   React.useEffect(() => {
-    console.log('[Analytics] URL sensor effect triggered with:', { sensorId, selectedSensor, filteredSensorsLength: filteredSensors?.length });
+    console.log('[Analytics] URL sensor effect triggered with:', { sensorId, selectedSensor, sensorCount: sensorIds.length });
     
     if (sensorId) {
       console.log('[Analytics] Setting sensor from URL parameter:', sensorId);
       dispatch(fetchSensorById(sensorId));
       setSelectedSensor(sensorId);
-    } else if (filteredSensors && filteredSensors.length > 0 && !selectedSensor) {
-      // Add null check for filteredSensors before accessing length
-      const firstSensorId = filteredSensors[0].id;
+    } else if (sensorIds.length > 0 && !selectedSensor) {
+      const firstSensorId = sensorIds[0];
       console.log('[Analytics] Auto-selecting first sensor:', firstSensorId);
       dispatch(fetchSensorById(firstSensorId));
       setSelectedSensor(firstSensorId);
       navigate(`/dashboard/sensors/${firstSensorId}`, { replace: true });
     }
-  }, [sensorId, filteredSensors, selectedSensor, dispatch, navigate]);
+  }, [sensorId, sensorIds.length, sensorIds.join(','), selectedSensor, dispatch, navigate]);
 
   // Note: Live mode cleanup is now handled centrally by the live data system
   // No need for page-specific cleanup
@@ -418,7 +423,7 @@ export const AnalyticsPage: React.FC = () => {
         },
       });
     }
-  }, [selectedSensor, timeRangeKey, fetchOptimizedData]); // Use optimized fetch
+  }, [selectedSensor, timeRangeKey]); // Remove fetchOptimizedData to prevent unnecessary re-renders
 
   const sameRange = (a: { start: Date; end: Date }, b: { start: Date; end: Date }) =>
     new Date(a.start).getTime() === new Date(b.start).getTime() &&
@@ -435,7 +440,7 @@ export const AnalyticsPage: React.FC = () => {
         },
       });
     }
-  }, [selectedSensorIds, filters.timeRange, fetchOptimizedData]);
+  }, [selectedSensorIds, filters.timeRange]); // Remove fetchOptimizedData to prevent unnecessary re-renders
 
   // Add cleanup effect
   React.useEffect(() => {
@@ -446,9 +451,7 @@ export const AnalyticsPage: React.FC = () => {
   }, [cancelPendingRequests]);
 
   const handleSensorSelect = (id: string) => {
-    // Cancel any pending data requests for the previous sensor
-    cancelPendingRequests();
-    
+    // No need to cancel - optimized fetch will handle deduplication
     setSelectedSensor(id);
     navigate(`/dashboard/sensors/${id}`);
   };
@@ -763,13 +766,12 @@ export const AnalyticsPage: React.FC = () => {
       firstPoint: currentSeries[0],
       lastPoint: currentSeries[currentSeries.length - 1],
       nonNullCount: currentSeries.filter((point) => point && point.value !== null && point.value !== undefined).length,
-      lastFivePoints: currentSeries.slice(-5),
-      timestamps: currentSeries.slice(-3).map(p => p.timestamp),
-      values: currentSeries.slice(-3).map(p => p.value),
-      seriesReference: currentSeries // Log reference to help debug mutations
     });
     
-    console.log(`[Analytics] Rendering with series length: ${currentSeries.length}. Last point:`, currentSeries[currentSeries.length - 1]);
+    // Reduced logging frequency to prevent memory issues
+    if (Math.random() < 0.01) { // Log only 1% of the time
+      console.log(`[Analytics] Rendering with series length: ${currentSeries.length}`);
+    }
 
     return {
       type: sensorData.type,
