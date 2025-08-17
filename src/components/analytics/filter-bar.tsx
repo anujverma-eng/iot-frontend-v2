@@ -160,9 +160,11 @@ export const FilterBar: React.FC<FilterBarProps> = ({ filters, onFiltersChange, 
           <h4 className="text-xs font-semibold text-default-600 mb-2 tracking-wide">Sort by</h4>
           {(
             [
-              { lbl: "Name (A‑Z)", fld: "name", dir: "asc", ic: "lucide:arrow-up" },
-              { lbl: "Name (Z‑A)", fld: "name", dir: "desc", ic: "lucide:arrow-down" },
-              { lbl: "Starred first", fld: "starred", dir: "desc", ic: "lucide:star" },
+              { lbl: "Name (A‑Z)", fld: "displayName", dir: "asc", ic: "lucide:arrow-up" },
+              { lbl: "Name (Z‑A)", fld: "displayName", dir: "desc", ic: "lucide:arrow-down" },
+              { lbl: "Starred first", fld: "favorite", dir: "desc", ic: "lucide:star" },
+              { lbl: "Battery level", fld: "battery", dir: "asc", ic: "lucide:battery" },
+              { lbl: "Last seen", fld: "lastSeen", dir: "desc", ic: "lucide:clock" },
             ] as { lbl: string; fld: string; dir: "asc" | "desc"; ic: string }[]
           ).map((o) => (
             <Button

@@ -220,8 +220,9 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
     resolveGatewayIds();
   }, [sensor?.id, sensor?.mac]); // Only re-run when sensor ID or MAC changes
 
-  // Check if sensor is offline and show waiting state
+  // Check if sensor is offline and we're in live mode - only show fallback in this case
   const isSensorOffline = sensor?.isOnline === false;
+  const shouldShowFallback = isLiveMode && isSensorOffline;
   
   // Add error handling for when config is null
   if (!config) {
@@ -810,8 +811,8 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
             } ${getChartHeight()}`} 
             ref={chartRef}
           >
-            {/* Show offline sensor waiting state */}
-            {isSensorOffline ? (
+            {/* Show offline sensor waiting state only when in live mode */}
+            {shouldShowFallback ? (
               <div className="h-full flex flex-col items-center justify-center p-8 text-center">
                 <div className="flex flex-col items-center gap-4 max-w-md">
                   {/* Animated loading icon */}
@@ -852,8 +853,15 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                       variant="flat"
                       size="sm"
                       onPress={() => {
+                        // Turn off live mode
                         if (onLiveModeChange) {
                           onLiveModeChange(false);
+                        }
+                        // Reset to historical time range (last 24 hours)
+                        if (onTimeRangeChange) {
+                          const now = new Date();
+                          const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+                          onTimeRangeChange({ start: yesterday, end: now });
                         }
                       }}
                       startContent={<Icon icon="lucide:history" width={16} />}
@@ -861,7 +869,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                       View Old Readings Instead
                     </Button>
                     <p className="text-xs text-default-400">
-                      Switch to historical data view
+                      Switch to historical data view (last 24 hours)
                     </p>
                   </div>
                   
@@ -881,8 +889,8 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
         {/* Table content */}
         {activeTab === "table" && !(isFullscreen && isMobile) && (
           <div className={`flex-1 overflow-auto ${isSmallScreen ? 'mx-3 mb-3' : 'mx-4 mb-4'} ${getChartHeight()}`}>
-            {/* Show offline sensor waiting state in table view too */}
-            {isSensorOffline ? (
+            {/* Show offline sensor waiting state in table view too - only when in live mode */}
+            {shouldShowFallback ? (
               <div className="h-full flex flex-col items-center justify-center p-8 text-center">
                 <div className="flex flex-col items-center gap-4 max-w-md">
                   <Icon 

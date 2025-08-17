@@ -42,7 +42,7 @@ import {
 } from "../../store/telemetrySlice";
 import { selectIsLiveMode, selectIsConnecting, toggleLiveMode } from "../../store/liveDataSlice";
 import { fetchGateways, selectGateways } from "../../store/gatewaySlice";
-import { ChartConfig } from "../../types/sensor";
+import { ChartConfig, SensorType } from "../../types/sensor";
 import { LineChart } from "../visualization/line-chart";
 import { AnomalyDetectionChart } from "./distribution-charts/anomaly-detection-chart";
 import { CorrelationAnalysisChart } from "./distribution-charts/correlation-analysis-chart";
@@ -80,7 +80,8 @@ export const SoloView: React.FC = () => {
   const gateways = useSelector(selectGateways);
 
   // Local state
-  const [searchText, setSearchText] = React.useState("");
+  // Use global search state instead of local searchText
+  // const [searchText, setSearchText] = React.useState(""); // REMOVED - using global filters now
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
   const [selectedTab, setSelectedTab] = React.useState("chart");
   // const [page, setPage] = React.useState(1);
@@ -122,17 +123,79 @@ export const SoloView: React.FC = () => {
     }));
   }, [sensors]);
 
-  // Filter sensors based on search text
+  // Filter sensors based on global filters (not local search)
   const filteredSensors = React.useMemo(() => {
-    if (!searchText) return mappedSensors;
+    let list = [...mappedSensors];
 
-    const lowerSearch = searchText.toLowerCase();
-    return mappedSensors.filter(
-      (sensor) =>
-        sensor.mac.toLowerCase().includes(lowerSearch) ||
-        (sensor.displayName && sensor.displayName.toLowerCase().includes(lowerSearch))
-    );
-  }, [mappedSensors, searchText]);
+    /* search */
+    if (filters?.search?.trim()) {
+      const q = filters.search.toLowerCase();
+      list = list.filter((s) => 
+        s.mac.toLowerCase().includes(q) || 
+        (s.displayName ?? "").toLowerCase().includes(q) ||
+        (s.name ?? "").toLowerCase().includes(q)
+      );
+    }
+
+    /* sensor type */
+    if (filters.types.length) {
+      list = list.filter((s) => filters.types.includes(s.type as SensorType));
+    }
+
+    /* status */
+    if (filters.status !== "all") {
+      if (filters.status === "live") {
+        list = list.filter((s) => s.isOnline === true);
+      } else if (filters.status === "offline") {
+        list = list.filter((s) => s.isOnline === false);
+      }
+    }
+
+    /* sort */
+    if (filters.sort) {
+      const { field, direction } = filters.sort;
+      list = [...list].sort((a: any, b: any) => {
+        if(field === "starred" || field === "favorite") {
+          const af = a.favorite ? 1 : 0;
+          const bf = b.favorite ? 1 : 0;
+          if (af === bf) return 0;
+          return (af > bf ? 1 : -1) * (direction === "asc" ? 1 : -1);
+        }
+        
+        if (field === "lastSeen") {
+          const av = new Date(a[field]).getTime();
+          const bv = new Date(b[field]).getTime();
+          if (isNaN(av) && isNaN(bv)) return 0;
+          if (isNaN(av)) return 1;
+          if (isNaN(bv)) return -1;
+          return (av - bv) * (direction === "asc" ? 1 : -1);
+        }
+        
+        if (field === "displayName" || field === "name") {
+          const av = (a.displayName || a.name || a.mac || "").toString().toLowerCase();
+          const bv = (b.displayName || b.name || b.mac || "").toString().toLowerCase();
+          if (av === bv) return 0;
+          return av.localeCompare(bv) * (direction === "asc" ? 1 : -1);
+        }
+        
+        if (field === "battery") {
+          const av = typeof a[field] === 'number' ? a[field] : -1;
+          const bv = typeof b[field] === 'number' ? b[field] : -1;
+          if (av === bv) return 0;
+          return (av - bv) * (direction === "asc" ? 1 : -1);
+        }
+        
+        const av = a[field];
+        const bv = b[field];
+        if (av === bv) return 0;
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        return (av > bv ? 1 : -1) * (direction === "asc" ? 1 : -1);
+      });
+    }
+
+    return list;
+  }, [mappedSensors, filters]);
 
   // Current sensor
   const currentSensor = React.useMemo(() => {
@@ -151,12 +214,12 @@ export const SoloView: React.FC = () => {
         page: 1,
         limit: 50,
         claimed: true,
-        search: filters.search || "",
+        search: "", // Remove search from API - do client-side filtering instead
       })
     )
       .unwrap() // ← propagates real promise
       .catch((e) => console.error('[SoloView] Fetch sensors error:', e));
-  }, [dispatch, sensorsLoaded, sensorsLoading, filters.search]);
+  }, [dispatch, sensorsLoaded, sensorsLoading]); // Remove filters.search dependency
 
   // Fetch gateways for live mode functionality
   React.useEffect(() => {
@@ -393,7 +456,7 @@ export const SoloView: React.FC = () => {
   };
 
   const handleSearchChange = (text: string) => {
-    setSearchText(text);
+    dispatch(setFilters({ ...filters, search: text }));
     if (text) {
       setIsDropdownOpen(true);
     } else {
@@ -404,7 +467,7 @@ export const SoloView: React.FC = () => {
   const handleSensorSelect = (id: string) => {
     navigate(`/dashboard/sensors/${id}?solo=true`);
     setIsDropdownOpen(false);
-    setSearchText("");
+    dispatch(setFilters({ ...filters, search: "" }));
   };
 
   const handleFiltersChange = (newFilters: any) => {
@@ -610,7 +673,7 @@ export const SoloView: React.FC = () => {
               {/* <div className="relative w-full max-w-xs">
                 <Input
                   placeholder="Search sensors"
-                  value={searchText}
+                  value={filters.search || ""}
                   onValueChange={handleSearchChange}
                   startContent={<Icon icon="lucide:search" className="text-default-400" />}
                   size="sm"
@@ -663,7 +726,7 @@ export const SoloView: React.FC = () => {
               {filters.status !== "all" && (
                 <div className="px-3 py-1 bg-primary-100 text-primary rounded-full text-xs flex items-center gap-1">
                   <Icon icon={filters.status === "live" ? "lucide:wifi" : "lucide:wifi-off"} width={12} />
-                  {filters.status.charAt(0).toUpperCase() + filters.status.slice(1)}
+                  {filters.status === "live" ? "Online" : filters.status.charAt(0).toUpperCase() + filters.status.slice(1)}
                 </div>
               )}
 
@@ -707,9 +770,6 @@ export const SoloView: React.FC = () => {
                           }`}>
                             {isSensorOffline ? 'OFFLINE' : 'ONLINE'}
                           </span>
-                          <Badge color={currentSensor.status === "live" ? "success" : "danger"} variant="flat">
-                            {currentSensor?.status?.toUpperCase()}
-                          </Badge>
                         </div>
                       </div>
                     </div>

@@ -32,7 +32,7 @@ export const timeRangePresets = [
 // Status options for filtering
 export const statusOptions = [
   { value: 'all', label: 'All Status' },
-  { value: 'live', label: 'Live' },
+  { value: 'live', label: 'Online' }, // Changed from 'Live' to 'Online' for clarity
   { value: 'offline', label: 'Offline' }
 ];
 

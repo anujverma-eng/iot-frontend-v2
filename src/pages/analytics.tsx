@@ -159,17 +159,16 @@ export const AnalyticsPage: React.FC = () => {
   const { fetchData: fetchOptimizedData, cancelPendingRequests } = useOptimizedDataFetch();
   
   // --- local search text (controlled input) ----------------------------
-  const [searchQuery, setSearchQuery] = React.useState(filters.search);
+  const [searchQuery, setSearchQuery] = React.useState(filters.search || "");
 
   // keep local box in sync if an outside action changed the global filter
-  React.useEffect(() => setSearchQuery(filters.search), [filters.search]);
+  React.useEffect(() => setSearchQuery(filters.search || ""), [filters.search]);
 
-  // when the user stops typing for 500 ms → sync to Redux + reset to page 1
+  // Debounced update to Redux - only update Redux store when user stops typing
   React.useEffect(() => {
     const id = setTimeout(() => {
-      dispatch(setPage(1));
       dispatch(setFilters({ ...filters, search: searchQuery }));
-    }, 500);
+    }, 300); // Reduced debounce time for better UX
     return () => clearTimeout(id);
   }, [searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -184,6 +183,10 @@ export const AnalyticsPage: React.FC = () => {
     dispatch(setTimeRange(range)); // telemetry slice
   };
 
+  const syncLiveMode = (isLive: boolean) => {
+    dispatch(toggleLiveMode({ enable: isLive })); // This sets the live mode in Redux
+  };
+
   // Fetch sensors on component mount
   React.useEffect(() => {
     dispatch(
@@ -191,13 +194,13 @@ export const AnalyticsPage: React.FC = () => {
         page: 1,
         limit: 50,
         claimed: true,
-        search: filters.search || "",
+        search: "", // Remove search from API - do client-side filtering instead
         // TODO: add `type` & `status` here when the backend supports them
       })
     );
     dispatch(fetchSensorStats());
     dispatch(fetchGateways({ page: 1, limit: 1000, search: "" }));
-  }, [dispatch, filters.search, filters.types, filters.status]);
+  }, [dispatch, filters.types, filters.status]); // Remove filters.search from dependency
 
   // Note: Live mode is now controlled only via navbar and time-range-selector
   // Removed auto-enable logic to prevent conflicts with manual user controls
@@ -209,13 +212,13 @@ export const AnalyticsPage: React.FC = () => {
         page: pagination.page,
         limit: pagination.limit,
         claimed: true,
-        search: filters.search || "",
+        search: "", // Remove search from API - do client-side filtering instead
         sort: filters.sort?.field,
         dir: filters.sort?.direction,
       })
     );
     dispatch(fetchSensorStats());
-  }, [dispatch, pagination.page, pagination.limit, filters.search, filters.sort]);
+  }, [dispatch, pagination.page, pagination.limit, filters.sort]); // Remove filters.search from dependency
 
   // Map sensors to the format expected by components
   const mappedSensors = React.useMemo(() => {
@@ -234,7 +237,11 @@ export const AnalyticsPage: React.FC = () => {
     /* search */
     if (filters?.search?.trim()) {
       const q = filters.search.toLowerCase();
-      list = list.filter((s) => s.mac.toLowerCase().includes(q) || (s.displayName ?? "").toLowerCase().includes(q));
+      list = list.filter((s) => 
+        s.mac.toLowerCase().includes(q) || 
+        (s.displayName ?? "").toLowerCase().includes(q) ||
+        (s.name ?? "").toLowerCase().includes(q)
+      );
     }
 
     /* sensor type */
@@ -242,29 +249,65 @@ export const AnalyticsPage: React.FC = () => {
       list = list.filter((s) => filters.types.includes(s.type as SensorType));
     }
 
-    /* status */
+    /* status - Fix to use isOnline field instead of status field */
     if (filters.status !== "all") {
-      list = list.filter((s) => s.status === filters.status);
+      if (filters.status === "live") {
+        list = list.filter((s) => s.isOnline === true);
+      } else if (filters.status === "offline") {
+        list = list.filter((s) => s.isOnline === false);
+      }
     }
+    
     /* sort */
     if (filters.sort) {
       const { field, direction } = filters.sort;
       list = [...list].sort((a: any, b: any) => {
+        // Handle favorite/starred fields
         if(field === "starred" || field === "favorite") {
           const af = a.favorite ? 1 : 0;
           const bf = b.favorite ? 1 : 0;
           if (af === bf) return 0;
           return (af > bf ? 1 : -1) * (direction === "asc" ? 1 : -1);
         }
-        const av = a[field],
-          bv = b[field];
+        
+        // Handle date fields (lastSeen)
+        if (field === "lastSeen") {
+          const av = new Date(a[field]).getTime();
+          const bv = new Date(b[field]).getTime();
+          if (isNaN(av) && isNaN(bv)) return 0;
+          if (isNaN(av)) return 1; // Put invalid dates at end
+          if (isNaN(bv)) return -1;
+          return (av - bv) * (direction === "asc" ? 1 : -1);
+        }
+        
+        // Handle string fields (displayName, name)
+        if (field === "displayName" || field === "name") {
+          const av = (a.displayName || a.name || a.mac || "").toString().toLowerCase();
+          const bv = (b.displayName || b.name || b.mac || "").toString().toLowerCase();
+          if (av === bv) return 0;
+          return av.localeCompare(bv) * (direction === "asc" ? 1 : -1);
+        }
+        
+        // Handle numeric fields (battery)
+        if (field === "battery") {
+          const av = typeof a[field] === 'number' ? a[field] : -1;
+          const bv = typeof b[field] === 'number' ? b[field] : -1;
+          if (av === bv) return 0;
+          return (av - bv) * (direction === "asc" ? 1 : -1);
+        }
+        
+        // Generic field handling
+        const av = a[field];
+        const bv = b[field];
         if (av === bv) return 0;
+        if (av == null) return 1;
+        if (bv == null) return -1;
         return (av > bv ? 1 : -1) * (direction === "asc" ? 1 : -1);
       });
+    } else {
+      // Only apply battery sorting when no specific sort is selected
+      list = sortSensorsByBattery(list);
     }
-
-    /* Sort by battery levels (lowest battery at last) */
-    list = sortSensorsByBattery(list);
 
     return list;
   }, [mappedSensors, filters]);
@@ -1101,7 +1144,7 @@ export const AnalyticsPage: React.FC = () => {
                   {filters.status !== "all" && (
                     <div className="px-3 py-1 bg-primary-100 text-primary rounded-full text-xs flex items-center gap-1">
                       <Icon icon={filters.status === "live" ? "lucide:wifi" : "lucide:wifi-off"} width={12} />
-                      {filters.status.charAt(0).toUpperCase() + filters.status.slice(1)}
+                      {filters.status === "live" ? "Online" : filters.status.charAt(0).toUpperCase() + filters.status.slice(1)}
                     </div>
                   )}
 
@@ -1184,6 +1227,7 @@ export const AnalyticsPage: React.FC = () => {
                     isLoading={isLoadingData}
                     timeRange={filters.timeRange}
                     onTimeRangeChange={syncTimeRange}
+                    onLiveModeChange={syncLiveMode}
                     showTimeRangeApplyButtons={true}
                     isMobileView={isMobile}
                     isLiveMode={isLiveMode}
@@ -1532,9 +1576,11 @@ export const AnalyticsPage: React.FC = () => {
                   <div>
                     <h4 className="text-sm font-medium mb-2">Sort By</h4>
                     {[
-                      { lbl: "Name (A-Z)", fld: "name", dir: "asc", ic: "lucide:arrow-up" },
-                      { lbl: "Name (Z-A)", fld: "name", dir: "desc", ic: "lucide:arrow-down" },
+                      { lbl: "Name (A-Z)", fld: "displayName", dir: "asc", ic: "lucide:arrow-up" },
+                      { lbl: "Name (Z-A)", fld: "displayName", dir: "desc", ic: "lucide:arrow-down" },
                       { lbl: "Starred First", fld: "favorite", dir: "desc", ic: "lucide:star" },
+                      { lbl: "Battery Level", fld: "battery", dir: "asc", ic: "lucide:battery" },
+                      { lbl: "Last Seen", fld: "lastSeen", dir: "desc", ic: "lucide:clock" },
                     ].map((o) => (
                       <Button
                         key={o.lbl}
@@ -1551,7 +1597,7 @@ export const AnalyticsPage: React.FC = () => {
                             ? "primary"
                             : "default"
                         }
-                        className="justify-start"
+                        className="justify-start mb-1"
                         startContent={<Icon icon={o.ic} width={16} />}
                         onPress={() => handleMobileSortChange(o.fld, o.dir as "asc" | "desc")}
                       >

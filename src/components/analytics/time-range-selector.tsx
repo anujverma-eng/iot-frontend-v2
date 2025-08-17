@@ -55,20 +55,36 @@ export const TimeRangeSelector: React.FC<{
   const [open, setOpen] = React.useState(false);
   const [pendingTimeRange, setPendingTimeRange] = React.useState(timeRange);
   const [pendingLiveMode, setPendingLiveMode] = React.useState(isLiveMode);
+  
+  // Helper function to compare time ranges with tolerance
+  const isSameTimeRange = (range1: { start: Date; end: Date }, range2: { start: Date; end: Date }) => {
+    const tolerance = 60 * 1000; // 1 minute tolerance for small differences
+    
+    const startDiff = Math.abs(range1.start.getTime() - range2.start.getTime());
+    const endDiff = Math.abs(range1.end.getTime() - range2.end.getTime());
+    
+    // For "Today" preset, we need special handling since end time changes constantly
+    const range1StartIsStartOfDay = range1.start.getHours() === 0 && range1.start.getMinutes() === 0 && range1.start.getSeconds() === 0;
+    const range2StartIsStartOfDay = range2.start.getHours() === 0 && range2.start.getMinutes() === 0 && range2.start.getSeconds() === 0;
+    
+    // If both start at start of day, it's likely "Today" preset
+    if (range1StartIsStartOfDay && range2StartIsStartOfDay) {
+      const sameStartDay = range1.start.toDateString() === range2.start.toDateString();
+      const endWithinToday = endDiff < 24 * 60 * 60 * 1000; // End times within a day
+      return sameStartDay && endWithinToday;
+    }
+    
+    return startDiff < tolerance && endDiff < tolerance;
+  };
+  
   const [rangeIdx, setRangeIdx] = React.useState(() => {
     if (isLiveMode) return -1; // Special index for live mode
-    
-    const currentStart = timeRange.start;
-    const currentEnd = timeRange.end;
     
     return timeRangePresets.findIndex((p, i) => {
       if (i === timeRangePresets.length - 1) return false; // Skip custom
       
       const preset = p.getValue();
-      return (
-        preset.start.toDateString() === currentStart.toDateString() &&
-        preset.end.toDateString() === currentEnd.toDateString()
-      );
+      return isSameTimeRange(preset, timeRange);
     });
   });
 
@@ -79,18 +95,10 @@ export const TimeRangeSelector: React.FC<{
       return;
     }
 
-    const isSameDay = (a: Date, b: Date) =>
-      a.getFullYear() === b.getFullYear() &&
-      a.getMonth() === b.getMonth() &&
-      a.getDate() === b.getDate();
-
     const idx = timeRangePresets.findIndex((p, i) => {
       if (i === timeRangePresets.length - 1) return false; // skip custom
       const r = p.getValue();
-      return (
-        isSameDay(r.start, timeRange.start) &&
-        isSameDay(r.end, timeRange.end)
-      );
+      return isSameTimeRange(r, timeRange);
     });
     setRangeIdx(idx === -1 ? timeRangePresets.length - 1 : idx);
     setPendingTimeRange(timeRange);
