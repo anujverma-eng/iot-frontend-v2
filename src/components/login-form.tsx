@@ -75,23 +75,27 @@ export function LoginForm() {
         <p className="text-default-500">Access your IoT dashboard and monitor your devices</p>
       </div>
 
-      <form onSubmit={handleLogin} className="flex flex-col gap-4">
+      <form onSubmit={handleLogin} className="flex flex-col gap-4" autoComplete="on">
         <Input
           type="email"
+          name="email"
           label="Email"
           placeholder="Enter your email"
           value={email}
           onValueChange={setEmail}
           isRequired
+          autoComplete="email"
           startContent={<Icon className="text-default-400" icon="lucide:mail" width={20} />}
         />
 
         <Input
+          name="password"
           label="Password"
           placeholder="Enter your password"
           value={password}
           onValueChange={setPassword}
           isRequired
+          autoComplete="current-password"
           endContent={
             <button type="button" onClick={() => setIsVisible(!isVisible)}>
               <Icon className="text-default-400" icon={isVisible ? "lucide:eye" : "lucide:eye-off"} width={20} />

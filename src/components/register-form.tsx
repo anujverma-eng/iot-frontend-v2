@@ -170,7 +170,7 @@ export function RegisterForm() {
 
   /* ---------- UI ---------- */
   return (
-    <form onSubmit={handleSubmit(onSubmit as SubmitHandler<FormValues>)} className="flex flex-col gap-5 py-4">
+    <form onSubmit={handleSubmit(onSubmit as SubmitHandler<FormValues>)} className="flex flex-col gap-5 py-4" autoComplete="on">
       {/* --- name ---------------------------------- */}
       <Controller
         control={control}
@@ -178,8 +178,10 @@ export function RegisterForm() {
         render={({ field }) => (
           <Input
             {...field}
+            name="fullName"
             label="Full Name"
             isRequired
+            autoComplete="name"
             validationState={errors.fullName ? "invalid" : undefined}
             errorMessage={errors.fullName?.message}
             startContent={<Icon icon="lucide:user" className="text-default-400" width={20} />}
@@ -197,8 +199,10 @@ export function RegisterForm() {
           <Input
             {...field}
             type="email"
+            name="email"
             label="Email"
             isRequired
+            autoComplete="email"
             validationState={errors.email ? "invalid" : undefined}
             errorMessage={errors.email?.message}
             startContent={<Icon icon="lucide:mail" className="text-default-400" width={20} />}
@@ -348,6 +352,13 @@ function PasswordInput<TFieldValues extends FormValues, TName extends FieldPath<
 }) {
   const [visible, setVisible] = React.useState(false);
 
+  // Determine autocomplete value based on field name
+  const getAutoComplete = (fieldName: string) => {
+    if (fieldName === 'password') return 'new-password';
+    if (fieldName === 'confirmPassword') return 'new-password';
+    return 'current-password';
+  };
+
   return (
     <Controller
       control={control}
@@ -355,10 +366,12 @@ function PasswordInput<TFieldValues extends FormValues, TName extends FieldPath<
       render={({ field }: { field: ControllerRenderProps<TFieldValues, TName> }) => (
         <Input
           {...field}
+          name={name as string}
           value={(field?.value as string) ?? ""}
           type={visible ? "text" : "password"}
           label={label}
           isRequired
+          autoComplete={getAutoComplete(name as string)}
           validationState={error ? "invalid" : undefined}
           errorMessage={error}
           startContent={<Icon icon="lucide:lock" className="text-default-400" width={20} />}

@@ -188,8 +188,10 @@ export function ForgotPassword() {
                       <Input
                         {...field}
                         type="email"
+                        name="email"
                         label="E‑mail"
                         isRequired
+                        autoComplete="email"
                         validationState={emailForm.formState.errors.email ? "invalid" : undefined}
                         errorMessage={emailForm.formState.errors.email?.message}
                         startContent={<Icon icon="lucide:mail" width={20} className="text-default-400" />}
@@ -234,9 +236,11 @@ export function ForgotPassword() {
                     render={({ field }) => (
                       <Input
                         {...field}
+                        name="password"
                         label="New password"
                         type={vis1 ? "text" : "password"}
                         isRequired
+                        autoComplete="new-password"
                         validationState={resetForm.formState.errors.password ? "invalid" : undefined}
                         errorMessage={resetForm.formState.errors.password?.message}
                         startContent={<Icon icon="lucide:lock" width={20} className="text-default-400" />}
@@ -256,9 +260,11 @@ export function ForgotPassword() {
                     render={({ field }) => (
                       <Input
                         {...field}
+                        name="confirmPassword"
                         label="Confirm password"
                         type={vis2 ? "text" : "password"}
                         isRequired
+                        autoComplete="new-password"
                         validationState={resetForm.formState.errors.confirmPassword ? "invalid" : undefined}
                         errorMessage={resetForm.formState.errors.confirmPassword?.message}
                         startContent={<Icon icon="lucide:lock" width={20} className="text-default-400" />}
