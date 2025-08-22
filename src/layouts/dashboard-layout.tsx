@@ -3,6 +3,8 @@ import React from "react";
 import { DashboardNavbar } from "../dashboard/DashboardNavbar";
 import { DashboardSidebar } from "../dashboard/DashboardSidebar";
 import { useAppSelector } from "../hooks/useAppDispatch";
+import { useUnknownSensorDiscovery } from "../hooks/useUnknownSensorDiscovery";
+import { useLiveDataConnection } from "../hooks/useLiveDataConnection";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -10,6 +12,12 @@ interface DashboardLayoutProps {
 
 export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const profile = useAppSelector((s) => s.profile);
+
+  // DISABLED: Unknown sensor auto-discovery to prevent API spam
+  // useUnknownSensorDiscovery();
+
+  // Initialize centralized live data connection
+  useLiveDataConnection();
 
   if (profile.loaded && !profile.data?.orgId && location.pathname !== "/onboarding") {
     return;

@@ -1,7 +1,15 @@
-import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
+import { createSlice, createAsyncThunk, PayloadAction, createSelector } from "@reduxjs/toolkit";
 import { FilterState, Sensor } from "../types/sensor";
 import { RootState } from ".";
 import SensorService from "../api/sensor.service";
+import { isLowBattery } from "../utils/battery"; // Import battery utility
+
+// Rate limiting cache for sensor fetches (30 seconds cooldown)
+const sensorFetchCache = new Map<string, number>();
+const FETCH_COOLDOWN_MS = 30000; // 30 seconds
+
+// Global promise cache to prevent duplicate concurrent requests
+const ongoingRequests = new Map<string, Promise<any>>();
 
 /* ─────────────────  thunks  ───────────────── */
 export const fetchSensors = createAsyncThunk(
@@ -31,10 +39,53 @@ export const fetchSensorStats = createAsyncThunk("sensors/fetchStats", async () 
   return response;
 });
 
-export const fetchSensorDetails = createAsyncThunk("sensors/fetchDetails", async (mac: string) => {
-  const response = await SensorService.getSensorByMac(mac);
-  return response;
-});
+export const fetchSensorDetails = createAsyncThunk(
+  "sensors/fetchDetails", 
+  async (mac: string, { rejectWithValue }) => {
+    // Check if there's already an ongoing request for this MAC
+    if (ongoingRequests.has(mac)) {
+      console.log(`[SensorsSlice] Reusing ongoing request for sensor: ${mac}`);
+      try {
+        return await ongoingRequests.get(mac);
+      } catch (error) {
+        // If the ongoing request fails, we'll fall through to make a new one
+        ongoingRequests.delete(mac);
+      }
+    }
+
+    // Rate limiting check
+    const now = Date.now();
+    const lastFetch = sensorFetchCache.get(mac);
+    
+    if (lastFetch && (now - lastFetch) < FETCH_COOLDOWN_MS) {
+      const timeSinceLastFetch = Math.round((now - lastFetch) / 1000);
+      console.log(`[SensorsSlice] Rate limiting: Skipping fetch for ${mac} (last fetch was ${timeSinceLastFetch}s ago)`);
+      return rejectWithValue(`Rate limited: Recently fetched sensor ${mac} (${timeSinceLastFetch}s ago)`);
+    }
+    
+    // Create and cache the request promise
+    const requestPromise = (async () => {
+      try {
+        console.log(`[SensorsSlice] Fetching sensor details for MAC: ${mac}`);
+        sensorFetchCache.set(mac, now);
+        const response = await SensorService.getSensorByMac(mac);
+        return response;
+      } catch (error) {
+        // Remove from cache on error so we can retry later
+        sensorFetchCache.delete(mac);
+        throw error;
+      } finally {
+        // Always clean up the ongoing request
+        ongoingRequests.delete(mac);
+      }
+    })();
+
+    // Cache the promise to prevent duplicate concurrent requests
+    ongoingRequests.set(mac, requestPromise);
+    
+    return await requestPromise;
+  }
+);
 
 export const updateSensorLabel = createAsyncThunk(
   "sensors/updateLabel",
@@ -85,6 +136,7 @@ interface State {
     unclaimed: number;
     liveSensors: number;
     offlineSensors: number;
+    lowBatterySensors: number; // Add low battery sensors count
   } | null;
   selectedSensorIds: string[];
   filters: FilterState;
@@ -194,6 +246,97 @@ const sensorSlice = createSlice({
     },
     setLimit: (state, action: PayloadAction<number>) => {
       state.pagination.limit = action.payload;
+    },
+    // Update lastSeen for a sensor when live data is received
+    updateSensorLastSeen: (state, action: PayloadAction<{ mac: string; lastSeen: string; battery?: number }>) => {
+      const { mac, lastSeen, battery } = action.payload;
+      
+      // Update in main sensors list - use more direct mutation to avoid reference changes
+      const sensorIndex = state.data.findIndex((sensor: Sensor) => sensor.mac === mac);
+      if (sensorIndex !== -1) {
+        // Only update if the values are actually different to avoid unnecessary updates
+        const sensor = state.data[sensorIndex];
+        const newStatus = "live";
+        
+        if (sensor.lastSeen !== lastSeen || sensor.status !== newStatus || sensor.battery !== battery) {
+          sensor.lastSeen = lastSeen;
+          sensor.status = newStatus;
+          if (battery !== undefined) {
+            sensor.battery = battery;
+          }
+          console.log('[SensorsSlice] Updated lastSeen for sensor', mac, 'to', lastSeen, 'battery:', battery);
+        }
+      }
+      
+      // Update in selected sensor if it matches - only update if different
+      if (state.selectedSensor.data && state.selectedSensor.data.mac === mac) {
+        const selectedSensor = state.selectedSensor.data;
+        const newStatus = "live";
+        
+        if (selectedSensor.lastSeen !== lastSeen || selectedSensor.status !== newStatus || selectedSensor.battery !== battery) {
+          selectedSensor.lastSeen = lastSeen;
+          selectedSensor.status = newStatus;
+          if (battery !== undefined) {
+            selectedSensor.battery = battery;
+          }
+        }
+      }
+    },
+    // Mark all sensors as offline when live mode is disabled
+    markSensorsOffline: (state) => {
+      // Update status for all sensors in main list
+      state.data.forEach((sensor: Sensor) => {
+        if (sensor.status === "live") {
+          sensor.status = "offline";
+        }
+      });
+      
+      // Update selected sensor if it's currently live
+      if (state.selectedSensor.data && state.selectedSensor.data.status === "live") {
+        state.selectedSensor.data.status = "offline";
+      }
+      
+      console.log('[SensorsSlice] Marked all sensors as offline');
+    },
+    // Update sensor online status based on offline detection service
+    updateSensorOnlineStatus: (state, action: PayloadAction<{ mac: string; isOnline: boolean }>) => {
+      const { mac, isOnline } = action.payload;
+      console.log(`[SensorsSlice] DEBUG: Received updateSensorOnlineStatus action for ${mac}, isOnline: ${isOnline}`);
+      
+      // Update in main sensors list
+      const sensorIndex = state.data.findIndex((sensor: Sensor) => sensor.mac === mac);
+      console.log(`[SensorsSlice] DEBUG: Found sensor at index ${sensorIndex} in sensors array`);
+      
+      if (sensorIndex !== -1) {
+        const sensor = state.data[sensorIndex];
+        const oldIsOnline = sensor.isOnline;
+        
+        console.log(`[SensorsSlice] DEBUG: Sensor ${mac} current isOnline: ${oldIsOnline}`);
+        console.log(`[SensorsSlice] DEBUG: Sensor ${mac} new isOnline: ${isOnline}`);
+        
+        if (sensor.isOnline !== isOnline) {
+          // Only update isOnline - DO NOT automatically change status
+          sensor.isOnline = isOnline;
+          console.log(`[SensorsSlice] ✅ UPDATED sensor ${mac} online status: ${isOnline ? 'online' : 'offline'}`);
+          console.log(`[SensorsSlice] INFO: sensor.status remains: ${sensor.status} (unchanged)`);
+        } else {
+          console.log(`[SensorsSlice] ⚠️ No change needed for sensor ${mac} - already has correct isOnline status`);
+        }
+      } else {
+        console.log(`[SensorsSlice] ❌ ERROR: Sensor ${mac} not found in sensors array`);
+      }
+      
+      // Update in selected sensor if it matches
+      if (state.selectedSensor.data && state.selectedSensor.data.mac === mac) {
+        const selectedSensor = state.selectedSensor.data;
+        
+        if (selectedSensor.isOnline !== isOnline) {
+          // Only update isOnline - DO NOT automatically change status for selected sensor either
+          selectedSensor.isOnline = isOnline;
+          console.log(`[SensorsSlice] ✅ UPDATED selected sensor ${mac} isOnline: ${isOnline}`);
+          console.log(`[SensorsSlice] INFO: selected sensor.status remains: ${selectedSensor.status} (unchanged)`);
+        }
+      }
     },
   },
   extraReducers: (builder) => {
@@ -369,6 +512,9 @@ export const {
   clearSelectedSensorIds,
   setCurrentSensorDataLoading,
   setLimit,
+  updateSensorLastSeen,
+  markSensorsOffline,
+  updateSensorOnlineStatus,
 } = sensorSlice.actions;
 
 /* ─────────────────  selectors  ─────────────────── */
@@ -385,6 +531,64 @@ export const selectSensorsLoading = (state: RootState) => state.sensors.loading;
 export const selectSensorsError = (state: RootState) => state.sensors.error;
 export const selectPagination = (state: RootState) => state.sensors.pagination;
 export const selectSelectedSensor = (state: RootState) => state.sensors.selectedSensor;
+
+// Stable selector that only changes when the sensor ID changes, not metadata
+export const selectSelectedSensorId = (state: RootState) => state.sensors.selectedSensor.data?._id;
+
+// Stable selector for checking if a sensor is loaded  
+export const selectIsSensorLoaded = (sensorId: string) => (state: RootState) => {
+  return state.sensors.selectedSensor.data?._id === sensorId;
+};
 export const selectCurrentSensorDataLoading = (state: RootState) => state.sensors.currentSensorDataLoading;
+
+// Enhanced selector for stats with computed low battery count and online/offline counts
+export const selectEnhancedSensorStats = createSelector(
+  [selectSensorStats, selectSensors],
+  (stats, sensors) => {
+    if (!stats) return null;
+    
+    // Calculate counts from actual sensor data
+    const lowBatterySensors = sensors.filter(sensor => isLowBattery(sensor.battery)).length;
+    
+    // Count online sensors based on isOnline field only
+    const liveSensors = sensors.filter(sensor => 
+      sensor.isOnline === true
+    ).length;
+    
+    // Count offline sensors based on isOnline field only
+    const offlineSensors = sensors.filter(sensor => 
+      sensor.isOnline === false
+    ).length;
+    
+    return {
+      ...stats,
+      liveSensors,
+      offlineSensors,
+      lowBatterySensors
+    };
+  }
+);
+
+// Selector for low battery sensors
+export const selectLowBatterySensors = createSelector(
+  [selectSensors],
+  (sensors) => sensors.filter(sensor => isLowBattery(sensor.battery))
+);
+
+// Selector for online sensors
+export const selectOnlineSensors = createSelector(
+  [selectSensors],
+  (sensors) => sensors.filter(sensor => 
+    sensor.isOnline === true
+  )
+);
+
+// Selector for offline sensors
+export const selectOfflineSensors = createSelector(
+  [selectSensors],
+  (sensors) => sensors.filter(sensor => 
+    sensor.isOnline === false
+  )
+);
 
 export default sensorSlice.reducer;

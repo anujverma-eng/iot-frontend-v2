@@ -1,6 +1,7 @@
 import { Button } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import React from "react";
+import { useSelector } from "react-redux";
 import {
   Area,
   Brush,
@@ -13,13 +14,16 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { formatNumericValue } from "../../utils/numberUtils";
 import { ChartConfig, MultiSeriesConfig } from "../../types/sensor";
+import { selectMaxLiveReadings } from "../../store/telemetrySlice";
 
 interface LineChartProps {
   config: ChartConfig | MultiSeriesConfig;
   isMultiSeries?: boolean;
   onDownloadCSV?: () => void;
   onZoomChange?: (isZoomed: boolean) => void;
+  isLiveMode?: boolean; // New prop to conditionally disable brush for live data
   // Removed onBrushChange - brush is for visual selection only, not data loading
 }
 
@@ -28,12 +32,66 @@ export const LineChart: React.FC<LineChartProps> = ({
   isMultiSeries = false,
   onDownloadCSV,
   onZoomChange,
+  isLiveMode = false, // Default to false for backward compatibility
 }) => {
 
   // Add clear check for empty data
   const hasData = isMultiSeries ? config.series?.some((s: any) => s.data?.length > 0) : config.series?.length > 0;
 
+  // Get current max live readings setting
+  const maxLiveReadings = useSelector(selectMaxLiveReadings);
+  
+  // Debug logging for live mode
+  React.useEffect(() => {
+    if (isLiveMode) {
+      console.log('[LineChart] maxLiveReadings updated to:', maxLiveReadings);
+    }
+  }, [maxLiveReadings, isLiveMode]);
 
+  // Early returns MUST happen before any hooks to avoid Rules of Hooks violations
+  // Check for empty data first
+  if (!hasData) {
+    return (
+      <div className="h-full w-full flex items-center justify-center flex-col">
+        <Icon icon="lucide:calendar-x" className="text-default-300 mb-2" width={32} height={32} />
+        <p className="text-default-500">No data available for the selected time range</p>
+      </div>
+    );
+  }
+
+  // Check for empty multi-series data
+  if (isMultiSeries) {
+    const multiConfig = config as MultiSeriesConfig;
+    if (
+      !multiConfig.series ||
+      multiConfig.series.length === 0 ||
+      multiConfig.series.every((s) => !s.data || s.data.length === 0)
+    ) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center">
+            <Icon icon="lucide:bar-chart-2" className="text-default-300 mb-2 mx-auto" width={32} height={32} />
+            <p className="text-default-500">No data available for selected sensors</p>
+          </div>
+        </div>
+      );
+    }
+  } else {
+    // Check for empty single-series data
+    const singleConfig = config as ChartConfig;
+    if (!singleConfig.series || singleConfig.series.length === 0) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center">
+            <Icon icon="lucide:bar-chart-2" className="text-default-300 mb-2 mx-auto" width={32} height={32} />
+            <p className="text-default-500">No data available for this sensor</p>
+          </div>
+        </div>
+      );
+    }
+  }
+
+  // Now ALL hooks can be declared safely after early returns
   // Optimize data for performance - limit data points for smooth rendering
   const optimizeDataForRendering = React.useCallback((data: any[]) => {
     // For large datasets, sample data points intelligently
@@ -54,16 +112,6 @@ export const LineChart: React.FC<LineChartProps> = ({
   const [brushDomain, setBrushDomain] = React.useState<{ startIndex?: number; endIndex?: number }>({});
   const [isZoomedIn, setIsZoomedIn] = React.useState(false);
   const [isInitialBrushSetup, setIsInitialBrushSetup] = React.useState(true);
-
-  // If no data for the selected range, show a clear message
-  if (!hasData) {
-    return (
-      <div className="h-full w-full flex items-center justify-center flex-col">
-        <Icon icon="lucide:calendar-x" className="text-default-300 mb-2" width={32} height={32} />
-        <p className="text-default-500">No data available for the selected time range</p>
-      </div>
-    );
-  }
 
   // Enhanced date formatting functions
   const formatTooltipDate = (timestamp: number) => {
@@ -177,37 +225,6 @@ export const LineChart: React.FC<LineChartProps> = ({
     }
   }, [isZoomedIn, onZoomChange]);
 
-  // Add check for empty data with better error handling
-  if (isMultiSeries) {
-    const multiConfig = config as MultiSeriesConfig;
-    if (
-      !multiConfig.series ||
-      multiConfig.series.length === 0 ||
-      multiConfig.series.every((s) => !s.data || s.data.length === 0)
-    ) {
-      return (
-        <div className="flex items-center justify-center h-full">
-          <div className="text-center">
-            <Icon icon="lucide:bar-chart-2" className="text-default-300 mb-2 mx-auto" width={32} height={32} />
-            <p className="text-default-500">No data available for selected sensors</p>
-          </div>
-        </div>
-      );
-    }
-  } else {
-    const singleConfig = config as ChartConfig;
-    if (!singleConfig.series || singleConfig.series.length === 0) {
-      return (
-        <div className="flex items-center justify-center h-full">
-          <div className="text-center">
-            <Icon icon="lucide:bar-chart-2" className="text-default-300 mb-2 mx-auto" width={32} height={32} />
-            <p className="text-default-500">No data available for this sensor</p>
-          </div>
-        </div>
-      );
-    }
-  }
-
   const handleDownloadCSV = () => {
     if (!onDownloadCSV) return;
     onDownloadCSV();
@@ -241,6 +258,15 @@ export const LineChart: React.FC<LineChartProps> = ({
     } else {
       const singleConfig = config as ChartConfig;
       rawData = singleConfig.series || [];
+      
+      // Debug logging for live data updates
+      console.log('[LineChart] Processing chart data:', {
+        configType: singleConfig.type,
+        seriesLength: rawData.length,
+        lastPoint: rawData[rawData.length - 1],
+        lastThreePoints: rawData.slice(-3),
+        timestamp: Date.now()
+      });
     }
 
     // Apply data optimization for large datasets
@@ -249,6 +275,14 @@ export const LineChart: React.FC<LineChartProps> = ({
 
   // Add moving average calculation
   const chartDataWithMA = React.useMemo(() => {
+    console.log('[LineChart] chartDataWithMA memoization triggered:', {
+      inputLength: chartData?.length || 0,
+      lastPoint: chartData?.[chartData.length - 1],
+      lastThreeInputPoints: chartData?.slice(-3),
+      showMA: isMultiSeries ? false : (config as ChartConfig).showMovingAverage,
+      timestamp: Date.now()
+    });
+
     if (!chartData || chartData.length === 0) return chartData;
 
     if (isMultiSeries || !(config as ChartConfig).showMovingAverage) {
@@ -272,13 +306,40 @@ export const LineChart: React.FC<LineChartProps> = ({
       result[i].movingAverage = sum / count;
     }
 
+    console.log('[LineChart] chartDataWithMA completed:', {
+      outputLength: result.length,
+      lastResultPoint: result[result.length - 1]
+    });
+
     return result;
   }, [chartData, config, isMultiSeries]);
 
   const orderedData = React.useMemo(
-    () => [...chartDataWithMA].sort((a, b) => a.timestamp - b.timestamp),
+    () => {
+      const sortedData = [...chartDataWithMA].sort((a, b) => a.timestamp - b.timestamp);
+      console.log('[LineChart] orderedData memoization triggered:', {
+        inputLength: chartDataWithMA.length,
+        outputLength: sortedData.length,
+        lastInputPoint: chartDataWithMA[chartDataWithMA.length - 1],
+        lastOutputPoint: sortedData[sortedData.length - 1],
+        lastThreePoints: sortedData.slice(-3),
+        timestamp: Date.now()
+      });
+      return sortedData;
+    },
     [chartDataWithMA]
   );
+
+  // Use a stable key based on data characteristics rather than forcing re-mounts
+  const chartKey = React.useMemo(() => {
+    // --- REVISED CHART KEY LOGIC ---
+    // The key must be stable for a given sensor. It should NOT change with every new data point.
+    // We'll use properties from the config that don't change per reading.
+    const stableKey = `recharts-line-${config.type}-${config.unit}`;
+    console.log('[LineChart] Generated stable chart key:', stableKey);
+    return stableKey;
+    // --- END REVISED LOGIC ---
+  }, [config.type, config.unit]); // Only change when sensor type/unit changes
 
   // Initialize brush domain when data changes (but don't trigger brush change callback)
   React.useEffect(() => {
@@ -412,10 +473,45 @@ export const LineChart: React.FC<LineChartProps> = ({
     return { span: spanMs, type: 'monthly' };
   }, [orderedData]);
 
-  // Enhanced X-axis formatting based on time span
+  // Enhanced X-axis formatting based on time span with live mode optimization
   const formatXAxis = (timestamp: number) => {
     const d = new Date(timestamp);
     
+    // Special formatting for live mode - prioritize seconds/minutes for real-time updates
+    if (isLiveMode) {
+      // For live mode, always show time with seconds for real-time feel
+      const now = new Date();
+      const diffMs = now.getTime() - timestamp;
+      const diffMinutes = diffMs / (1000 * 60);
+      
+      if (diffMinutes < 60) {
+        // Last hour: show HH:MM:SS for precise real-time tracking
+        return d.toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false 
+        });
+      } else if (diffMinutes < 1440) {
+        // Last day: show HH:MM
+        return d.toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          hour12: false 
+        });
+      } else {
+        // Older data: show date + time
+        return d.toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false 
+        });
+      }
+    }
+    
+    // Original formatting for non-live mode
     switch (timeSpanInfo.type) {
       case 'minutes':
         return d.toLocaleTimeString('en-US', { 
@@ -467,6 +563,19 @@ export const LineChart: React.FC<LineChartProps> = ({
 
   // Calculate optimal number of ticks based on chart width and time span
   const getOptimalTickCount = () => {
+    // For live mode, show more ticks to better visualize real-time progression
+    if (isLiveMode) {
+      // Live mode: show more frequent time markers for better real-time tracking
+      const isMobile = window.innerWidth < 768;
+      const maxTicks = isMobile ? 6 : 10;
+      const dataPoints = orderedData.length;
+      
+      if (dataPoints < 50) return Math.min(dataPoints / 5, maxTicks);
+      if (dataPoints < 200) return maxTicks;
+      return maxTicks;
+    }
+    
+    // Original logic for non-live mode
     const baseTickCount = timeSpanInfo.type === 'minutes' ? 8 : 
                          timeSpanInfo.type === 'hours' ? 6 :
                          timeSpanInfo.type === 'hourly' ? 8 :
@@ -495,7 +604,33 @@ export const LineChart: React.FC<LineChartProps> = ({
     }));
   }, [orderedData, isMultiSeries, config]);
 
-  console.log(dailyRangeData);
+  console.log('[LineChart] Final orderedData for rendering:', {
+    length: orderedData.length,
+    firstPoint: orderedData[0],
+    lastPoint: orderedData[orderedData.length - 1],
+    samplePoints: orderedData.slice(-3), // show last 3 points
+    allTimestamps: orderedData.map(p => p.timestamp),
+    allValues: orderedData.map(p => p.value)
+  });
+
+  // Reduced logging frequency to prevent memory issues
+  if (Math.random() < 0.01) { // Log only 1% of the time
+    console.log('[LineChart] About to render Recharts with data length:', orderedData.length);
+  }
+
+  // Data validation - render placeholder for empty data
+  if (!orderedData || orderedData.length === 0) {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center">
+        <div className="text-center">
+          <div className="text-lg text-default-500 mb-2">No Data Available</div>
+          <div className="text-sm text-default-400">
+            Loading chart data...
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full h-full flex flex-col">
@@ -505,6 +640,11 @@ export const LineChart: React.FC<LineChartProps> = ({
           <div className="text-sm font-medium text-primary-600">
             {isMultiSeries ? "Comparison Chart" : `${config.type.charAt(0).toUpperCase() + config.type.slice(1)} Data`}
             <span className="text-sm text-gray-500 ml-2">{config.unit}</span>
+            {isLiveMode && (
+              <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full ml-2 animate-pulse">
+                🔴 LIVE
+              </span>
+            )}
             {isZoomedIn && (
               <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full ml-2">
                 Zoomed View
@@ -532,6 +672,16 @@ export const LineChart: React.FC<LineChartProps> = ({
                   </span>
                 </div>
               </div>
+            </div>
+          )}
+          {/* Live mode info */}
+          {isLiveMode && (
+            <div className="text-xs text-default-500 mt-1">
+              <span className="font-medium">Real-time data:</span> 
+              <span className="ml-1">Showing last {orderedData.length}/{maxLiveReadings} readings</span>
+              {/* {orderedData.length >= maxLiveReadings && (
+                <span className="text-orange-600 ml-1">(sliding window - oldest data automatically removed)</span>
+              )} */}
             </div>
           )}
         </div>
@@ -596,8 +746,16 @@ export const LineChart: React.FC<LineChartProps> = ({
       </div>
 
       <div className="flex-1 min-h-[300px]">
-        <ResponsiveContainer width="100%" height="100%" className="overflow-visible">
-          <RechartsLineChart data={orderedData} margin={{ top: 10, right: 30, left: 20, bottom: 20 }}>
+        <ResponsiveContainer 
+          width="100%" 
+          height="100%" 
+          className="overflow-visible"
+        >
+          <RechartsLineChart 
+            key={chartKey}
+            data={orderedData} 
+            margin={{ top: 10, right: 30, left: 20, bottom: 20 }}
+          >
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis
               dataKey="timestamp"
@@ -608,7 +766,7 @@ export const LineChart: React.FC<LineChartProps> = ({
               fontSize={12}
               type="number"
               scale="time"
-              domain={zoomDomain ? zoomDomain.x : ["dataMin", "dataMax"]}
+              domain={zoomDomain ? zoomDomain.x : ["dataMin", "dataMax"]} // CRITICAL: Auto-adjust to data range
               tickMargin={10}
               height={50}
               tickCount={getOptimalTickCount()}
@@ -619,7 +777,7 @@ export const LineChart: React.FC<LineChartProps> = ({
               axisLine={{ stroke: "#94a3b8" }}
               fontSize={12}
               tickMargin={10}
-              domain={zoomDomain ? zoomDomain.y : ['auto', 'auto']}
+              domain={zoomDomain ? zoomDomain.y : ['dataMin', 'dataMax']} // CRITICAL: Auto-adjust to value range
               label={{
                 value: config.unit,
                 angle: -90,
@@ -636,13 +794,13 @@ export const LineChart: React.FC<LineChartProps> = ({
             <Tooltip
               formatter={(value: number, name: string) => {
                 if (name === "movingAverage") {
-                  return [`${value.toFixed(4)} ${config.unit} (MA)`, "Moving Avg"];
+                  return [`${formatNumericValue(value, 4)} ${config.unit} (MA)`, "Moving Avg"];
                 }
                 if (isMultiSeries) {
                   const series = (config as MultiSeriesConfig).series.find(s => s.id === name);
-                  return [`${value.toFixed(2)} ${config.unit}`, series?.name || name];
+                  return [`${formatNumericValue(value, 2)} ${config.unit}`, series?.name || name];
                 }
-                return [`${value.toFixed(2)} ${config.unit}`, "Value"];
+                return [`${formatNumericValue(value, 2)} ${config.unit}`, "Value"];
               }}
               labelFormatter={(label: number) => formatTooltipDate(label)}
               contentStyle={{
@@ -708,7 +866,7 @@ export const LineChart: React.FC<LineChartProps> = ({
                     dot={false}
                     activeDot={{ r: 6, strokeWidth: 2 }}
                     strokeWidth={2.5}
-                    animationDuration={1000}
+                    isAnimationActive={false}
                   />
                 ))}
               </>
@@ -727,7 +885,7 @@ export const LineChart: React.FC<LineChartProps> = ({
                     style: { filter: "drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))" },
                   }}
                   strokeWidth={2.5}
-                  animationDuration={1000}
+                  isAnimationActive={false}
                 />
 
                 {(config as ChartConfig).showMovingAverage && (
@@ -738,25 +896,30 @@ export const LineChart: React.FC<LineChartProps> = ({
                     strokeWidth={3}
                     dot={false}
                     activeDot={{ r: 4 }}
+                    isAnimationActive={false}
                     strokeDasharray="5 5"
-                    animationDuration={1500}
                   />
                 )}
               </>
             )}
 
-            <Brush
-              dataKey="timestamp"
-              height={36}
-              stroke="#f59e0b"
-              fill="#f3f4f6"
-              travellerWidth={10}
-              gap={1}
-              tickFormatter={formatXAxis}
-              startIndex={brushDomain.startIndex}
-              endIndex={brushDomain.endIndex}
-              onChange={handleBrushChange}
-            />
+            {/* --- THE CRITICAL FIX --- */}
+            {/* Only render the Brush when NOT in live mode */}
+            {!isLiveMode && hasData && (
+              <Brush
+                dataKey="timestamp"
+                height={36}
+                stroke="#f59e0b"
+                fill="#f3f4f6"
+                travellerWidth={10}
+                gap={1}
+                tickFormatter={formatXAxis}
+                startIndex={brushDomain.startIndex}
+                endIndex={brushDomain.endIndex}
+                onChange={handleBrushChange}
+              />
+            )}
+            {/* --- END FIX --- */}
           </RechartsLineChart>
         </ResponsiveContainer>
       </div>

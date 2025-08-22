@@ -37,6 +37,26 @@ import {
 } from "../store/gatewaySlice";
 import type { Gateway } from "../types/gateway";
 
+// Helper function to determine gateway online status
+const getGatewayOnlineStatus = (gateway: Gateway) => {
+  // Priority: WebSocket presence data > API isConnected field > fallback to offline
+  if (gateway.isConnected !== undefined) {
+    return gateway.isConnected;
+  }
+  // Fallback to offline if no presence data
+  return false;
+};
+
+// Helper function to get status color
+const getStatusColor = (isOnline: boolean) => {
+  return isOnline ? "success" : "danger";
+};
+
+// Helper function to get status text
+const getStatusText = (isOnline: boolean) => {
+  return isOnline ? "online" : "offline";
+};
+
 export const GatewaysPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const gateways = useSelector(selectGateways);
@@ -200,14 +220,21 @@ export const GatewaysPage: React.FC = () => {
           </div>
         );
       case "status":
+        const isOnline = getGatewayOnlineStatus(gateway);
         return (
           <Chip
             className="capitalize"
-            color={gateway.status === "active" ? "success" : "warning"}
+            color={getStatusColor(isOnline)}
             size="sm"
             variant="flat"
+            startContent={
+              <Icon 
+                icon={isOnline ? "lucide:wifi" : "lucide:wifi-off"} 
+                className="w-3 h-3" 
+              />
+            }
           >
-            {gateway.status}
+            {getStatusText(isOnline)}
           </Chip>
         );
       case "lastSeen":
@@ -223,7 +250,6 @@ export const GatewaysPage: React.FC = () => {
           </Chip>
         );
       case "actions":
-        console.log('Rendering actions for gateway:', gateway.mac);
         const isDeleting = deleteLoadingIds.includes(gateway._id);
         return (
           <div className="flex items-center gap-2">

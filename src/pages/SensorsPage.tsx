@@ -20,6 +20,7 @@ import { Icon } from "@iconify/react";
 import { motion } from "framer-motion";
 import { formatDistanceToNow } from "date-fns";
 import { useDispatch, useSelector } from "react-redux";
+import { formatNumericValue } from "../utils/numberUtils";
 import { AppDispatch, RootState } from "../store";
 import { StatsCard } from "../components/stats-card";
 import { debounce } from "../utils/debounce";
@@ -47,7 +48,6 @@ export const SensorsPage: React.FC = () => {
 
   // Selectors
   const sensors = useSelector(selectSensors);
-  console.log({ sensors });
   const stats = useSelector(selectSensorStats);
   const pagination = useSelector(selectSensorPagination);
   const isLoading = useSelector((state: RootState) => state.sensors.loading);
@@ -129,7 +129,7 @@ export const SensorsPage: React.FC = () => {
           </Chip>
         );
       case "lastValue":
-        return `${sensor?.lastValue?.toFixed(4)} ${sensor?.unit?.toLowerCase() || ""}`;
+        return formatNumericValue(sensor?.lastValue, 4, sensor?.unit?.toLowerCase() || "", "N/A");
       case "lastSeen":
         return formatDistanceToNow(new Date(sensor.lastSeen), { addSuffix: true });
       case "seenBy":

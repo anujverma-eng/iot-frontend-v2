@@ -6,6 +6,7 @@ import App from "./App.tsx";
 import { store } from "./store";
 import "./index.css";
 import AuthBootstrap from "./lib/auth/AuthBootstrap.tsx";
+import './lib/amplify';
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
 	<Provider store={store}>

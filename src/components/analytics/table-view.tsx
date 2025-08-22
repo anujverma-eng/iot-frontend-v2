@@ -8,10 +8,18 @@ import {
   DropdownTrigger,
   Input,
   Pagination,
-  Tooltip
-} from '@heroui/react';
-import { Icon } from '@iconify/react';
-import React from 'react';
+  Selection,
+  SortDescriptor,
+  Table,
+  TableBody,
+  TableCell,
+  TableColumn,
+  TableHeader,
+  TableRow,
+} from "@heroui/react";
+import { Icon } from "@iconify/react";
+import React from "react";
+import { formatNumericValue } from "../../utils/numberUtils";
 import { ChartConfig, DataPoint } from '../../types/sensor';
 
 type GroupByOption = 'none' | 'hourly' | 'daily' | 'weekly';
@@ -243,20 +251,20 @@ export const TableView: React.FC<TableViewProps> = ({ config, onDownloadCSV }) =
       case 'value':
         return (
           <Badge color="primary" variant="flat">
-            {item.value.toFixed(4)} {config.unit}
+            {formatNumericValue(item.value, 4)} {config.unit}
           </Badge>
         );
       case 'min':
         return item.min !== undefined ? (
-          <span className="text-danger">{item.min.toFixed(4)} {config.unit}</span>
+          <span className="text-danger">{formatNumericValue(item.min, 4)} {config.unit}</span>
         ) : null;
       case 'max':
         return item.max !== undefined ? (
-          <span className="text-success">{item.max.toFixed(4)} {config.unit}</span>
+          <span className="text-success">{formatNumericValue(item.max, 4)} {config.unit}</span>
         ) : null;
       case 'avg':
         return item.avg !== undefined ? (
-          <span>{item.avg.toFixed(4)} {config.unit}</span>
+          <span>{formatNumericValue(item.avg, 4)} {config.unit}</span>
         ) : null;
       case 'count':
         return item.count !== undefined ? (

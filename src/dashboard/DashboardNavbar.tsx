@@ -12,11 +12,14 @@ import {
   Avatar,
   Chip,
   Skeleton,
+  Tooltip,
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { cn } from "../lib/utils";
 import { useAppDispatch, useAppSelector } from "../hooks/useAppDispatch";
 import { logout } from "../store/authSlice";
+import { selectIsLiveMode, selectIsConnecting, toggleLiveMode } from "../store/liveDataSlice";
+import { useNavigate } from "react-router-dom";
 
 interface DashboardNavbarProps {
   onMenuToggle: () => void;
@@ -25,10 +28,19 @@ interface DashboardNavbarProps {
 
 export const DashboardNavbar = ({ onMenuToggle, className }: DashboardNavbarProps) => {
   const dispatch = useAppDispatch();
-  const handleMenuAction = (key: React.Key) => key === "logout" && dispatch(logout());
+  const navigate = useNavigate();
+  const handleMenuAction = (key: React.Key) => {
+    if (key === "logout") {
+      dispatch(logout());
+    } else if (key === "settings") {
+      navigate("/dashboard/settings");
+    }
+  };
 
   const profile = useAppSelector((s) => s.profile);
   const orgDetails = useAppSelector((s) => s.org);
+  const isLiveMode = useAppSelector(selectIsLiveMode);
+  const isConnecting = useAppSelector(selectIsConnecting);
 
   // show skeleton until both slices have loaded
   const isBusy = profile.loading || orgDetails.loading || !profile.loaded || !orgDetails.loaded;
@@ -39,6 +51,10 @@ export const DashboardNavbar = ({ onMenuToggle, className }: DashboardNavbarProp
   /* Avatar fallback: first letter of e‑mail or a user icon  */
   const avatarFallback =
     userEmail && !isBusy ? userEmail.charAt(0).toUpperCase() : <Icon icon="lucide:user" className="text-blue-400" />;
+
+  const handleLiveModeToggle = () => {
+    dispatch(toggleLiveMode({ enable: !isLiveMode }));
+  };
 
   return (
     <Navbar
@@ -82,6 +98,57 @@ export const DashboardNavbar = ({ onMenuToggle, className }: DashboardNavbarProp
       </NavbarContent> */}
 
       <NavbarContent justify="end" className="gap-3">
+        {/* Real-time mode indicator */}
+        <Tooltip 
+          content={
+            isConnecting 
+              ? "Connecting to live data..." 
+              : isLiveMode 
+                ? "Live mode is active - Click to disable" 
+                : "Live mode is disabled - Click to enable"
+          }
+        >
+          <Button
+            isIconOnly
+            size="sm"
+            variant="flat"
+            color={isLiveMode ? "success" : "default"}
+            onPress={handleLiveModeToggle}
+            isLoading={isConnecting}
+            className={cn(
+              "transition-all duration-200",
+              isLiveMode && "animate-pulse"
+            )}
+          >
+            {isConnecting ? (
+              <Icon icon="lucide:loader-2" className="h-4 w-4 animate-spin" />
+            ) : (
+              <Icon 
+                icon={isLiveMode ? "lucide:radio" : "lucide:wifi-off"} 
+                className="h-4 w-4" 
+              />
+            )}
+          </Button>
+        </Tooltip>
+
+        {/* Live mode status chip */}
+        <Chip
+          size="sm"
+          variant="flat"
+          color={isLiveMode ? "success" : "default"}
+          startContent={
+            <Icon 
+              icon={isLiveMode ? "lucide:activity" : "lucide:pause"} 
+              className="h-3 w-3" 
+            />
+          }
+          className={cn(
+            "transition-all duration-200",
+            isLiveMode && "animate-pulse"
+          )}
+        >
+          {isConnecting ? "Connecting..." : isLiveMode ? "LIVE" : "OFFLINE"}
+        </Chip>
         {/* <Button isIconOnly variant="light" size="sm" className="text-default-500">
           <Icon icon="lucide:type" className="h-5 w-5" />
         </Button>

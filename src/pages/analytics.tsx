@@ -1,4 +1,4 @@
-import { addToast, Button, Checkbox, CheckboxGroup, DateRangePicker, Input, Spinner } from "@heroui/react";
+import { addToast, Button, Checkbox, CheckboxGroup, DateRangePicker, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger, Input, Spinner } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { CalendarDate, DateValue, getLocalTimeZone } from "@internationalized/date";
 import React from "react";
@@ -13,6 +13,8 @@ import { ClaimSensorModal } from "../components/sensors/claim-sensor-modal";
 import { StatsCard } from "../components/stats-card";
 import { ChartContainer } from "../components/visualization/chart-container";
 import { ComparisonChart } from "../components/visualization/comparison-chart";
+import { useBreakpoints } from "../hooks/use-media-query";
+import { useOfflineDetectionIntegration } from "../hooks/useOfflineDetectionIntegration";
 import { GaugeChart } from "../components/visualization/gauge-chart";
 import { chartColors, sensorTypes, statusOptions, timeRangePresets } from "../data/analytics";
 import { AppDispatch, RootState } from "../store";
@@ -31,6 +33,7 @@ import {
   selectSensors,
   selectSensorsLoading,
   selectSensorStats,
+  selectEnhancedSensorStats, // Import enhanced stats selector
   setClaimModalOpen,
   setFilters,
   setPage,
@@ -38,11 +41,19 @@ import {
   toggleSensorStar,
   updateSensorDisplayName,
 } from "../store/sensorsSlice";
-import { fetchTelemetry, selectTelemetryData, selectTelemetryLoading, setTimeRange } from "../store/telemetrySlice";
+import { 
+  fetchTelemetry, 
+  selectTelemetryData, 
+  selectTelemetryLoading, 
+  setTimeRange,
+  selectLiveSensors
+} from "../store/telemetrySlice";
+import { selectIsLiveMode, selectIsConnecting, toggleLiveMode } from "../store/liveDataSlice";
 import { useDebouncedSensorSelection } from "../hooks/useDebouncedSensorSelection";
 import { useOptimizedDataFetch } from "../hooks/useOptimizedDataFetch";
 import { useCompareSelection } from "../hooks/useCompareSelection";
 import { ChartConfig, FilterState, MultiSeriesConfig, SensorStatus, SensorType } from "../types/sensor";
+import { sortSensorsByBattery } from "../utils/battery"; // Import battery sorting utility
 
 type RangeValue<T> = { start: T | null; end: T | null };
 
@@ -59,32 +70,49 @@ export const AnalyticsPage: React.FC = () => {
   const location = useLocation();
   const isSoloMode = new URLSearchParams(location.search).get("solo") === "true";
 
-  // Replace useMediaQuery with a simple window check
-  const [isMobile, setIsMobile] = React.useState(false);
+  // Use responsive breakpoints
+  const { isMobile, isSmallScreen, isLandscape } = useBreakpoints();
 
-  // Check window width on mount and resize
-  React.useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
+  // Initialize offline detection integration
+  useOfflineDetectionIntegration();
 
-    // Initial check
-    checkMobile();
-
-    // Add resize listener
-    window.addEventListener("resize", checkMobile);
-
-    // Cleanup
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
-
+  // Legacy mobile states for drawer management
   const [isMobileSensorDrawerOpen, setIsMobileSensorDrawerOpen] = React.useState(false);
   const [isMobileFilterDrawerOpen, setIsMobileFilterDrawerOpen] = React.useState(false);
   const [selectedTimeRangeIndex, setSelectedTimeRangeIndex] = React.useState(1);
-  const stats = useSelector(selectSensorStats);
-  console.log("stats", stats);
-  const [pendingFilters, setPendingFilters] = React.useState<FilterState | null>(null);
+  const dispatch = useDispatch<AppDispatch>();
+
+  // Get state from Redux
+  const filters = useSelector(selectFilters);
+  const selectedSensorIds = useSelector(selectSelectedSensorIds);
+  const telemetryData = useSelector(selectTelemetryData);
+  const isLoadingData = useSelector(selectTelemetryLoading);
+  const sensors = useSelector(selectSensors);
+  const loading = useSelector(selectSensorsLoading);
+  const selectedSensorData = useSelector(selectSelectedSensor);
+  const pagination = useSelector(selectSensorPagination);
   const gateways = useSelector(selectGateways);
+  
+  // Live mode Redux state (now centralized)
+  const isLiveMode = useSelector(selectIsLiveMode);
+  const isConnecting = useSelector(selectIsConnecting);
+  const liveSensors = useSelector(selectLiveSensors);
+
+  const stats = useSelector(selectEnhancedSensorStats); // Use enhanced stats with battery count
+  const [pendingFilters, setPendingFilters] = React.useState<FilterState | null>(null);
+
+  // DEBUG: Log when sensors or stats change (reduced frequency)
+  React.useEffect(() => {
+    if (Math.random() < 0.02) { // Log only 2% of the time
+      console.log(`[Analytics] DEBUG: Sensors data changed, count: ${sensors.length}`);
+    }
+  }, [sensors]);
+
+  React.useEffect(() => {
+    if (stats) {
+      console.log(`[Analytics] DEBUG: Stats updated - Live: ${stats.liveSensors}, Offline: ${stats.offlineSensors}`);
+    }
+  }, [stats]);
 
   const applyPendingFilters = () => {
     if (pendingFilters) {
@@ -126,33 +154,20 @@ export const AnalyticsPage: React.FC = () => {
     }
   };
 
-  const dispatch = useDispatch<AppDispatch>();
-
-  // Get state from Redux
-  const filters = useSelector(selectFilters);
-  const selectedSensorIds = useSelector(selectSelectedSensorIds);
-  const telemetryData = useSelector(selectTelemetryData);
-  const isLoadingData = useSelector(selectTelemetryLoading);
-  const sensors = useSelector(selectSensors);
-  const loading = useSelector(selectSensorsLoading);
-  const selectedSensorData = useSelector(selectSelectedSensor);
-  const pagination = useSelector(selectSensorPagination);
-
   // Use optimized data fetching hook
   const { fetchData: fetchOptimizedData, cancelPendingRequests } = useOptimizedDataFetch();
   
   // --- local search text (controlled input) ----------------------------
-  const [searchQuery, setSearchQuery] = React.useState(filters.search);
+  const [searchQuery, setSearchQuery] = React.useState(filters.search || "");
 
   // keep local box in sync if an outside action changed the global filter
-  React.useEffect(() => setSearchQuery(filters.search), [filters.search]);
+  React.useEffect(() => setSearchQuery(filters.search || ""), [filters.search]);
 
-  // when the user stops typing for 500 ms → sync to Redux + reset to page 1
+  // Debounced update to Redux - only update Redux store when user stops typing
   React.useEffect(() => {
     const id = setTimeout(() => {
-      dispatch(setPage(1));
       dispatch(setFilters({ ...filters, search: searchQuery }));
-    }, 500);
+    }, 300); // Reduced debounce time for better UX
     return () => clearTimeout(id);
   }, [searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -167,6 +182,10 @@ export const AnalyticsPage: React.FC = () => {
     dispatch(setTimeRange(range)); // telemetry slice
   };
 
+  const syncLiveMode = (isLive: boolean) => {
+    dispatch(toggleLiveMode({ enable: isLive })); // This sets the live mode in Redux
+  };
+
   // Fetch sensors on component mount
   React.useEffect(() => {
     dispatch(
@@ -174,13 +193,16 @@ export const AnalyticsPage: React.FC = () => {
         page: 1,
         limit: 50,
         claimed: true,
-        search: filters.search || "",
+        search: "", // Remove search from API - do client-side filtering instead
         // TODO: add `type` & `status` here when the backend supports them
       })
     );
     dispatch(fetchSensorStats());
     dispatch(fetchGateways({ page: 1, limit: 1000, search: "" }));
-  }, [dispatch, filters.search, filters.types, filters.status]);
+  }, [dispatch, filters.types, filters.status]); // Remove filters.search from dependency
+
+  // Note: Live mode is now controlled only via navbar and time-range-selector
+  // Removed auto-enable logic to prevent conflicts with manual user controls
 
   // Refresh sensor data (for use after sensor updates/deletions)
   const refreshSensorData = React.useCallback(() => {
@@ -189,13 +211,13 @@ export const AnalyticsPage: React.FC = () => {
         page: pagination.page,
         limit: pagination.limit,
         claimed: true,
-        search: filters.search || "",
+        search: "", // Remove search from API - do client-side filtering instead
         sort: filters.sort?.field,
         dir: filters.sort?.direction,
       })
     );
     dispatch(fetchSensorStats());
-  }, [dispatch, pagination.page, pagination.limit, filters.search, filters.sort]);
+  }, [dispatch, pagination.page, pagination.limit, filters.sort]); // Remove filters.search from dependency
 
   // Map sensors to the format expected by components
   const mappedSensors = React.useMemo(() => {
@@ -214,7 +236,11 @@ export const AnalyticsPage: React.FC = () => {
     /* search */
     if (filters?.search?.trim()) {
       const q = filters.search.toLowerCase();
-      list = list.filter((s) => s.mac.toLowerCase().includes(q) || (s.displayName ?? "").toLowerCase().includes(q));
+      list = list.filter((s) => 
+        s.mac.toLowerCase().includes(q) || 
+        (s.displayName ?? "").toLowerCase().includes(q) ||
+        (s.name ?? "").toLowerCase().includes(q)
+      );
     }
 
     /* sensor type */
@@ -222,25 +248,64 @@ export const AnalyticsPage: React.FC = () => {
       list = list.filter((s) => filters.types.includes(s.type as SensorType));
     }
 
-    /* status */
+    /* status - Fix to use isOnline field instead of status field */
     if (filters.status !== "all") {
-      list = list.filter((s) => s.status === filters.status);
+      if (filters.status === "live") {
+        list = list.filter((s) => s.isOnline === true);
+      } else if (filters.status === "offline") {
+        list = list.filter((s) => s.isOnline === false);
+      }
     }
+    
     /* sort */
     if (filters.sort) {
       const { field, direction } = filters.sort;
       list = [...list].sort((a: any, b: any) => {
+        // Handle favorite/starred fields
         if(field === "starred" || field === "favorite") {
           const af = a.favorite ? 1 : 0;
           const bf = b.favorite ? 1 : 0;
           if (af === bf) return 0;
           return (af > bf ? 1 : -1) * (direction === "asc" ? 1 : -1);
         }
-        const av = a[field],
-          bv = b[field];
+        
+        // Handle date fields (lastSeen)
+        if (field === "lastSeen") {
+          const av = new Date(a[field]).getTime();
+          const bv = new Date(b[field]).getTime();
+          if (isNaN(av) && isNaN(bv)) return 0;
+          if (isNaN(av)) return 1; // Put invalid dates at end
+          if (isNaN(bv)) return -1;
+          return (av - bv) * (direction === "asc" ? 1 : -1);
+        }
+        
+        // Handle string fields (displayName, name)
+        if (field === "displayName" || field === "name") {
+          const av = (a.displayName || a.name || a.mac || "").toString().toLowerCase();
+          const bv = (b.displayName || b.name || b.mac || "").toString().toLowerCase();
+          if (av === bv) return 0;
+          return av.localeCompare(bv) * (direction === "asc" ? 1 : -1);
+        }
+        
+        // Handle numeric fields (battery)
+        if (field === "battery") {
+          const av = typeof a[field] === 'number' ? a[field] : -1;
+          const bv = typeof b[field] === 'number' ? b[field] : -1;
+          if (av === bv) return 0;
+          return (av - bv) * (direction === "asc" ? 1 : -1);
+        }
+        
+        // Generic field handling
+        const av = a[field];
+        const bv = b[field];
         if (av === bv) return 0;
+        if (av == null) return 1;
+        if (bv == null) return -1;
         return (av > bv ? 1 : -1) * (direction === "asc" ? 1 : -1);
       });
+    } else {
+      // Only apply battery sorting when no specific sort is selected
+      list = sortSensorsByBattery(list);
     }
 
     return list;
@@ -270,18 +335,31 @@ export const AnalyticsPage: React.FC = () => {
   }, []);
 
   // Handle URL parameter for selected sensor
+  // CRITICAL FIX: Only depend on sensor IDs, not the entire filteredSensors array
+  // to prevent API calls on every WebSocket message
+  const sensorIds = React.useMemo(() => 
+    filteredSensors?.map(s => s.id) || [], 
+    [filteredSensors?.length, filteredSensors?.map(s => s.id).join(',')]
+  );
+  
   React.useEffect(() => {
+    console.log('[Analytics] URL sensor effect triggered with:', { sensorId, selectedSensor, sensorCount: sensorIds.length });
+    
     if (sensorId) {
+      console.log('[Analytics] Setting sensor from URL parameter:', sensorId);
       dispatch(fetchSensorById(sensorId));
       setSelectedSensor(sensorId);
-    } else if (filteredSensors && filteredSensors.length > 0 && !selectedSensor) {
-      // Add null check for filteredSensors before accessing length
-      const firstSensorId = filteredSensors[0].id;
+    } else if (sensorIds.length > 0 && !selectedSensor) {
+      const firstSensorId = sensorIds[0];
+      console.log('[Analytics] Auto-selecting first sensor:', firstSensorId);
       dispatch(fetchSensorById(firstSensorId));
       setSelectedSensor(firstSensorId);
       navigate(`/dashboard/sensors/${firstSensorId}`, { replace: true });
     }
-  }, [sensorId, filteredSensors, selectedSensor, dispatch, navigate]);
+  }, [sensorId, sensorIds.length, sensorIds.join(','), selectedSensor, dispatch, navigate]);
+
+  // Note: Live mode cleanup is now handled centrally by the live data system
+  // No need for page-specific cleanup
 
   const toISO = (d: Date | string) => new Date(d).toISOString();
 
@@ -331,7 +409,7 @@ export const AnalyticsPage: React.FC = () => {
       };
       adjustedTimeRange.end.setHours(23, 59, 59, 999);
 
-      console.log("Effect triggered: Fetching telemetry with time range:", {
+      console.log('[Analytics] Effect triggered - Fetching telemetry with time range:', {
         start: adjustedTimeRange.start.toISOString(),
         end: adjustedTimeRange.end.toISOString(),
       });
@@ -345,7 +423,7 @@ export const AnalyticsPage: React.FC = () => {
         },
       });
     }
-  }, [selectedSensor, timeRangeKey, fetchOptimizedData]); // Use optimized fetch
+  }, [selectedSensor, timeRangeKey]); // Remove fetchOptimizedData to prevent unnecessary re-renders
 
   const sameRange = (a: { start: Date; end: Date }, b: { start: Date; end: Date }) =>
     new Date(a.start).getTime() === new Date(b.start).getTime() &&
@@ -362,7 +440,7 @@ export const AnalyticsPage: React.FC = () => {
         },
       });
     }
-  }, [selectedSensorIds, filters.timeRange, fetchOptimizedData]);
+  }, [selectedSensorIds, filters.timeRange]); // Remove fetchOptimizedData to prevent unnecessary re-renders
 
   // Add cleanup effect
   React.useEffect(() => {
@@ -373,9 +451,7 @@ export const AnalyticsPage: React.FC = () => {
   }, [cancelPendingRequests]);
 
   const handleSensorSelect = (id: string) => {
-    // Cancel any pending data requests for the previous sensor
-    cancelPendingRequests();
-    
+    // No need to cancel - optimized fetch will handle deduplication
     setSelectedSensor(id);
     navigate(`/dashboard/sensors/${id}`);
   };
@@ -383,7 +459,6 @@ export const AnalyticsPage: React.FC = () => {
   const handleSearchChange = (txt: string) => setSearchQuery(txt);
 
   const handleLoadMore = () => {
-    console.log({ pagination });
     if (pagination.page >= pagination.totalPages || loading) return;
     const next = pagination.page + 1;
     dispatch(
@@ -424,7 +499,7 @@ export const AnalyticsPage: React.FC = () => {
       // 2. Update Redux state with the sanitized time range
       dispatch(setTimeRange(timeRange));
 
-      console.log("Fetching telemetry with time range:", {
+      console.log('[Analytics] Fetching telemetry with time range:', {
         start: timeRange.start.toISOString(),
         end: timeRange.end.toISOString(),
       });
@@ -638,26 +713,78 @@ export const AnalyticsPage: React.FC = () => {
     }
   };
 
+
+
+  // Optional: Test publish command function
+  const handleSendTestCommand = async () => {
+    if (!isLiveMode) {
+      addToast({
+        title: "Live Mode Required",
+        description: "Enable live mode before sending commands",
+      });
+      return;
+    }
+
+    try {
+      // Get the first active gateway to send test to
+      const activeGateway = gateways.find(gateway => gateway.status === 'active');
+      if (!activeGateway) {
+        addToast({
+          title: "No Active Gateway",
+          description: "No active gateway found to send command to",
+        });
+        return;
+      }
+
+      const gatewayId = activeGateway._id;
+      // TODO: Re-enable when publishCommand is available
+      // await publishCommand(gatewayId, { type: 'ping', ts: Date.now() });
+      
+      addToast({
+        title: "Test Command Sent",
+        description: `Sent ping command to ${gatewayId}`,
+      });
+    } catch (error) {
+      console.error('[Analytics] Test command error:', error);
+      addToast({
+        title: "Command Error",
+        description: error instanceof Error ? error.message : "Failed to send test command",
+      });
+    }
+  };
+
   // Prepare chart config for selected sensor
   const chartConfig: ChartConfig | null = React.useMemo(() => {
     if (!selectedSensor || !telemetryData[selectedSensor]) return null;
     const sensorData = telemetryData[selectedSensor];
-    console.log("Chart data content:", {
+    
+    // Enhanced debugging for live data
+    const currentSeries = sensorData.series;
+    console.log('[Analytics] Chart data content:', {
       sensorId: selectedSensor,
-      dataPoints: sensorData.series.length,
-      firstPoint: sensorData.series[0],
-      lastPoint: sensorData.series[sensorData.series.length - 1],
-      nonNullCount: sensorData.series.filter((point) => point && point.value !== null && point.value !== undefined)
-        .length,
+      dataPoints: currentSeries.length,
+      firstPoint: currentSeries[0],
+      lastPoint: currentSeries[currentSeries.length - 1],
+      nonNullCount: currentSeries.filter((point) => point && point.value !== null && point.value !== undefined).length,
     });
+    
+    // Reduced logging frequency to prevent memory issues
+    if (Math.random() < 0.01) { // Log only 1% of the time
+      console.log(`[Analytics] Rendering with series length: ${currentSeries.length}`);
+    }
 
     return {
       type: sensorData.type,
       unit: sensorData.unit,
-      series: sensorData.series,
+      series: sensorData.series, // Pass series directly - array reference will change on updates
       color: chartColors[0],
     };
-  }, [selectedSensor, telemetryData]);
+  }, [
+    selectedSensor, 
+    // Depend on the series array reference itself - will change when Redux creates new array
+    selectedSensor ? telemetryData[selectedSensor]?.series : null,
+    isLiveMode // Track live mode changes
+  ]);
 
   // Prepare multi-series chart config for comparison
   const multiSeriesConfig: MultiSeriesConfig | null = React.useMemo(() => {
@@ -689,7 +816,15 @@ export const AnalyticsPage: React.FC = () => {
         };
       }),
     };
-  }, [telemetryData, selectedSensorIds, sensors]);
+  }, [
+    telemetryData, 
+    selectedSensorIds, 
+    sensors,
+    // In live mode, track data changes for selected sensors
+    isLiveMode ? selectedSensorIds.map(id => 
+      telemetryData[id] ? telemetryData[id].series.length : 0
+    ).join(',') : null
+  ]);
 
   // Find the currently selected sensor object
   const currentSensor = React.useMemo(() => {
@@ -751,42 +886,120 @@ export const AnalyticsPage: React.FC = () => {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold">Sensors</h1>
 
-          <Button
-            color="primary"
-            onPress={() => dispatch(setClaimModalOpen(true))}
-            startContent={<Icon icon="lucide:plus" />}
-          >
-            Add Sensor
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Test command button - only show when live mode is active */}
+            {isLiveMode && (
+              <Button
+                size="sm"
+                variant="flat"
+                color="secondary"
+                onPress={handleSendTestCommand}
+                startContent={<Icon icon="lucide:send" />}
+              >
+                Test
+              </Button>
+            )}
+            <Button
+              color="primary"
+              onPress={() => dispatch(setClaimModalOpen(true))}
+              startContent={<Icon icon="lucide:plus" />}
+            >
+              Add Sensor
+            </Button>
+          </div>
         </div>
 
-        {/* stats grid – re-use the component from SensorsPage */}
-        <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-4 gap-3">
-          <StatsCard
-            title="Total Sensors"
-            value={(stats?.claimed ?? 0).toString()}
-            icon="lucide:radio"
-            color="primary"
-          />
-          <StatsCard
-            title="Live Sensors"
-            value={(stats?.liveSensors ?? 0).toString()}
-            icon="lucide:wifi"
-            color="success"
-          />
-          <StatsCard
-            title="Offline Sensors"
-            value={(stats?.offlineSensors ?? 0).toString()}
-            icon="lucide:wifi-off"
-            color="danger"
-          />
-          <StatsCard
-            title="Low Battery Sensors"
-            value="0"
-            icon="lucide:battery-warning"
-            color="warning"
-          />
-        </div>
+        {/* stats section - responsive design */}
+        {isSmallScreen ? (
+          // Mobile compact stats - dropdown style
+          <div className="px-4">
+            <Dropdown>
+              <DropdownTrigger>
+                <Button
+                  size="sm"
+                  variant="bordered"
+                  startContent={<Icon icon="lucide:bar-chart-3" width={16} />}
+                  endContent={<Icon icon="lucide:chevron-down" width={16} />}
+                  className="w-full justify-between"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs">Sensors:</span>
+                    <span className="font-semibold text-success">{stats?.liveSensors ?? 0}</span>
+                    <span className="text-xs text-default-500">/{stats?.claimed ?? 0}</span>
+                  </div>
+                </Button>
+              </DropdownTrigger>
+              <DropdownMenu aria-label="Sensor statistics">
+                <DropdownItem key="total" textValue="Total Sensors">
+                  <div className="flex justify-between items-center w-full">
+                    <div className="flex items-center gap-2">
+                      <Icon icon="lucide:radio" width={16} className="text-primary" />
+                      <span className="text-sm">Total</span>
+                    </div>
+                    <span className="font-semibold">{stats?.claimed ?? 0}</span>
+                  </div>
+                </DropdownItem>
+                <DropdownItem key="live" textValue="Live Sensors">
+                  <div className="flex justify-between items-center w-full">
+                    <div className="flex items-center gap-2">
+                      <Icon icon="lucide:wifi" width={16} className="text-success" />
+                      <span className="text-sm">Live</span>
+                    </div>
+                    <span className="font-semibold text-success">{stats?.liveSensors ?? 0}</span>
+                  </div>
+                </DropdownItem>
+                <DropdownItem key="offline" textValue="Offline Sensors">
+                  <div className="flex justify-between items-center w-full">
+                    <div className="flex items-center gap-2">
+                      <Icon icon="lucide:wifi-off" width={16} className="text-danger" />
+                      <span className="text-sm">Offline</span>
+                    </div>
+                    <span className="font-semibold text-danger">{stats?.offlineSensors ?? 0}</span>
+                  </div>
+                </DropdownItem>
+                <DropdownItem key="battery" textValue="Low Battery">
+                  <div className="flex justify-between items-center w-full">
+                    <div className="flex items-center gap-2">
+                      <Icon icon="lucide:battery-warning" width={16} className="text-red-500" />
+                      <span className="text-sm">Low Battery</span>
+                    </div>
+                    <span className="font-semibold text-red-500">{stats?.lowBatterySensors ?? 0}</span>
+                  </div>
+                </DropdownItem>
+              </DropdownMenu>
+            </Dropdown>
+          </div>
+        ) : (
+          // Desktop stats grid
+          <div className="px-4">
+            <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-4 gap-3">
+              <StatsCard
+                title="Total Sensors"
+                value={(stats?.claimed ?? 0).toString()}
+                icon="lucide:radio"
+                color="primary"
+              />
+              <StatsCard
+                title="Live Sensors"
+                value={(stats?.liveSensors ?? 0).toString()}
+                icon="lucide:wifi"
+                color="success"
+              />
+              <StatsCard
+                title="Offline Sensors"
+                value={(stats?.offlineSensors ?? 0).toString()}
+                icon="lucide:wifi-off"
+                color="danger"
+              />
+              <StatsCard
+                title="Low Battery Sensors"
+                value={(stats?.lowBatterySensors ?? 0).toString()}
+                icon="lucide:battery-warning"
+                color="danger"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-1 overflow-hidden">
@@ -796,17 +1009,21 @@ export const AnalyticsPage: React.FC = () => {
               {/* <h3 className="text-sm font-medium">My Sensors</h3> */}
               <FilterBar
                 filters={filters}
-                onFiltersChange={handleFiltersChange} // Now this will work
+                onFiltersChange={handleFiltersChange}
+                isMobile={false}
               />
-              <Button
-                size="sm"
-                variant={isCompareMode ? "solid" : "flat"}
-                color={isCompareMode ? "primary" : "default"}
-                onPress={toggleCompareMode}
-                startContent={<Icon icon="lucide:bar-chart-2" width={16} />}
-              >
-                {isCompareMode ? "Comparing" : "Compare"}
-              </Button>
+              <div className="flex items-center gap-2">
+                {/* Live mode switch removed - now controlled via navbar and time-range-selector only */}
+                <Button
+                  size="sm"
+                  variant={isCompareMode ? "solid" : "flat"}
+                  color={isCompareMode ? "primary" : "default"}
+                  onPress={toggleCompareMode}
+                  startContent={<Icon icon="lucide:bar-chart-2" width={16} />}
+                >
+                  {isCompareMode ? "Comparing" : "Compare"}
+                </Button>
+              </div>
             </div>
 
             <SensorList
@@ -876,7 +1093,7 @@ export const AnalyticsPage: React.FC = () => {
                 {selectedSensor && currentSensor && (
                   <div className="flex items-center gap-2">
                     <div
-                      className={`w-2 h-2 rounded-full ${currentSensor.status === "live" ? "bg-success" : "bg-danger"}`}
+                      className={`w-2 h-2 rounded-full ${currentSensor.isOnline ? "bg-success" : "bg-danger"}`}
                     />
                     <span className="text-sm font-medium truncate max-w-[120px]">
                       {currentSensor.displayName || currentSensor.mac}
@@ -884,15 +1101,18 @@ export const AnalyticsPage: React.FC = () => {
                   </div>
                 )}
 
-                <Button
-                  size="sm"
-                  color={isCompareMode ? "primary" : "default"}
-                  variant={isCompareMode ? "solid" : "flat"}
-                  startContent={<Icon icon="lucide:bar-chart-2" width={16} />}
-                  onPress={toggleCompareMode}
-                >
-                  {isCompareMode ? <>Compare ({selectedSensorIds.length})</> : "Compare"}
-                </Button>
+                <div className="flex items-center gap-2">
+                  {/* Live mode switch removed - now controlled via navbar and time-range-selector only */}
+                  <Button
+                    size="sm"
+                    color={isCompareMode ? "primary" : "default"}
+                    variant={isCompareMode ? "solid" : "flat"}
+                    startContent={<Icon icon="lucide:bar-chart-2" width={16} />}
+                    onPress={toggleCompareMode}
+                  >
+                    {isCompareMode ? <>Compare ({selectedSensorIds.length})</> : "Compare"}
+                  </Button>
+                </div>
               </div>
 
               {/* Active filters display */}
@@ -926,7 +1146,7 @@ export const AnalyticsPage: React.FC = () => {
                   {filters.status !== "all" && (
                     <div className="px-3 py-1 bg-primary-100 text-primary rounded-full text-xs flex items-center gap-1">
                       <Icon icon={filters.status === "live" ? "lucide:wifi" : "lucide:wifi-off"} width={12} />
-                      {filters.status.charAt(0).toUpperCase() + filters.status.slice(1)}
+                      {filters.status === "live" ? "Online" : filters.status.charAt(0).toUpperCase() + filters.status.slice(1)}
                     </div>
                   )}
 
@@ -1000,11 +1220,20 @@ export const AnalyticsPage: React.FC = () => {
                       id: currentSensor._id,
                       mac: currentSensor.mac,
                       displayName: currentSensor.displayName,
+                      isOnline: currentSensor.isOnline,
+                      status: currentSensor.status,
                     }}
                     onToggleStar={handleToggleStar}
                     onDisplayNameChange={handleDisplayNameChange}
                     onOpenInNewTab={!isSoloMode ? handleOpenInNewTab : undefined}
                     isLoading={isLoadingData}
+                    timeRange={filters.timeRange}
+                    onTimeRangeChange={syncTimeRange}
+                    onLiveModeChange={syncLiveMode}
+                    showTimeRangeApplyButtons={true}
+                    isMobileView={isMobile}
+                    isLiveMode={isLiveMode}
+                    liveStatus={isConnecting ? "connecting" : isLiveMode ? "connected" : "disconnected"}
                   />
                 </div>
 
@@ -1087,7 +1316,7 @@ export const AnalyticsPage: React.FC = () => {
             <div className="flex flex-wrap gap-2 mb-4">
               {selectedSensorsForCompare.map((sensor) => (
                 <div key={sensor._id} className="flex items-center gap-2 p-2 border border-divider rounded-lg">
-                  <div className={`w-2 h-2 rounded-full ${sensor.status === "live" ? "bg-success" : "bg-danger"}`} />
+                  <div className={`w-2 h-2 rounded-full ${sensor.isOnline ? "bg-success" : "bg-danger"}`} />
                   <span className="text-sm">{sensor.displayName || sensor.mac}</span>
                   <Button isIconOnly size="sm" variant="light" onPress={() => handleRemoveCompare(sensor._id)}>
                     <Icon icon="lucide:x" width={14} />
@@ -1323,7 +1552,7 @@ export const AnalyticsPage: React.FC = () => {
                               const startJs = range.start.toDate(getLocalTimeZone());
                               const endJs = range.end.toDate(getLocalTimeZone());
 
-                              console.log("Mobile date range selected:", {
+                              console.log('[Analytics] Mobile date range selected:', {
                                 start: startJs,
                                 end: endJs,
                                 startISO: startJs.toISOString(),
@@ -1349,9 +1578,11 @@ export const AnalyticsPage: React.FC = () => {
                   <div>
                     <h4 className="text-sm font-medium mb-2">Sort By</h4>
                     {[
-                      { lbl: "Name (A-Z)", fld: "name", dir: "asc", ic: "lucide:arrow-up" },
-                      { lbl: "Name (Z-A)", fld: "name", dir: "desc", ic: "lucide:arrow-down" },
+                      { lbl: "Name (A-Z)", fld: "displayName", dir: "asc", ic: "lucide:arrow-up" },
+                      { lbl: "Name (Z-A)", fld: "displayName", dir: "desc", ic: "lucide:arrow-down" },
                       { lbl: "Starred First", fld: "favorite", dir: "desc", ic: "lucide:star" },
+                      { lbl: "Battery Level", fld: "battery", dir: "asc", ic: "lucide:battery" },
+                      { lbl: "Last Seen", fld: "lastSeen", dir: "desc", ic: "lucide:clock" },
                     ].map((o) => (
                       <Button
                         key={o.lbl}
@@ -1368,7 +1599,7 @@ export const AnalyticsPage: React.FC = () => {
                             ? "primary"
                             : "default"
                         }
-                        className="justify-start"
+                        className="justify-start mb-1"
                         startContent={<Icon icon={o.ic} width={16} />}
                         onPress={() => handleMobileSortChange(o.fld, o.dir as "asc" | "desc")}
                       >

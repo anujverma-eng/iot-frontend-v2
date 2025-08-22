@@ -1,8 +1,23 @@
-import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
+import { createSlice, createAsyncThunk, PayloadAction, createSelector } from "@reduxjs/toolkit";
 import { RootState } from ".";
 import { chooseBucketSize } from "../utils/bucketSize";
 import TelemetryService from "../api/telemetry.service";
 import { TelemetryQueryParams, SensorTelemetryResponse } from "../types/telemetry";
+import { startLive, stopLive, LiveDataMessage, LiveCallbacks, getConnectionStatus } from '../lib/liveMqtt';
+import { updateSensorLastSeen, markSensorsOffline, fetchSensorDetails } from './sensorsSlice';
+
+// Rate limiting cache for unknown sensor discovery (1 minute cooldown)
+const unknownSensorCache = new Map<string, number>();
+const UNKNOWN_SENSOR_COOLDOWN = 60000; // 60 seconds
+
+// Additional cache for when sensors are added to unknownSensors list (prevents spam)
+const unknownSensorListCache = new Map<string, number>();
+const UNKNOWN_SENSOR_LIST_COOLDOWN = 30000; // 30 seconds
+const UNKNOWN_SENSOR_DISCOVERY_COOLDOWN = 60000; // 1 minute cooldown for auto-discovery
+
+// Throttle mechanism for lastSeen updates
+const lastSeenUpdateThrottleMap = new Map<string, number>();
+const LAST_SEEN_UPDATE_THROTTLE_MS = 10000; // Only update lastSeen every 10 seconds per sensor
 
 /** Re-use the point & sensor-data shapes already consumed by the charts */
 export interface DataPoint {
@@ -22,10 +37,14 @@ export interface SensorData {
   max: number;
   avg: number;
   current: number;
+
+  /** live data specific fields */
+  isLive?: boolean;
+  lastUpdated?: number;
 }
 
 /* ──────────────────────────────────────────────────────────── */
-/*  thunk                                                      */
+/*  thunks                                                     */
 /* ──────────────────────────────────────────────────────────── */
 export const fetchTelemetry = createAsyncThunk<
   /* return type  */ Record<string, SensorData>,
@@ -56,6 +75,8 @@ export const fetchTelemetry = createAsyncThunk<
           timestamp: new Date(p.timestamp).getTime(),
           value: p.value,
         })),
+        isLive: false,
+        lastUpdated: Date.now()
       };
     });
 
@@ -65,6 +86,106 @@ export const fetchTelemetry = createAsyncThunk<
     return rejectWithValue(msg);
   }
 });
+
+// Auto-discovery thunk for unknown sensors with rate limiting
+export const autoDiscoverSensor = createAsyncThunk(
+  'telemetry/autoDiscoverSensor',
+  async (mac: string, { dispatch }) => {
+    const now = Date.now();
+    const lastAttempt = unknownSensorCache.get(mac);
+    
+    // Check rate limiting
+    if (lastAttempt && (now - lastAttempt) < UNKNOWN_SENSOR_COOLDOWN) {
+      console.log(`[TelemetrySlice] Rate limiting: skipping auto-discovery for ${mac} (last attempt ${now - lastAttempt}ms ago)`);
+      return { skipped: true, mac };
+    }
+    
+    // Update cache
+    unknownSensorCache.set(mac, now);
+    console.log(`[TelemetrySlice] Attempting auto-discovery for unknown sensor: ${mac}`);
+    
+    // Fetch sensor details in background
+    try {
+      await dispatch(fetchSensorDetails(mac));
+      return { success: true, mac };
+    } catch (error) {
+      console.error(`[TelemetrySlice] Auto-discovery failed for ${mac}:`, error);
+      return { success: false, mac, error };
+    }
+  }
+);
+
+// New live data thunk for managing MQTT connections
+export const toggleLiveMode = createAsyncThunk(
+  'telemetry/toggleLiveMode',
+  async (params: { enable: boolean; gatewayIds: string[] }, { dispatch, getState }) => {
+    const { enable, gatewayIds } = params;
+    
+    console.log('[TelemetrySlice] toggleLiveMode called with:', { enable, gatewayIds });
+    
+    if (enable) {
+      // Start live connection
+      console.log('[TelemetrySlice] Starting live mode...');
+      dispatch(setLiveStatus('connecting'));
+      
+      const callbacks: LiveCallbacks = {
+        onData: (data: LiveDataMessage) => {
+          console.log('[TelemetrySlice] Received live data callback:', JSON.stringify(data, null, 2));
+          dispatch(addLiveData(data));
+          
+          // Update lastSeen for each sensor that sent data (throttled to prevent spam)
+          const now = new Date().toISOString();
+          const currentTime = Date.now();
+          
+          data.sensors.forEach(reading => {
+            const lastUpdateTime = lastSeenUpdateThrottleMap.get(reading.mac) || 0;
+            
+            // Only update if it's been at least LAST_SEEN_UPDATE_THROTTLE_MS since last update
+            if (currentTime - lastUpdateTime >= LAST_SEEN_UPDATE_THROTTLE_MS) {
+              lastSeenUpdateThrottleMap.set(reading.mac, currentTime);
+              dispatch(updateSensorLastSeen({ 
+                mac: reading.mac, 
+                lastSeen: now,
+                battery: reading.battery // Include battery in sensor updates
+              }));
+            }
+          });
+        },
+        onPresence: (topic: string, message: any) => {
+          console.log('[TelemetrySlice] Presence event callback:', topic, message);
+        },
+        onError: (error: any) => {
+          console.error('[TelemetrySlice] Live error callback:', error);
+          dispatch(setLiveError(error.message || 'Connection error'));
+        },
+        onConnectionChange: (status) => {
+          console.log('[TelemetrySlice] Connection status change callback:', status);
+          dispatch(setLiveStatus(status));
+        }
+      };
+
+      try {
+        console.log('[TelemetrySlice] Calling startLive with gatewayIds:', gatewayIds);
+        const unsubscribe = await startLive(gatewayIds, callbacks);
+        console.log('[TelemetrySlice] startLive completed successfully');
+        // Return the result but don't store unsubscribe in Redux
+        return { enabled: true };
+      } catch (error: any) {
+        console.error('[TelemetrySlice] Error starting live mode:', error);
+        dispatch(setLiveError(error.message || 'Failed to start live mode'));
+        throw error;
+      }
+    } else {
+      // Stop live connection
+      console.log('[TelemetrySlice] Stopping live mode...');
+      stopLive();
+      // Mark all sensors as offline when live mode is disabled
+      dispatch(markSensorsOffline());
+      console.log('[TelemetrySlice] stopLive completed and sensors marked offline');
+      return { enabled: false };
+    }
+  }
+);
 
 /* ──────────────────────────────────────────────────────────── */
 /*  slice                                                      */
@@ -78,6 +199,12 @@ interface State {
     end: Date;
   };
   lastUpdated?: string;
+  
+  // Live data specific state
+  isLiveMode: boolean;
+  liveStatus: 'connecting' | 'connected' | 'disconnected' | 'error';
+  maxLiveReadings: number;
+  unknownSensors: string[]; // MACs of sensors that need auto-discovery
 }
 const initialState: State = {
   loading: false,
@@ -88,6 +215,10 @@ const initialState: State = {
     end: new Date(),
   },
   lastUpdated: undefined,
+  isLiveMode: true, // Default to live mode enabled
+  liveStatus: 'disconnected',
+  maxLiveReadings: 100,
+  unknownSensors: [], // Track MACs that need auto-discovery
 };
 
 const telemetrySlice = createSlice({
@@ -101,6 +232,162 @@ const telemetrySlice = createSlice({
     setTimeRange: (s, a: PayloadAction<{ start: Date; end: Date }>) => {
       s.timeRange = a.payload;
     },
+    
+    // Live mode reducers
+    setLiveMode: (state, action: PayloadAction<boolean>) => {
+      console.log('[TelemetrySlice] setLiveMode called with:', action.payload);
+      state.isLiveMode = action.payload;
+      if (!action.payload) {
+        console.log('[TelemetrySlice] Clearing live flags for all sensors');
+        // Clear live flags when exiting live mode
+        Object.values(state.data).forEach(sensor => {
+          sensor.isLive = false;
+        });
+        state.liveStatus = 'disconnected';
+      }
+    },
+
+    setLiveStatus: (state, action: PayloadAction<'connecting' | 'connected' | 'disconnected' | 'error'>) => {
+      console.log('[TelemetrySlice] setLiveStatus called with:', action.payload);
+      state.liveStatus = action.payload;
+    },
+
+    setLiveError: (state, action: PayloadAction<string>) => {
+      console.log('[TelemetrySlice] setLiveError called with:', action.payload);
+      state.error = action.payload;
+      state.liveStatus = 'error';
+    },
+
+    clearUnknownSensor: (state, action: PayloadAction<string>) => {
+      const mac = action.payload;
+      state.unknownSensors = state.unknownSensors.filter(unknownMac => unknownMac !== mac);
+      
+      // Clean up cache entries for this MAC
+      unknownSensorListCache.delete(mac);
+      unknownSensorCache.delete(mac);
+      
+      console.log(`[TelemetrySlice] Removed ${mac} from unknown sensors list and cleared cache`);
+    },
+
+    addLiveData: (state, action: PayloadAction<LiveDataMessage>) => {
+      const { sensors } = action.payload;
+      const now = Date.now();
+
+      // Reduced logging frequency to prevent memory issues
+      if (sensors.length > 0 && Math.random() < 0.05) { // Log only 5% of the time
+        console.log('[TelemetrySlice] addLiveData called with', sensors.length, 'sensors');
+      }
+
+      sensors.forEach(reading => {
+        const { mac, name, type, unit, value, timestamp } = reading;
+        
+        // --- REVISED SENSOR FINDING LOGIC ---
+        // Find the KEY of the sensor that has a matching MAC address.
+        // Do NOT fall back to creating a new key from the MAC address.
+        const sensorKey = Object.keys(state.data).find(key => state.data[key].mac === mac);
+
+        // If no sensor with this MAC exists in our state, we cannot update it.
+        // Log a warning and skip this reading. This prevents polluting the state.
+        if (!sensorKey) {
+          // Reduced logging to prevent memory issues - only log once per minute per unknown MAC
+          const now = Date.now();
+          const lastLogTime = unknownSensorCache.get(`log_${mac}`) || 0;
+          if (now - lastLogTime > 60000) { // 1 minute cooldown for logs
+            console.warn(`[TelemetrySlice] Unknown sensor MAC: ${mac}. Auto-discovery disabled.`);
+            unknownSensorCache.set(`log_${mac}`, now);
+          }
+          
+          return; // "return" here exits the forEach loop for this iteration.
+        }
+        // --- END REVISED LOGIC ---
+
+        console.log('[TelemetrySlice] Found matching sensor key:', sensorKey);
+        
+        // Now we are certain that `sensorKey` refers to an existing sensor 
+        // (e.g., '6a8e5a7e-...') and we can safely update it.
+        const sensor = state.data[sensorKey];
+        
+        // Add new data point
+        const dataPoint: DataPoint = {
+          timestamp: timestamp || now,
+          value: Number(value)
+        };
+
+        // --- IMMUTABLE UPDATE LOGIC ---
+        // 1. Create a new array with the new data point
+        let newSeries = [...sensor.series, dataPoint];
+
+        // 2. Sort the new array (sort() mutates, so we apply it to our new copy)
+        newSeries.sort((a, b) => a.timestamp - b.timestamp);
+
+        // 3. Slice if the new array exceeds the max length
+        if (newSeries.length > state.maxLiveReadings) {
+          const removedCount = newSeries.length - state.maxLiveReadings;
+          newSeries = newSeries.slice(-state.maxLiveReadings);
+          // Only log trimming occasionally to prevent spam
+          if (removedCount > 0 && sensor.series.length % 50 === 0) {
+            console.log('[TelemetrySlice] Trimmed', removedCount, 'old data points, now have:', newSeries.length);
+          }
+        }
+
+        // 4. Assign the new, sorted, and trimmed array to the state
+        sensor.series = newSeries;
+        // --- END IMMUTABLE UPDATE LOGIC ---
+
+        sensor.lastUpdated = now;
+        sensor.isLive = true;
+        sensor.current = Number(value);
+
+        // Update aggregates for live data
+        if (sensor.series.length > 0) {
+          const values = sensor.series.map(p => p.value);
+          sensor.min = Math.min(...values);
+          sensor.max = Math.max(...values);
+          sensor.avg = values.reduce((a, b) => a + b, 0) / values.length;
+        }
+      });
+      
+      // Reduced logging frequency to prevent memory issues
+      if (sensors.length > 0 && Math.random() < 0.1) { // Log only 10% of the time
+        console.log('[TelemetrySlice] Processed', sensors.length, 'sensor readings');
+      }
+    },
+
+    clearLiveData: (state) => {
+      console.log('[TelemetrySlice] clearLiveData called');
+      let clearedCount = 0;
+      Object.values(state.data).forEach(sensor => {
+        if (sensor.isLive) {
+          sensor.series = [];
+          sensor.isLive = false;
+          clearedCount++;
+        }
+      });
+      console.log('[TelemetrySlice] Cleared live data for', clearedCount, 'sensors');
+    },
+
+    updateMaxLiveReadings: (state, action: PayloadAction<number>) => {
+      console.log('[TelemetrySlice] updateMaxLiveReadings called with:', action.payload);
+      console.log('[TelemetrySlice] Previous maxLiveReadings:', state.maxLiveReadings);
+      
+      const newMaxReadings = action.payload;
+      state.maxLiveReadings = newMaxReadings;
+      
+      console.log('[TelemetrySlice] Updated maxLiveReadings to:', state.maxLiveReadings);
+      
+      // Trim existing data if needed
+      let trimmedSensors = 0;
+      Object.values(state.data).forEach(sensor => {
+        if (sensor.series.length > newMaxReadings) {
+          const beforeLength = sensor.series.length;
+          sensor.series = sensor.series.slice(-newMaxReadings);
+          console.log(`[TelemetrySlice] Trimmed sensor data: ${beforeLength} -> ${sensor.series.length}`);
+          trimmedSensors++;
+        }
+      });
+      
+      console.log(`[TelemetrySlice] Trimmed ${trimmedSensors} sensors to new limit: ${newMaxReadings}`);
+    }
   },
   extraReducers: (builder) => {
     builder
@@ -141,6 +428,8 @@ const telemetrySlice = createSlice({
               avg: 0,
               current: 0,
               series: [], // Empty the series array to reflect no data for this range
+              isLive: false,
+              lastUpdated: Date.now()
             } as SensorData;
           });
 
@@ -154,19 +443,67 @@ const telemetrySlice = createSlice({
         });
 
         state.lastUpdated = new Date().toISOString();
+      })
+      // Live mode thunk handlers
+      .addCase(toggleLiveMode.pending, (state) => {
+        console.log('[TelemetrySlice] toggleLiveMode.pending');
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(toggleLiveMode.fulfilled, (state, action) => {
+        console.log('[TelemetrySlice] toggleLiveMode.fulfilled with:', action.payload);
+        state.loading = false;
+        state.isLiveMode = action.payload.enabled;
+        if (!action.payload.enabled) {
+          console.log('[TelemetrySlice] Live mode disabled, clearing live flags');
+          // Clear live flags when stopping live mode
+          Object.values(state.data).forEach(sensor => {
+            sensor.isLive = false;
+          });
+          state.liveStatus = 'disconnected';
+        }
+      })
+      .addCase(toggleLiveMode.rejected, (state, action) => {
+        console.log('[TelemetrySlice] toggleLiveMode.rejected with error:', action.error.message);
+        state.loading = false;
+        state.isLiveMode = false;
+        state.liveStatus = 'error';
+        state.error = action.error.message || 'Failed to toggle live mode';
       });
   },
 });
 
 export const selectTimeRange = (st: RootState) => st.telemetry.timeRange;
-export const { clear: clearTelemetry, setTimeRange } = telemetrySlice.actions;
+export const { 
+  clear: clearTelemetry, 
+  setTimeRange,
+  setLiveMode,
+  setLiveStatus,
+  setLiveError,
+  addLiveData,
+  clearLiveData,
+  updateMaxLiveReadings,
+  clearUnknownSensor
+} = telemetrySlice.actions;
 
 /* ──────────────────────────────────────────────────────────── */
-/*  selectors (unchanged for callers)                          */
+/*  selectors (enhanced for live data)                        */
 /* ──────────────────────────────────────────────────────────── */
 export const selectTelemetryLoading = (st: RootState) => st.telemetry.loading;
 export const selectTelemetryError = (st: RootState) => st.telemetry.error;
 export const selectTelemetryData = (st: RootState) => st.telemetry.data;
 export const selectSensorTelemetry = (st: RootState, id: string) => st.telemetry.data[id];
+
+// Live mode selectors
+export const selectIsLiveMode = (st: RootState) => st.telemetry.isLiveMode;
+export const selectLiveStatus = (st: RootState) => st.telemetry.liveStatus;
+
+// Memoized selector for live sensors to prevent unnecessary re-renders
+export const selectLiveSensors = createSelector(
+  [(st: RootState) => st.telemetry.data],
+  (data) => Object.values(data).filter(sensor => sensor.isLive)
+);
+
+export const selectMaxLiveReadings = (st: RootState) => st.telemetry.maxLiveReadings;
 
 export default telemetrySlice.reducer;

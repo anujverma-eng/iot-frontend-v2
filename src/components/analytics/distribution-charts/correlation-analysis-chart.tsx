@@ -16,12 +16,14 @@ import {
   Cell
 } from 'recharts';
 import { ChartConfig } from '../../../types/sensor';
+import { formatNumericValue } from '../../../utils/numberUtils';
 
 interface CorrelationAnalysisChartProps {
   config: ChartConfig;
   secondaryConfig?: ChartConfig;
   showCards?: boolean;
   showChart?: boolean;
+  isLiveMode?: boolean;
 }
 
 export const CorrelationAnalysisChart: React.FC<CorrelationAnalysisChartProps> = ({ 
@@ -29,10 +31,12 @@ export const CorrelationAnalysisChart: React.FC<CorrelationAnalysisChartProps> =
   secondaryConfig,
   showCards,
   showChart,
+  isLiveMode = false,
 }) => {
   const [brushDomain, setBrushDomain] = React.useState<[number, number] | null>(null);
   // If no secondary config is provided, we'll analyze autocorrelation
   // (correlation between current values and lagged values)
+  // Recalculates in live mode when data changes
   const correlationData = React.useMemo(() => {
     if (!config.series || config.series.length < 10) return null;
     
@@ -222,7 +226,7 @@ export const CorrelationAnalysisChart: React.FC<CorrelationAnalysisChartProps> =
                         </Chip>
                         
                         <Chip variant="flat" color="secondary">
-                          r = {(correlationData.correlation ?? 0).toFixed(2)}
+                          r = {formatNumericValue(correlationData.correlation ?? 0)}
                         </Chip>
                       </div>
                     </div>
@@ -281,12 +285,12 @@ export const CorrelationAnalysisChart: React.FC<CorrelationAnalysisChartProps> =
                   <Tooltip
                     formatter={(value: number, name: string) => {
                       if (name === correlationData.primaryType) 
-                        return [`${value.toFixed(2)} ${correlationData.primaryUnit}`, name];
+                        return [`${formatNumericValue(value)} ${correlationData.primaryUnit}`, name];
                       if (name === correlationData.secondaryType) 
-                        return [`${value.toFixed(2)} ${correlationData.secondaryUnit}`, name];
+                        return [`${formatNumericValue(value)} ${correlationData.secondaryUnit}`, name];
                       return [`${value}`, name];
                     }}
-                    labelFormatter={() => `Correlation: ${(correlationData.correlation ?? 0).toFixed(2)}`}
+                    labelFormatter={() => `Correlation: ${formatNumericValue(correlationData.correlation ?? 0)}`}
                     contentStyle={{
                       backgroundColor: "#ffffff",
                       border: "1px solid #e5e7eb",
@@ -312,14 +316,16 @@ export const CorrelationAnalysisChart: React.FC<CorrelationAnalysisChartProps> =
                     lineType="fitting"
                   />
 
-                  {/* Add brush for data point selection */}
-                  <Brush 
-                    dataKey="primaryValue" 
-                    height={30}
-                    stroke="#6366f1"
-                    fill="rgba(99, 102, 241, 0.1)"
-                    tickFormatter={(value) => value.toFixed(2)}
-                  />
+                  {/* Add brush for data point selection - disabled in live mode */}
+                  {!isLiveMode && (
+                    <Brush 
+                      dataKey="primaryValue" 
+                      height={30}
+                      stroke="#6366f1"
+                      fill="rgba(99, 102, 241, 0.1)"
+                      tickFormatter={(value) => formatNumericValue(value)}
+                    />
+                  )}
                 </ScatterChart>
               </ResponsiveContainer>
             </div>}
@@ -375,7 +381,7 @@ export const CorrelationAnalysisChart: React.FC<CorrelationAnalysisChartProps> =
                               variant="flat"
                               size="sm"
                             >
-                              Lag {lag.lag}: {lag.correlation.toFixed(2)}
+                              Lag {lag.lag}: {formatNumericValue(lag.correlation)}
                             </Chip>
                           ))}
                         </div>
@@ -432,7 +438,7 @@ export const CorrelationAnalysisChart: React.FC<CorrelationAnalysisChartProps> =
                   />
                   <Tooltip
                     formatter={(value: number, name: string) => {
-                      if (name === 'correlation') return [`${value.toFixed(3)}`, 'Correlation'];
+                      if (name === 'correlation') return [`${formatNumericValue(value)}`, 'Correlation'];
                       return [`${value}`, name];
                     }}
                     labelFormatter={(lag) => `Lag: ${lag} time steps`}
@@ -491,25 +497,27 @@ export const CorrelationAnalysisChart: React.FC<CorrelationAnalysisChartProps> =
                     })}
                   </Bar>
 
-                  {/* Add brush for lag selection */}
-                  <Brush 
-                    dataKey="lag" 
-                    height={30}
-                    stroke="#4f46e5"
-                    fill="rgba(79, 70, 229, 0.1)"
-                    tickFormatter={(lag) => `${lag}`}
-                    onChange={(brushData) => {
-                      if (brushData?.startIndex !== undefined && brushData?.endIndex !== undefined) {
-                        const startLag = correlationData.autocorrelations?.[brushData.startIndex]?.lag;
-                        const endLag = correlationData.autocorrelations?.[brushData.endIndex]?.lag;
-                        if (startLag !== undefined && endLag !== undefined) {
-                          setBrushDomain([startLag, endLag]);
+                  {/* Add brush for lag selection - disabled in live mode */}
+                  {!isLiveMode && (
+                    <Brush 
+                      dataKey="lag" 
+                      height={30}
+                      stroke="#4f46e5"
+                      fill="rgba(79, 70, 229, 0.1)"
+                      tickFormatter={(lag) => `${lag}`}
+                      onChange={(brushData) => {
+                        if (brushData?.startIndex !== undefined && brushData?.endIndex !== undefined) {
+                          const startLag = correlationData.autocorrelations?.[brushData.startIndex]?.lag;
+                          const endLag = correlationData.autocorrelations?.[brushData.endIndex]?.lag;
+                          if (startLag !== undefined && endLag !== undefined) {
+                            setBrushDomain([startLag, endLag]);
+                          }
+                        } else {
+                          setBrushDomain(null);
                         }
-                      } else {
-                        setBrushDomain(null);
-                      }
-                    }}
-                  />
+                      }}
+                    />
+                  )}
                 </BarChart>
               </ResponsiveContainer>
             </div>
