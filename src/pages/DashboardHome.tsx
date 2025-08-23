@@ -403,7 +403,7 @@ export const DashboardHome: React.FC = () => {
                         <TableCell>
                           <div className="flex flex-col">
                             <span className="text-bold text-small">
-                              {lastValue} {sensor.lastUnit}
+                              {lastValue} {sensor?.unit}
                             </span>
                             {/* {isLiveMode && (
                               <span className="text-tiny text-success">● Live</span>
@@ -539,7 +539,7 @@ export const DashboardHome: React.FC = () => {
                         <div className="flex justify-between items-center">
                           <div className="flex-1">
                             <p className="text-xs text-default-500 uppercase tracking-wide">Current Reading</p>
-                            <p className="text-xl font-bold text-primary">{currentValue} <span className="text-sm text-default-600">{sensor.lastUnit}</span></p>
+                            <p className="text-xl font-bold text-primary">{currentValue} <span className="text-sm text-default-600">{sensor?.unit}</span></p>
                           </div>
                           <div className="text-right">
                             <p className="text-xs text-default-500 uppercase tracking-wide">Battery</p>
@@ -589,7 +589,7 @@ export const DashboardHome: React.FC = () => {
                       <div className="hidden lg:grid lg:grid-cols-5 gap-4">
                         <div className="text-center">
                           <p className="text-sm text-default-600 mb-1">Current Value</p>
-                          <p className="text-lg font-bold text-primary">{currentValue} {sensor.lastUnit}</p>
+                          <p className="text-lg font-bold text-primary">{currentValue} {sensor?.unit}</p>
                         </div>
                         <div className="text-center">
                           <p className="text-sm text-default-600 mb-1">Battery</p>

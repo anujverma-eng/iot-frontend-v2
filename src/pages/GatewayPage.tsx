@@ -1,4 +1,5 @@
 import {
+  addToast,
   Button,
   Card,
   CardBody,
@@ -12,28 +13,25 @@ import {
   TableHeader,
   TableRow,
   useDisclosure,
-  addToast,
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { formatDistanceToNow } from "date-fns";
 import { motion } from "framer-motion";
 import React from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { GatewayDetailModal } from "../components/gateways/GatewayDetailModal";
 import { DeleteGatewayConfirmationModal } from "../components/DeleteGatewayConfirmationModal";
+import { GatewayDetailModal } from "../components/gateways/GatewayDetailModal";
 import { StatsCard } from "../components/stats-card";
 import { AppDispatch, RootState } from "../store";
 import {
-  fetchGateways,
-  fetchGatewayStats,
+  deleteGateway,
   gatewaysIsBusy,
+  refreshGatewayData,
+  selectDeleteLoadingIds,
   selectGatewayPagination,
   selectGateways,
   selectGatewayStats,
-  selectDeleteLoadingIds,
-  setPage,
-  deleteGateway,
-  refreshGatewayData
+  setPage
 } from "../store/gatewaySlice";
 import type { Gateway } from "../types/gateway";
 
@@ -219,6 +217,13 @@ export const GatewaysPage: React.FC = () => {
             <p className="text-bold text-tiny text-default-400">{gateway.mac}</p>
           </div>
         );
+      case "location":
+        return (
+          <div className="flex items-center gap-2">
+            <Icon icon="lucide:map-pin" className="w-4 h-4 text-default-400" />
+            <span className="text-small">{gateway.location || "-"}</span>
+          </div>
+        );
       case "status":
         const isOnline = getGatewayOnlineStatus(gateway);
         return (
@@ -323,6 +328,18 @@ export const GatewaysPage: React.FC = () => {
                     <div className="flex items-center gap-2">
                       GATEWAY
                       {sortColumn === "mac" && (
+                        <Icon
+                          icon={sortDirection === "asc" ? "lucide:chevron-up" : "lucide:chevron-down"}
+                          className="text-default-500"
+                          width={16}
+                        />
+                      )}
+                    </div>
+                  </TableColumn>
+                  <TableColumn key="location" onClick={() => handleSort("location")} className="cursor-pointer">
+                    <div className="flex items-center gap-2">
+                      LOCATION
+                      {sortColumn === "location" && (
                         <Icon
                           icon={sortDirection === "asc" ? "lucide:chevron-up" : "lucide:chevron-down"}
                           className="text-default-500"

@@ -61,8 +61,11 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
   const isSensorsLoading = useSelector(gatewaySensorsIsBusy);
   const [editingLabel, setEditingLabel] = React.useState(false);
   const [labelValue, setLabelValue] = React.useState("");
+  const [editingLocation, setEditingLocation] = React.useState(false);
+  const [locationValue, setLocationValue] = React.useState("");
   const [isInitialLoad, setIsInitialLoad] = React.useState(true);
   const [isSavingLabel, setIsSavingLabel] = React.useState(false);
+  const [isSavingLocation, setIsSavingLocation] = React.useState(false);
 
   const fetchGatewayData = React.useCallback(() => {
     return dispatch(fetchGatewayDetails(gatewayId)).unwrap();
@@ -128,6 +131,34 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
     }
   };
 
+  const handleSaveLocation = async () => {
+    if (!gateway) return;
+
+    setIsSavingLocation(true);
+    try {
+      // Update the location
+      await dispatch(updateGatewayLabel({ id: gatewayId, location: locationValue })).unwrap();
+
+      // Wait for both operations to complete
+      await Promise.all([
+        fetchGatewayData(),
+        dispatch(
+          fetchGateways({
+            page: 1,
+            limit: 20,
+            search: "",
+          })
+        ).unwrap(),
+      ]);
+
+      setEditingLocation(false);
+    } catch (error) {
+      console.error("Failed to update gateway location:", error);
+    } finally {
+      setIsSavingLocation(false);
+    }
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     // You could add a toast notification here
@@ -153,12 +184,13 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
     }
   }, [showClaimed, pagination.page, searchQuery, sortColumn, sortDirection, isInitialLoad]);
 
-  // Update label value when gateway changes
+  // Update label and location values when gateway changes
   React.useEffect(() => {
     if (gateway) {
       setLabelValue(gateway.label || "");
+      setLocationValue(gateway.location || "");
     }
-  }, [gateway?.label]);
+  }, [gateway?.label, gateway?.location]);
 
   const handleToggleClaimed = (value: boolean) => {
     dispatch(setDetailShowClaimed(value));
@@ -198,16 +230,23 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
   }, []);
 
   const renderSkeletonHeader = () => (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
+      {/* Top row skeleton */}
       <div className="flex items-center gap-2">
         <Skeleton className="h-6 w-48 rounded-lg" />
         <Skeleton className="h-6 w-6 rounded-lg" />
         <Skeleton className="h-6 w-6 rounded-lg" />
         <Skeleton className="h-6 w-20 rounded-lg" />
       </div>
-      <div className="flex items-center gap-2">
-        <Skeleton className="h-4 w-32 rounded-lg" />
-        <Skeleton className="h-4 w-4 rounded-lg" />
+      {/* Bottom row skeleton */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-10 w-40 rounded-lg" /> {/* Location highlight box */}
+        </div>
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-4 w-32 rounded-lg" />
+          <Skeleton className="h-6 w-6 rounded-lg" />
+        </div>
       </div>
     </div>
   );
@@ -260,15 +299,16 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
               {isGatewayLoading && !gateway ? (
                 renderSkeletonHeader()
               ) : gateway ? (
-                <div className="flex flex-col">
+                <div className="flex flex-col gap-3">
+                  {/* Top row - Gateway title and actions */}
                   {!editingLabel ? (
                     <div className="flex items-center gap-2">
-                      <span>{gateway.label || gateway.mac}</span>
+                      <span className="text-lg font-semibold">{gateway.label || gateway.mac}</span>
                       <Button isIconOnly size="sm" variant="light" onPress={() => setEditingLabel(true)}>
                         <Icon icon="lucide:edit-3" width={16} height={16} />
                       </Button>
-                      <Tooltip content="Copy MAC address">
-                        <Button isIconOnly size="sm" variant="light" onPress={() => copyToClipboard(gateway.mac)}>
+                      <Tooltip content="Copy Gateway Id">
+                        <Button isIconOnly size="sm" variant="light" onPress={() => copyToClipboard(gateway?._id)}>
                           <Icon icon="lucide:copy" width={16} height={16} />
                         </Button>
                       </Tooltip>
@@ -308,13 +348,81 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
                       </Button>
                     </div>
                   )}
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-default-500">{gateway.mac}</span>
-                    <Tooltip content="Copy gateway ID">
-                      <Button isIconOnly size="sm" variant="light" onPress={() => copyToClipboard(gateway._id)}>
-                        <Icon icon="lucide:copy" width={14} height={14} />
-                      </Button>
-                    </Tooltip>
+                  
+                  {/* Bottom row - Location and MAC/ID */}
+                  <div className="flex items-center justify-between">
+                    {/* Left side - Location with highlight */}
+                    <div className="flex items-center gap-2">
+                      {!editingLocation ? (
+                        <div className="flex items-center gap-2 px-3 py-2 bg-primary-50 rounded-lg border border-primary-100">
+                          <Icon icon="lucide:map-pin" className="w-4 h-4 text-primary-500" />
+                          <span className="text-sm font-medium text-primary-700">
+                            {gateway.location || "No location"}
+                          </span>
+                          <Button 
+                            isIconOnly 
+                            size="sm" 
+                            variant="light" 
+                            onPress={() => setEditingLocation(true)}
+                            isDisabled={editingLabel || isSavingLabel}
+                            className="ml-1 h-6 w-6 min-w-unit-6"
+                          >
+                            <Icon icon="lucide:edit-3" width={12} height={12} className="text-primary-500" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 px-3 py-2 bg-warning-50 rounded-lg border border-warning-200">
+                          <Icon icon="lucide:map-pin" className="w-4 h-4 text-warning-600" />
+                          <Input
+                            size="sm"
+                            placeholder="Enter location"
+                            value={locationValue}
+                            onChange={(e) => setLocationValue(e.target.value)}
+                            className="max-w-xs"
+                            classNames={{
+                              inputWrapper: "h-8 min-h-unit-8",
+                              input: "text-sm"
+                            }}
+                            autoFocus
+                            isDisabled={isSavingLocation}
+                          />
+                          <Button 
+                            size="sm" 
+                            color="primary" 
+                            onPress={handleSaveLocation} 
+                            isLoading={isSavingLocation}
+                            className="h-8 min-h-unit-8 px-3"
+                          >
+                            Save
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="light"
+                            onPress={() => {
+                              setEditingLocation(false);
+                              setLocationValue(gateway.location || "");
+                            }}
+                            isDisabled={isSavingLocation}
+                            className="h-8 min-h-unit-8 px-3"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Right side - MAC and Gateway ID */}
+                    <div className="flex items-center gap-3 text-sm text-default-500">
+                      <div className="flex items-center gap-1">
+                        <span>MAC:</span>
+                        <code className="text-xs bg-default-100 px-2 py-1 rounded">{gateway.mac}</code>
+                      </div>
+                      <Tooltip content="Copy MAC Address">
+                        <Button isIconOnly size="sm" variant="light" onPress={() => copyToClipboard(gateway?.mac)}>
+                          <Icon icon="lucide:copy" width={14} height={14} />
+                        </Button>
+                      </Tooltip>
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -442,12 +550,12 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
                                   {columnKey === "mac" ? (
                                     <div className="flex items-center gap-2">
                                       {renderCell(sensor, columnKey.toString())}
-                                      <Tooltip content="Copy MAC address">
+                                      <Tooltip content="copy gateway-id">
                                         <Button
                                           isIconOnly
                                           size="sm"
                                           variant="light"
-                                          onPress={() => copyToClipboard(sensor.mac)}
+                                          onPress={() => copyToClipboard(sensor?._id)}
                                         >
                                           <Icon icon="lucide:copy" width={14} height={14} />
                                         </Button>

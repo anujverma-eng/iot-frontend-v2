@@ -5,6 +5,7 @@ export interface Gateway {
   lastSeen: string;
   orgId: string;
   label?: string;
+  location?: string; // New optional location field
   createdAt: string;
   updatedAt: string;
   isConnected?: boolean; // Real-time connection status from WebSocket

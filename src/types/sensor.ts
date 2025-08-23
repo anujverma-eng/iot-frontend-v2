@@ -4,7 +4,6 @@ export interface Sensor {
   type: string;
   unit: string;
   lastValue: number;
-  lastUnit: string;
   lastSeen: string;
   ignored: boolean;
   displayName?: string;

@@ -55,8 +55,12 @@ export const fetchGatewaySensors = createAsyncThunk(
 
 export const updateGatewayLabel = createAsyncThunk(
   'gateways/updateLabel',
-  async ({ id, label }: { id: string; label: string }) => {
-    const { data } = await GatewayService.updateGateway(id, { label });
+  async ({ id, label, location }: { id: string; label?: string; location?: string }) => {
+    const updateData: { label?: string; location?: string } = {};
+    if (label !== undefined) updateData.label = label;
+    if (location !== undefined) updateData.location = location;
+    
+    const { data } = await GatewayService.updateGateway(id, updateData);
     return data;
   }
 );
