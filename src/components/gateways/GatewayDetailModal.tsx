@@ -67,6 +67,8 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
   const [isSavingLabel, setIsSavingLabel] = React.useState(false);
   const [isSavingLocation, setIsSavingLocation] = React.useState(false);
 
+  const displaySensors = sensors;
+
   const fetchGatewayData = React.useCallback(() => {
     return dispatch(fetchGatewayDetails(gatewayId)).unwrap();
   }, [dispatch, gatewayId]);
@@ -84,8 +86,6 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
       })
     ).unwrap();
   }, [dispatch, gatewayId, showClaimed, pagination.page, searchQuery, sortColumn, sortDirection]);
-
-  console.log({ gateway });
 
   const debouncedSearch = React.useMemo(
     () =>
@@ -200,30 +200,59 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
     switch (columnKey) {
       case "mac":
         return (
-          <div className="flex flex-col">
-            <p className="text-bold text-small">{sensor.displayName || sensor.mac}</p>
+          <div className="flex flex-col min-w-0">
+            <p className="text-bold text-small truncate">{sensor.displayName || sensor.mac}</p>
             {sensor.mac && sensor.displayName ? (
-              <p className="text-bold text-tiny text-default-400">{sensor.mac}</p>
+              <p className="text-bold text-tiny text-default-400 truncate">{sensor.mac}</p>
             ) : (
-              <p className="text-bold text-tiny text-default-400">{sensor.displayName}</p>
+              <p className="text-bold text-tiny text-default-400 truncate">{sensor.displayName}</p>
             )}
           </div>
         );
       case "type":
+        const getTypeColor = (type: string) => {
+          switch (type) {
+            case "temperature": return "primary";
+            case "humidity": return "secondary";
+            case "pressure": return "success";
+            case "light": return "warning";
+            case "motion": return "danger";
+            case "air_quality": return "primary";
+            case "vibration": return "secondary";
+            case "sound": return "success";
+            case "co2": return "warning";
+            default: return "default";
+          }
+        };
+        
         return (
           <Chip
             className="capitalize"
-            color={sensor.type === "temperature" ? "primary" : "secondary"}
+            color={getTypeColor(sensor.type) as any}
             size="sm"
             variant="flat"
           >
-            {sensor.type}
+            {sensor.type.replace(/_/g, ' ')}
           </Chip>
         );
       case "lastValue":
-        return sensor.lastValue ? `${sensor.lastValue.toFixed(4)} ${sensor.lastUnit}` : "N/A";
+        return (
+          <div className="text-sm">
+            {sensor?.lastValue ? (
+              <span className="block truncate">
+                {sensor?.lastValue?.toFixed(2) || "N/A"} <span className="text-xs text-default-400">{sensor?.unit}</span>
+              </span>
+            ) : (
+              "N/A"
+            )}
+          </div>
+        );
       case "lastSeen":
-        return sensor.lastSeen ? formatDistanceToNow(new Date(sensor.lastSeen), { addSuffix: true }) : "Never";
+        return (
+          <div className="text-sm truncate">
+            {sensor.lastSeen ? formatDistanceToNow(new Date(sensor.lastSeen), { addSuffix: true }) : "Never"}
+          </div>
+        );
       default:
         return sensor[columnKey];
     }
@@ -232,18 +261,22 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
   const renderSkeletonHeader = () => (
     <div className="flex flex-col gap-3">
       {/* Top row skeleton */}
-      <div className="flex items-center gap-2">
-        <Skeleton className="h-6 w-48 rounded-lg" />
-        <Skeleton className="h-6 w-6 rounded-lg" />
-        <Skeleton className="h-6 w-6 rounded-lg" />
-        <Skeleton className="h-6 w-20 rounded-lg" />
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+        <div className="flex items-center gap-2 flex-1">
+          <Skeleton className="h-6 w-48 rounded-lg" />
+          <Skeleton className="h-6 w-6 rounded-lg" />
+        </div>
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-6 w-6 rounded-lg" />
+          <Skeleton className="h-6 w-20 rounded-lg" />
+        </div>
       </div>
       {/* Bottom row skeleton */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-2">
           <Skeleton className="h-10 w-40 rounded-lg" /> {/* Location highlight box */}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
           <Skeleton className="h-4 w-32 rounded-lg" />
           <Skeleton className="h-6 w-6 rounded-lg" />
         </div>
@@ -252,8 +285,8 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
   );
 
   const renderSkeletonStats = () => (
-    <div className="flex justify-between items-center">
-      <div className="flex gap-4">
+    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row gap-4">
         <div className="flex items-center gap-2">
           <Skeleton className="h-8 w-8 rounded-full" />
           <Skeleton className="h-4 w-16 rounded-lg" />
@@ -263,7 +296,7 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
           <Skeleton className="h-4 w-20 rounded-lg" />
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 self-start sm:self-auto">
         <Skeleton className="h-4 w-20 rounded-lg" />
         <Skeleton className="h-6 w-10 rounded-lg" />
         <Skeleton className="h-4 w-16 rounded-lg" />
@@ -274,14 +307,18 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
   const renderSkeletonTable = () => (
     <div className="space-y-4">
       <Skeleton className="h-10 w-full rounded-lg" />
-      {[...Array(5)].map((_, index) => (
-        <div key={index} className="flex gap-4">
-          <Skeleton className="h-12 w-1/4 rounded-lg" />
-          <Skeleton className="h-12 w-1/4 rounded-lg" />
-          <Skeleton className="h-12 w-1/4 rounded-lg" />
-          <Skeleton className="h-12 w-1/4 rounded-lg" />
+      <div className="overflow-x-auto">
+        <div className="min-w-[600px] space-y-2">
+          {[...Array(5)].map((_, index) => (
+            <div key={index} className="flex gap-4">
+              <Skeleton className="h-12 w-1/4 rounded-lg" />
+              <Skeleton className="h-12 w-1/4 rounded-lg" />
+              <Skeleton className="h-12 w-1/4 rounded-lg" />
+              <Skeleton className="h-12 w-1/4 rounded-lg" />
+            </div>
+          ))}
         </div>
-      ))}
+      </div>
     </div>
   );
 
@@ -291,326 +328,397 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="3xl" backdrop="blur" scrollBehavior="inside">
-      <ModalContent>
+    <Modal 
+      isOpen={isOpen} 
+      onClose={onClose} 
+      size="3xl" 
+      backdrop="blur" 
+      scrollBehavior="inside"
+      classNames={{
+        base: "h-[95vh] max-h-[95vh] sm:h-auto sm:max-h-[90vh]",
+        wrapper: "p-2 sm:p-4",
+        body: "p-0",
+        footer: "flex-shrink-0"
+      }}
+    >
+      <ModalContent className="flex flex-col max-h-full">
         {(onClose) => (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}>
-            <ModalHeader className="flex flex-col gap-1">
-              {isGatewayLoading && !gateway ? (
-                renderSkeletonHeader()
-              ) : gateway ? (
-                <div className="flex flex-col gap-3">
-                  {/* Top row - Gateway title and actions */}
-                  {!editingLabel ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg font-semibold">{gateway.label || gateway.mac}</span>
-                      <Button isIconOnly size="sm" variant="light" onPress={() => setEditingLabel(true)}>
-                        <Icon icon="lucide:edit-3" width={16} height={16} />
-                      </Button>
-                      <Tooltip content="Copy Gateway Id">
-                        <Button isIconOnly size="sm" variant="light" onPress={() => copyToClipboard(gateway?._id)}>
-                          <Icon icon="lucide:copy" width={16} height={16} />
-                        </Button>
-                      </Tooltip>
-                      <Chip
-                        className="capitalize"
-                        color={gateway.status === "active" ? "success" : "warning"}
-                        size="sm"
-                        variant="flat"
-                      >
-                        {gateway.status}
-                      </Chip>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <Input
-                        size="sm"
-                        placeholder="Enter gateway label"
-                        value={labelValue}
-                        onChange={(e) => setLabelValue(e.target.value)}
-                        className="max-w-xs"
-                        autoFocus
-                        isDisabled={isSavingLabel}
-                      />
-                      <Button size="sm" color="primary" onPress={handleSaveLabel} isLoading={isSavingLabel}>
-                        Save
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="light"
-                        onPress={() => {
-                          setEditingLabel(false);
-                          setLabelValue(gateway.label || "");
-                        }}
-                        isDisabled={isSavingLabel}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  )}
-                  
-                  {/* Bottom row - Location and MAC/ID */}
-                  <div className="flex items-center justify-between">
-                    {/* Left side - Location with highlight */}
-                    <div className="flex items-center gap-2">
-                      {!editingLocation ? (
-                        <div className="flex items-center gap-2 px-3 py-2 bg-primary-50 rounded-lg border border-primary-100">
-                          <Icon icon="lucide:map-pin" className="w-4 h-4 text-primary-500" />
-                          <span className="text-sm font-medium text-primary-700">
-                            {gateway.location || "No location"}
-                          </span>
-                          <Button 
-                            isIconOnly 
-                            size="sm" 
-                            variant="light" 
-                            onPress={() => setEditingLocation(true)}
-                            isDisabled={editingLabel || isSavingLabel}
-                            className="ml-1 h-6 w-6 min-w-unit-6"
-                          >
-                            <Icon icon="lucide:edit-3" width={12} height={12} className="text-primary-500" />
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            exit={{ opacity: 0, y: 20 }}
+            className="flex flex-col h-full max-h-full"
+          >
+            <ModalHeader className="flex-shrink-0 px-4 sm:px-6">
+              <div className="flex flex-col gap-1 w-full">
+                {isGatewayLoading && !gateway ? (
+                  renderSkeletonHeader()
+                ) : gateway ? (
+                  <div className="flex flex-col gap-3">
+                    {/* Top row - Gateway title and actions */}
+                    {!editingLabel ? (
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <span className="text-lg font-semibold truncate">{gateway.label || gateway.mac}</span>
+                          <Button isIconOnly size="sm" variant="light" onPress={() => setEditingLabel(true)}>
+                            <Icon icon="lucide:edit-3" width={16} height={16} />
                           </Button>
                         </div>
-                      ) : (
-                        <div className="flex items-center gap-2 px-3 py-2 bg-warning-50 rounded-lg border border-warning-200">
-                          <Icon icon="lucide:map-pin" className="w-4 h-4 text-warning-600" />
-                          <Input
+                        <div className="flex items-center gap-2">
+                          <Tooltip content="Copy Gateway Id">
+                            <Button isIconOnly size="sm" variant="light" onPress={() => copyToClipboard(gateway?._id)}>
+                              <Icon icon="lucide:copy" width={16} height={16} />
+                            </Button>
+                          </Tooltip>
+                          <Chip
+                            className="capitalize"
+                            color={gateway.status === "active" ? "success" : "warning"}
                             size="sm"
-                            placeholder="Enter location"
-                            value={locationValue}
-                            onChange={(e) => setLocationValue(e.target.value)}
-                            className="max-w-xs"
-                            classNames={{
-                              inputWrapper: "h-8 min-h-unit-8",
-                              input: "text-sm"
-                            }}
-                            autoFocus
-                            isDisabled={isSavingLocation}
-                          />
-                          <Button 
-                            size="sm" 
-                            color="primary" 
-                            onPress={handleSaveLocation} 
-                            isLoading={isSavingLocation}
-                            className="h-8 min-h-unit-8 px-3"
+                            variant="flat"
                           >
+                            {gateway.status}
+                          </Chip>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <Input
+                          size="sm"
+                          placeholder="Enter gateway label"
+                          value={labelValue}
+                          onChange={(e) => setLabelValue(e.target.value)}
+                          className="flex-1"
+                          autoFocus
+                          isDisabled={isSavingLabel}
+                        />
+                        <div className="flex gap-2">
+                          <Button size="sm" color="primary" onPress={handleSaveLabel} isLoading={isSavingLabel}>
                             Save
                           </Button>
                           <Button
                             size="sm"
                             variant="light"
                             onPress={() => {
-                              setEditingLocation(false);
-                              setLocationValue(gateway.location || "");
+                              setEditingLabel(false);
+                              setLabelValue(gateway.label || "");
                             }}
-                            isDisabled={isSavingLocation}
-                            className="h-8 min-h-unit-8 px-3"
+                            isDisabled={isSavingLabel}
                           >
                             Cancel
                           </Button>
                         </div>
-                      )}
-                    </div>
-                    
-                    {/* Right side - MAC and Gateway ID */}
-                    <div className="flex items-center gap-3 text-sm text-default-500">
-                      <div className="flex items-center gap-1">
-                        <span>MAC:</span>
-                        <code className="text-xs bg-default-100 px-2 py-1 rounded">{gateway.mac}</code>
                       </div>
-                      <Tooltip content="Copy MAC Address">
-                        <Button isIconOnly size="sm" variant="light" onPress={() => copyToClipboard(gateway?.mac)}>
-                          <Icon icon="lucide:copy" width={14} height={14} />
-                        </Button>
-                      </Tooltip>
+                    )}
+                    
+                    {/* Bottom row - Location and MAC/ID */}
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      {/* Left side - Location with highlight */}
+                      <div className="flex items-center gap-2 order-1 sm:order-none">
+                        {!editingLocation ? (
+                          <div className="flex items-center gap-2 px-3 py-2 bg-primary-50 rounded-lg border border-primary-100 flex-1 sm:flex-none">
+                            <Icon icon="lucide:map-pin" className="w-4 h-4 text-primary-500 flex-shrink-0" />
+                            <span className="text-sm font-medium text-primary-700 truncate">
+                              {gateway.location || "No location"}
+                            </span>
+                            <Button 
+                              isIconOnly 
+                              size="sm" 
+                              variant="light" 
+                              onPress={() => setEditingLocation(true)}
+                              isDisabled={editingLabel || isSavingLabel}
+                              className="ml-1 h-6 w-6 min-w-unit-6 flex-shrink-0"
+                            >
+                              <Icon icon="lucide:edit-3" width={12} height={12} className="text-primary-500" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-3 py-2 bg-warning-50 rounded-lg border border-warning-200 w-full sm:w-auto">
+                            <div className="flex items-center gap-2">
+                              <Icon icon="lucide:map-pin" className="w-4 h-4 text-warning-600 flex-shrink-0" />
+                              <Input
+                                size="sm"
+                                placeholder="Enter location"
+                                value={locationValue}
+                                onChange={(e) => setLocationValue(e.target.value)}
+                                className="flex-1 sm:max-w-xs"
+                                classNames={{
+                                  inputWrapper: "h-8 min-h-unit-8",
+                                  input: "text-sm"
+                                }}
+                                autoFocus
+                                isDisabled={isSavingLocation}
+                              />
+                            </div>
+                            <div className="flex gap-2">
+                              <Button 
+                                size="sm" 
+                                color="primary" 
+                                onPress={handleSaveLocation} 
+                                isLoading={isSavingLocation}
+                                className="h-8 min-h-unit-8 px-3"
+                              >
+                                Save
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="light"
+                                onPress={() => {
+                                  setEditingLocation(false);
+                                  setLocationValue(gateway.location || "");
+                                }}
+                                isDisabled={isSavingLocation}
+                                className="h-8 min-h-unit-8 px-3"
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Right side - MAC and Gateway ID */}
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm text-default-500 order-2 sm:order-none">
+                        <div className="flex items-center gap-1">
+                          <span className="flex-shrink-0">MAC:</span>
+                          <code className="text-xs bg-default-100 px-2 py-1 rounded truncate max-w-[200px] sm:max-w-none">{gateway.mac}</code>
+                          <Tooltip content="Copy MAC Address">
+                            <Button isIconOnly size="sm" variant="light" onPress={() => copyToClipboard(gateway?.mac)} className="flex-shrink-0">
+                              <Icon icon="lucide:copy" width={14} height={14} />
+                            </Button>
+                          </Tooltip>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ) : (
-                "Gateway Details"
-              )}
+                ) : (
+                  "Gateway Details"
+                )}
+              </div>
             </ModalHeader>
-            <ModalBody className="max-h-[60vh] overflow-y-auto">
-              {isGatewayLoading && !gateway ? (
-                <div className="space-y-4">
-                  {renderSkeletonStats()}
-                  {renderSkeletonTable()}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {gateway && (
-                    <>
-                      <div className="flex justify-between items-center">
-                        <div className="flex gap-4">
-                          <div className="flex items-center gap-2">
-                            <Badge content={gateway.sensors?.claimed || 0} color="success">
-                              <div className="h-8 w-8 rounded-full bg-success-100 flex items-center justify-center">
-                                <Icon icon="lucide:check" className="text-success-500" />
-                              </div>
-                            </Badge>
+            
+            <ModalBody className="flex-1 min-h-0 px-4 sm:px-6 pb-0">
+              <div className="flex flex-col h-full">
+                {isGatewayLoading && !gateway ? (
+                  <div className="space-y-4">
+                    {renderSkeletonStats()}
+                    {renderSkeletonTable()}
+                  </div>
+                ) : (
+                  <>
+                    {gateway && (
+                      <div className="space-y-4 flex-shrink-0 pt-2 pb-4">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                          <div className="flex flex-col sm:flex-row gap-4">
+                            <div className="flex items-center gap-2">
+                              <Badge content={gateway.sensors?.claimed || 0} color="success">
+                                <div className="h-8 w-8 rounded-full bg-success-100 flex items-center justify-center">
+                                  <Icon icon="lucide:check" className="text-success-500" />
+                                </div>
+                              </Badge>
+                              <span className="text-sm">Claimed</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge content={gateway.sensors?.unclaimed || 0} color="warning">
+                                <div className="h-8 w-8 rounded-full bg-warning-100 flex items-center justify-center">
+                                  <Icon icon="lucide:alert-circle" className="text-warning-500" />
+                                </div>
+                              </Badge>
+                              <span className="text-sm">Unclaimed</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 self-start sm:self-auto">
+                            <span className="text-sm">Unclaimed</span>
+                            <Switch
+                              isSelected={showClaimed}
+                              onValueChange={handleToggleClaimed}
+                              size="sm"
+                              isDisabled={isSensorsLoading || isInitialLoad}
+                            />
                             <span className="text-sm">Claimed</span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Badge content={gateway.sensors?.unclaimed || 0} color="warning">
-                              <div className="h-8 w-8 rounded-full bg-warning-100 flex items-center justify-center">
-                                <Icon icon="lucide:alert-circle" className="text-warning-500" />
-                              </div>
-                            </Badge>
-                            <span className="text-sm">Unclaimed</span>
+                        </div>
+
+                        <Input
+                          className="w-full"
+                          placeholder="Search sensors..."
+                          startContent={<Icon icon="lucide:search" className="text-default-400" />}
+                          onChange={(e) => debouncedSearch(e.target.value)}
+                          size="sm"
+                          isDisabled={isSensorsLoading || isInitialLoad}
+                        />
+                      </div>
+                    )}
+
+                    <div className="flex-1 min-h-0">
+                      {isSensorsLoading ? (
+                        <div className="flex justify-center items-center h-64">
+                          <Spinner size="lg" />
+                        </div>
+                      ) : displaySensors.length > 0 ? (
+                        <div className="w-full h-full overflow-hidden rounded-lg border border-divider">
+                          <div className="w-full h-full max-h-[300px] sm:max-h-[450px] overflow-auto">
+                            <Table 
+                              removeWrapper 
+                              aria-label="Sensors table" 
+                              isStriped
+                              classNames={{
+                                base: "h-full",
+                                table: "h-full min-w-[600px]",
+                                thead: "sticky top-0 z-10",
+                                tbody: "relative",
+                                th: [
+                                  "bg-background/70",
+                                  "text-foreground/80", 
+                                  "backdrop-blur-md",
+                                  "backdrop-saturate-150",
+                                  "border-b",
+                                  "border-divider",
+                                  "first:rounded-none",
+                                  "last:rounded-none",
+                                ].join(" "),
+                                td: [
+                                  "group-data-[first=true]:first:before:rounded-none",
+                                  "group-data-[first=true]:last:before:rounded-none",
+                                  "group-data-[middle=true]:before:rounded-none",
+                                  "group-data-[last=true]:first:before:rounded-none",
+                                  "group-data-[last=true]:last:before:rounded-none",
+                                  "py-2 sm:py-3",
+                                  "px-2 sm:px-3",
+                                ].join(" "),
+                                tr: "border-b border-divider last:border-b-0",
+                              }}
+                            >
+                              <TableHeader>
+                                <TableColumn key="mac" onClick={() => handleSort("mac")} className="cursor-pointer min-w-[180px]">
+                                  <div className="flex items-center gap-2">
+                                    SENSOR
+                                    {sortColumn === "mac" && (
+                                      <Icon
+                                        icon={sortDirection === "asc" ? "lucide:chevron-up" : "lucide:chevron-down"}
+                                        className="text-default-500"
+                                        width={16}
+                                      />
+                                    )}
+                                  </div>
+                                </TableColumn>
+                                <TableColumn key="type" onClick={() => handleSort("type")} className="cursor-pointer min-w-[100px]">
+                                  <div className="flex items-center gap-2">
+                                    TYPE
+                                    {sortColumn === "type" && (
+                                      <Icon
+                                        icon={sortDirection === "asc" ? "lucide:chevron-up" : "lucide:chevron-down"}
+                                        className="text-default-500"
+                                        width={16}
+                                      />
+                                    )}
+                                  </div>
+                                </TableColumn>
+                                <TableColumn
+                                  key="lastValue"
+                                  onClick={() => handleSort("lastValue")}
+                                  className="cursor-pointer min-w-[120px]"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    LAST VALUE
+                                    {sortColumn === "lastValue" && (
+                                      <Icon
+                                        icon={sortDirection === "asc" ? "lucide:chevron-up" : "lucide:chevron-down"}
+                                        className="text-default-500"
+                                        width={16}
+                                      />
+                                    )}
+                                  </div>
+                                </TableColumn>
+                                <TableColumn key="lastSeen" onClick={() => handleSort("lastSeen")} className="cursor-pointer min-w-[120px]">
+                                  <div className="flex items-center gap-2">
+                                    LAST SEEN
+                                    {sortColumn === "lastSeen" && (
+                                      <Icon
+                                        icon={sortDirection === "asc" ? "lucide:chevron-up" : "lucide:chevron-down"}
+                                        className="text-default-500"
+                                        width={16}
+                                      />
+                                    )}
+                                  </div>
+                                </TableColumn>
+                              </TableHeader>
+                              <TableBody>
+                                {displaySensors.map((sensor) => (
+                                  <TableRow key={sensor._id}>
+                                    {(columnKey) => (
+                                      <TableCell>
+                                        {columnKey === "mac" ? (
+                                          <div className="flex items-center gap-2">
+                                            {renderCell(sensor, columnKey.toString())}
+                                            <Tooltip content="copy gateway-id">
+                                              <Button
+                                                isIconOnly
+                                                size="sm"
+                                                variant="light"
+                                                onPress={() => copyToClipboard(sensor?._id)}
+                                              >
+                                                <Icon icon="lucide:copy" width={14} height={14} />
+                                              </Button>
+                                            </Tooltip>
+                                          </div>
+                                        ) : (
+                                          renderCell(sensor, columnKey.toString())
+                                        )}
+                                      </TableCell>
+                                    )}
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm">Unclaimed</span>
-                          <Switch
-                            isSelected={showClaimed}
-                            onValueChange={handleToggleClaimed}
-                            size="sm"
-                            isDisabled={isSensorsLoading || isInitialLoad}
-                          />
-                          <span className="text-sm">Claimed</span>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center h-64 gap-4">
+                          <Icon icon="lucide:radio" className="w-16 h-16 text-default-300" />
+                          <p className="text-default-500 text-center max-w-md">
+                            {showClaimed
+                              ? "No claimed sensors found for this gateway."
+                              : "Nothing yet, keep the probe powered and within range."}
+                          </p>
+                          {searchQuery && (
+                            <Button
+                              variant="light"
+                              color="primary"
+                              onPress={() => {
+                                dispatch(setDetailSearchQuery(""));
+                                debouncedSearch("");
+                              }}
+                              startContent={<Icon icon="lucide:x" />}
+                            >
+                              Clear search
+                            </Button>
+                          )}
                         </div>
-                      </div>
-
-                      <Input
-                        className="w-full"
-                        placeholder="Search sensors..."
-                        startContent={<Icon icon="lucide:search" className="text-default-400" />}
-                        onChange={(e) => debouncedSearch(e.target.value)}
-                        size="sm"
-                        isDisabled={isSensorsLoading || isInitialLoad}
-                      />
-                    </>
-                  )}
-
-                  {isSensorsLoading ? (
-                    <div className="flex justify-center items-center h-64">
-                      <Spinner size="lg" />
-                    </div>
-                  ) : sensors.length > 0 ? (
-                    <>
-                      <Table removeWrapper aria-label="Sensors table" isStriped>
-                        <TableHeader>
-                          <TableColumn key="mac" onClick={() => handleSort("mac")} className="cursor-pointer">
-                            <div className="flex items-center gap-2">
-                              SENSOR
-                              {sortColumn === "mac" && (
-                                <Icon
-                                  icon={sortDirection === "asc" ? "lucide:chevron-up" : "lucide:chevron-down"}
-                                  className="text-default-500"
-                                  width={16}
-                                />
-                              )}
-                            </div>
-                          </TableColumn>
-                          <TableColumn key="type" onClick={() => handleSort("type")} className="cursor-pointer">
-                            <div className="flex items-center gap-2">
-                              TYPE
-                              {sortColumn === "type" && (
-                                <Icon
-                                  icon={sortDirection === "asc" ? "lucide:chevron-up" : "lucide:chevron-down"}
-                                  className="text-default-500"
-                                  width={16}
-                                />
-                              )}
-                            </div>
-                          </TableColumn>
-                          <TableColumn
-                            key="lastValue"
-                            onClick={() => handleSort("lastValue")}
-                            className="cursor-pointer"
-                          >
-                            <div className="flex items-center gap-2">
-                              LAST VALUE
-                              {sortColumn === "lastValue" && (
-                                <Icon
-                                  icon={sortDirection === "asc" ? "lucide:chevron-up" : "lucide:chevron-down"}
-                                  className="text-default-500"
-                                  width={16}
-                                />
-                              )}
-                            </div>
-                          </TableColumn>
-                          <TableColumn key="lastSeen" onClick={() => handleSort("lastSeen")} className="cursor-pointer">
-                            <div className="flex items-center gap-2">
-                              LAST SEEN
-                              {sortColumn === "lastSeen" && (
-                                <Icon
-                                  icon={sortDirection === "asc" ? "lucide:chevron-up" : "lucide:chevron-down"}
-                                  className="text-default-500"
-                                  width={16}
-                                />
-                              )}
-                            </div>
-                          </TableColumn>
-                        </TableHeader>
-                        <TableBody>
-                          {sensors.map((sensor) => (
-                            <TableRow key={sensor._id}>
-                              {(columnKey) => (
-                                <TableCell>
-                                  {columnKey === "mac" ? (
-                                    <div className="flex items-center gap-2">
-                                      {renderCell(sensor, columnKey.toString())}
-                                      <Tooltip content="copy gateway-id">
-                                        <Button
-                                          isIconOnly
-                                          size="sm"
-                                          variant="light"
-                                          onPress={() => copyToClipboard(sensor?._id)}
-                                        >
-                                          <Icon icon="lucide:copy" width={14} height={14} />
-                                        </Button>
-                                      </Tooltip>
-                                    </div>
-                                  ) : (
-                                    renderCell(sensor, columnKey.toString())
-                                  )}
-                                </TableCell>
-                              )}
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-64 gap-4">
-                      <Icon icon="lucide:radio" className="w-16 h-16 text-default-300" />
-                      <p className="text-default-500 text-center max-w-md">
-                        {showClaimed
-                          ? "No claimed sensors found for this gateway."
-                          : "Nothing yet, keep the probe powered and within range."}
-                      </p>
-                      {searchQuery && (
-                        <Button
-                          variant="light"
-                          color="primary"
-                          onPress={() => {
-                            dispatch(setDetailSearchQuery(""));
-                            debouncedSearch("");
-                          }}
-                          startContent={<Icon icon="lucide:x" />}
-                        >
-                          Clear search
-                        </Button>
                       )}
                     </div>
-                  )}
-                </div>
-              )}
+                  </>
+                )}
+              </div>
             </ModalBody>
-            <ModalFooter>
+            
+            <ModalFooter className="flex flex-col sm:flex-row gap-3 px-4 sm:px-6 flex-shrink-0">
               {pagination.totalPages > 1 && (
-                <div className="justify-center flex w-full">
+                <div className="flex justify-center w-full sm:w-auto order-2 sm:order-1">
                   <Pagination
                     total={pagination.totalPages}
                     page={pagination.page}
                     onChange={handlePageChange}
                     showControls
+                    size="sm"
+                    className="sm:flex-1"
                   />
                 </div>
               )}
-              <Button color="primary" variant="light" onPress={onClose}>
-                Close
-              </Button>
+              <div className="hidden sm:flex justify-end order-1 sm:order-2">
+                <Button color="primary" variant="light" onPress={onClose}>
+                  Close
+                </Button>
+              </div>
             </ModalFooter>
           </motion.div>
         )}
