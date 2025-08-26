@@ -892,17 +892,16 @@ export const SoloView: React.FC = () => {
               size={isSmallScreen ? 'sm' : 'md'}
             >
               <Tab key="chart" title={isSmallScreen ? "Chart" : "Chart View"}>
-                {chartConfig && (
-                  <div 
-                    className={`w-full rounded-lg bg-white dark:bg-content1 p-${isSmallScreen ? '2' : '4'} ${
-                      isMobileDevice 
-                        ? (isMobileLandscape ? 'h-[400px]' : 'h-[350px]') 
-                        : 'h-[500px]'
-                    }`} 
-                    ref={chartRef}
-                  >
-                    {/* Show offline sensor waiting state */}
-                    {isSensorOffline ? (
+                <div 
+                  className={`w-full rounded-lg bg-white dark:bg-content1 p-${isSmallScreen ? '2' : '4'} ${
+                    isMobileDevice 
+                      ? (isMobileLandscape ? 'h-[400px]' : 'h-[350px]') 
+                      : 'h-[500px]'
+                  }`} 
+                  ref={chartRef}
+                >
+                  {/* Show offline sensor waiting state - only in live mode */}
+                  {isSensorOffline && isLiveMode ? (
                       <div className="h-full flex flex-col items-center justify-center text-center">
                         <div className="flex flex-col items-center gap-4 max-w-md">
                           {/* Animated loading icon */}
@@ -961,16 +960,53 @@ export const SoloView: React.FC = () => {
                           </div>
                         </div>
                       </div>
-                    ) : (
+                    ) : chartConfig ? (
                       <LineChart config={chartConfig} isLiveMode={isLiveMode} />
+                    ) : (
+                      <div className="h-full flex flex-col items-center justify-center text-center">
+                        <div className="flex flex-col items-center gap-4 max-w-md">
+                          {isLoadingData ? (
+                            <>
+                              <Spinner size="lg" color="primary" />
+                              <div className="space-y-2">
+                                <h3 className="text-lg font-semibold text-primary-600">
+                                  Loading Historical Data
+                                </h3>
+                                <p className="text-default-600 text-sm">
+                                  Fetching data for selected time range...
+                                </p>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <Icon 
+                                icon="lucide:chart-no-axes-column" 
+                                className="text-default-400" 
+                                width={64} 
+                                height={64} 
+                              />
+                              <div className="space-y-2">
+                                <h3 className="text-lg font-semibold text-default-600">
+                                  No Data Available
+                                </h3>
+                                <p className="text-default-600 text-sm">
+                                  No data found for the selected time range
+                                </p>
+                                <p className="text-default-500 text-xs">
+                                  Try selecting a different time range or check if the sensor was active during this period
+                                </p>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
                     )}
-                  </div>
-                )}
+                </div>
               </Tab>
               <Tab key="table" title={isSmallScreen ? "Table" : "Table View"}>
                 <div className={`${isMobileDevice ? 'h-[400px] overflow-auto' : ''}`}>
-                  {/* Show offline sensor waiting state in table view too */}
-                  {isSensorOffline ? (
+                  {/* Show offline sensor waiting state in table view too - only in live mode */}
+                  {isSensorOffline && isLiveMode ? (
                     <div className="h-full flex flex-col items-center justify-center p-8 text-center">
                       <div className="flex flex-col items-center gap-4 max-w-md">
                         <Icon 
@@ -992,8 +1028,46 @@ export const SoloView: React.FC = () => {
                         </div>
                       </div>
                     </div>
+                  ) : chartConfig ? (
+                    <TableView config={chartConfig} onDownloadCSV={handleDownloadCSV} />
                   ) : (
-                    chartConfig && <TableView config={chartConfig} onDownloadCSV={handleDownloadCSV} />
+                    <div className="h-full flex flex-col items-center justify-center p-8 text-center">
+                      <div className="flex flex-col items-center gap-4 max-w-md">
+                        {isLoadingData ? (
+                          <>
+                            <Spinner size="lg" color="primary" />
+                            <div className="space-y-2">
+                              <h3 className="text-lg font-semibold text-primary-600">
+                                Loading Table Data
+                              </h3>
+                              <p className="text-default-600 text-sm">
+                                Fetching data for selected time range...
+                              </p>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <Icon 
+                              icon="lucide:table-2" 
+                              className="text-default-400" 
+                              width={48} 
+                              height={48} 
+                            />
+                            <div className="space-y-2">
+                              <h3 className="text-lg font-semibold text-default-600">
+                                No Data Available
+                              </h3>
+                              <p className="text-default-600 text-sm">
+                                No data found for the selected time range
+                              </p>
+                              <p className="text-default-500 text-xs">
+                                Try selecting a different time range
+                              </p>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
                   )}
                 </div>
               </Tab>
@@ -1001,8 +1075,8 @@ export const SoloView: React.FC = () => {
               <Tab key="analytics" title="Analytics">
                 <Card>
                   <CardBody>
-                    {/* Show offline sensor waiting state in analytics view too */}
-                    {isSensorOffline ? (
+                    {/* Show offline sensor waiting state in analytics view too - only in live mode */}
+                    {isSensorOffline && isLiveMode ? (
                       <div className="h-full flex flex-col items-center justify-center p-8 text-center">
                         <div className="flex flex-col items-center gap-4 max-w-md">
                           <Icon 
@@ -1028,22 +1102,170 @@ export const SoloView: React.FC = () => {
                       <Tabs aria-label="Analytics tabs" color="primary" variant="underlined" className="mb-4">
                         <Tab key="distribution" title="Distribution">
                           <div className={`mt-4 ${isMobileDevice ? 'h-[500px]' : 'h-[700px]'}`}>
-                            {chartConfig && <DistributionChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />}
+                            {chartConfig ? (
+                              <DistributionChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />
+                            ) : (
+                              <div className="h-full flex flex-col items-center justify-center text-center">
+                                <div className="flex flex-col items-center gap-4 max-w-md">
+                                  {isLoadingData ? (
+                                    <>
+                                      <Spinner size="lg" color="primary" />
+                                      <div className="space-y-2">
+                                        <h3 className="text-lg font-semibold text-primary-600">
+                                          Loading Distribution Data
+                                        </h3>
+                                        <p className="text-default-600 text-sm">
+                                          Analyzing data distribution...
+                                        </p>
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Icon 
+                                        icon="lucide:bar-chart-4" 
+                                        className="text-default-400" 
+                                        width={64} 
+                                        height={64} 
+                                      />
+                                      <div className="space-y-2">
+                                        <h3 className="text-lg font-semibold text-default-600">
+                                          No Distribution Data
+                                        </h3>
+                                        <p className="text-default-600 text-sm">
+                                          No data available for distribution analysis
+                                        </p>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </Tab>
                         <Tab key="trend" title="Trend Analysis">
                           <div className={`mt-4 ${isMobileDevice ? 'h-[500px]' : 'h-[700px]'}`}>
-                            {chartConfig && <TrendAnalysisChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />}
+                            {chartConfig ? (
+                              <TrendAnalysisChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />
+                            ) : (
+                              <div className="h-full flex flex-col items-center justify-center text-center">
+                                <div className="flex flex-col items-center gap-4 max-w-md">
+                                  {isLoadingData ? (
+                                    <>
+                                      <Spinner size="lg" color="primary" />
+                                      <div className="space-y-2">
+                                        <h3 className="text-lg font-semibold text-primary-600">
+                                          Loading Trend Data
+                                        </h3>
+                                        <p className="text-default-600 text-sm">
+                                          Analyzing trends...
+                                        </p>
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Icon 
+                                        icon="lucide:trending-up" 
+                                        className="text-default-400" 
+                                        width={64} 
+                                        height={64} 
+                                      />
+                                      <div className="space-y-2">
+                                        <h3 className="text-lg font-semibold text-default-600">
+                                          No Trend Data
+                                        </h3>
+                                        <p className="text-default-600 text-sm">
+                                          No data available for trend analysis
+                                        </p>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </Tab>
                         <Tab key="anomaly" title="Anomaly Detection">
                           <div className={`mt-4 ${isMobileDevice ? 'h-[500px]' : 'h-[700px]'}`}>
-                            {chartConfig && <AnomalyDetectionChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />}
+                            {chartConfig ? (
+                              <AnomalyDetectionChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />
+                            ) : (
+                              <div className="h-full flex flex-col items-center justify-center text-center">
+                                <div className="flex flex-col items-center gap-4 max-w-md">
+                                  {isLoadingData ? (
+                                    <>
+                                      <Spinner size="lg" color="primary" />
+                                      <div className="space-y-2">
+                                        <h3 className="text-lg font-semibold text-primary-600">
+                                          Loading Anomaly Data
+                                        </h3>
+                                        <p className="text-default-600 text-sm">
+                                          Detecting anomalies...
+                                        </p>
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Icon 
+                                        icon="lucide:alert-triangle" 
+                                        className="text-default-400" 
+                                        width={64} 
+                                        height={64} 
+                                      />
+                                      <div className="space-y-2">
+                                        <h3 className="text-lg font-semibold text-default-600">
+                                          No Anomaly Data
+                                        </h3>
+                                        <p className="text-default-600 text-sm">
+                                          No data available for anomaly detection
+                                        </p>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </Tab>
                         <Tab key="correlation" title="Correlation">
                           <div className={`mt-4 ${isMobileDevice ? 'h-[500px]' : 'h-[700px]'}`}>
-                            {chartConfig && <CorrelationAnalysisChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />}
+                            {chartConfig ? (
+                              <CorrelationAnalysisChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />
+                            ) : (
+                              <div className="h-full flex flex-col items-center justify-center text-center">
+                                <div className="flex flex-col items-center gap-4 max-w-md">
+                                  {isLoadingData ? (
+                                    <>
+                                      <Spinner size="lg" color="primary" />
+                                      <div className="space-y-2">
+                                        <h3 className="text-lg font-semibold text-primary-600">
+                                          Loading Correlation Data
+                                        </h3>
+                                        <p className="text-default-600 text-sm">
+                                          Analyzing correlations...
+                                        </p>
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Icon 
+                                        icon="lucide:git-branch" 
+                                        className="text-default-400" 
+                                        width={64} 
+                                        height={64} 
+                                      />
+                                      <div className="space-y-2">
+                                        <h3 className="text-lg font-semibold text-default-600">
+                                          No Correlation Data
+                                        </h3>
+                                        <p className="text-default-600 text-sm">
+                                          No data available for correlation analysis
+                                        </p>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </Tab>
                       </Tabs>
@@ -1053,8 +1275,8 @@ export const SoloView: React.FC = () => {
               </Tab>
 
               <Tab key="multichart" title={isMobileDevice ? "Multi" : "Multi-Chart View"}>
-                {/* Show offline sensor waiting state in multi-chart view too */}
-                {isSensorOffline ? (
+                {/* Show offline sensor waiting state in multi-chart view too - only in live mode */}
+                {isSensorOffline && isLiveMode ? (
                   <div className="h-full flex flex-col items-center justify-center p-8 text-center">
                     <div className="flex flex-col items-center gap-4 max-w-md">
                       <Icon 
@@ -1082,7 +1304,19 @@ export const SoloView: React.FC = () => {
                       <CardBody className="p-3">
                         <h3 className="text-sm font-medium mb-2 text-primary-600">Value Distribution</h3>
                         <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
-                          {chartConfig && <DistributionChart config={chartConfig} showChart isLiveMode={isLiveMode} />}
+                          {chartConfig ? (
+                            <DistributionChart config={chartConfig} showChart isLiveMode={isLiveMode} />
+                          ) : isLoadingData ? (
+                            <div className="h-full flex flex-col items-center justify-center">
+                              <Spinner size="md" color="primary" />
+                              <p className="text-xs text-default-500 mt-2">Loading...</p>
+                            </div>
+                          ) : (
+                            <div className="h-full flex flex-col items-center justify-center">
+                              <Icon icon="lucide:bar-chart-4" className="text-default-300" width={32} height={32} />
+                              <p className="text-xs text-default-400 mt-1">No data</p>
+                            </div>
+                          )}
                         </div>
                       </CardBody>
                     </Card>
@@ -1091,7 +1325,19 @@ export const SoloView: React.FC = () => {
                       <CardBody className="p-3">
                         <h3 className="text-sm font-medium mb-2 text-secondary-600">Trend Analysis</h3>
                         <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
-                          {chartConfig && <TrendAnalysisChart config={chartConfig} showChart isLiveMode={isLiveMode} />}
+                          {chartConfig ? (
+                            <TrendAnalysisChart config={chartConfig} showChart isLiveMode={isLiveMode} />
+                          ) : isLoadingData ? (
+                            <div className="h-full flex flex-col items-center justify-center">
+                              <Spinner size="md" color="secondary" />
+                              <p className="text-xs text-default-500 mt-2">Loading...</p>
+                            </div>
+                          ) : (
+                            <div className="h-full flex flex-col items-center justify-center">
+                              <Icon icon="lucide:trending-up" className="text-default-300" width={32} height={32} />
+                              <p className="text-xs text-default-400 mt-1">No data</p>
+                            </div>
+                          )}
                         </div>
                       </CardBody>
                     </Card>
@@ -1100,7 +1346,19 @@ export const SoloView: React.FC = () => {
                       <CardBody className="p-3">
                         <h3 className="text-sm font-medium mb-2 text-danger-600">Anomaly Detection</h3>
                         <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
-                          {chartConfig && <AnomalyDetectionChart config={chartConfig} showChart isLiveMode={isLiveMode} />}
+                          {chartConfig ? (
+                            <AnomalyDetectionChart config={chartConfig} showChart isLiveMode={isLiveMode} />
+                          ) : isLoadingData ? (
+                            <div className="h-full flex flex-col items-center justify-center">
+                              <Spinner size="md" color="danger" />
+                              <p className="text-xs text-default-500 mt-2">Loading...</p>
+                            </div>
+                          ) : (
+                            <div className="h-full flex flex-col items-center justify-center">
+                              <Icon icon="lucide:alert-triangle" className="text-default-300" width={32} height={32} />
+                              <p className="text-xs text-default-400 mt-1">No data</p>
+                            </div>
+                          )}
                         </div>
                       </CardBody>
                     </Card>
@@ -1109,7 +1367,19 @@ export const SoloView: React.FC = () => {
                       <CardBody className="p-3">
                         <h3 className="text-sm font-medium mb-2 text-success-600">Correlation Analysis</h3>
                         <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
-                          {chartConfig && <CorrelationAnalysisChart config={chartConfig} showChart isLiveMode={isLiveMode} />}
+                          {chartConfig ? (
+                            <CorrelationAnalysisChart config={chartConfig} showChart isLiveMode={isLiveMode} />
+                          ) : isLoadingData ? (
+                            <div className="h-full flex flex-col items-center justify-center">
+                              <Spinner size="md" color="success" />
+                              <p className="text-xs text-default-500 mt-2">Loading...</p>
+                            </div>
+                          ) : (
+                            <div className="h-full flex flex-col items-center justify-center">
+                              <Icon icon="lucide:git-branch" className="text-default-300" width={32} height={32} />
+                              <p className="text-xs text-default-400 mt-1">No data</p>
+                            </div>
+                          )}
                         </div>
                       </CardBody>
                     </Card>

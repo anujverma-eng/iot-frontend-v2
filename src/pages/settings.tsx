@@ -10,26 +10,18 @@ import {
   Button,
   Breadcrumbs,
   BreadcrumbItem,
+  Spinner,
+  Alert,
 } from '@heroui/react';
 import { Icon } from '@iconify/react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAppDispatch, useAppSelector } from '../hooks/useAppDispatch';
 import { useBreadcrumbNavigation } from '../hooks/useBreadcrumbNavigation';
-import {
-  loadSettings,
-  updateSensorSettings,
-  resetSettings,
-  selectSettings,
-  selectSensorSettings,
-  selectSettingsLoaded,
-  type SensorSettings,
-  type AppSettings,
-} from '../store/settingsSlice';
+import { useSettings } from '../hooks/useSettings';
 import { offlineDetectionService } from '../services/offlineDetectionService';
 
 // Timeout options
 const TIMEOUT_OPTIONS = [
-  { value: 1, label: '1 minutes', description: 'Quick response detection' },
+  { value: 1, label: '1 minutes', description: 'Quick response detection ( for internal testing)' },
   { value: 5, label: '5 minutes', description: 'Quick response detection' },
   { value: 10, label: '10 minutes', description: 'Balanced monitoring' },
   { value: 30, label: '30 minutes', description: 'Standard intervals' },
@@ -37,47 +29,78 @@ const TIMEOUT_OPTIONS = [
   { value: 300, label: '5 hours', description: 'Long-term monitoring' },
 ];
 
+// Helper function to get user-friendly error titles
+const getErrorTitle = (errorType: string | undefined): string => {
+  switch (errorType) {
+    case 'SETTINGS_NOT_FOUND':
+      return 'Settings Not Found';
+    case 'API_ERROR':
+      return 'Server Error';
+    case 'CREATE_ERROR':
+      return 'Failed to Create Settings';
+    case 'UPDATE_ERROR':
+      return 'Failed to Update Settings';
+    case 'UNKNOWN_ERROR':
+      return 'Unexpected Error';
+    default:
+      return 'Settings Error';
+  }
+};
+
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const dispatch = useAppDispatch();
   const { getPageBreadcrumb } = useBreadcrumbNavigation();
   
-  // Redux state
-  const settings = useAppSelector(selectSettings);
-  const sensorSettings = useAppSelector(selectSensorSettings);
-  const settingsLoaded = useAppSelector(selectSettingsLoaded);
-  
-  // Local state
+  // Use the new settings hook
+  const {
+    settings,
+    sensorSettings,
+    offlineTimeout,
+    isLoaded,
+    isLoading,
+    error,
+    errorMessage,
+    errorType,
+    hasBackendSettings,
+    updateSensorSettings,
+    resetSettings: resetSettingsWithSync,
+    clearError,
+  } = useSettings();
+
   const [hasChanges, setHasChanges] = useState(false);
 
   // Get breadcrumb items
   const breadcrumbItems = getPageBreadcrumb('Settings', 'lucide:settings');
 
-  // Load settings on mount
-  useEffect(() => {
-    if (!settingsLoaded) {
-      dispatch(loadSettings());
-    }
-  }, [dispatch, settingsLoaded]);
-
-  const handleSensorTimeoutChange = (value: string) => {
+  const handleSensorTimeoutChange = async (value: string) => {
     const timeoutMinutes = parseInt(value, 10);
-    dispatch(updateSensorSettings({
-      offlineTimeoutMinutes: timeoutMinutes,
-    }));
     
-    // Notify offline detection service to update timeouts
-    offlineDetectionService.updateTimeoutSettings();
-    setHasChanges(false); // Settings are saved immediately in Redux
+    try {
+      await updateSensorSettings({
+        offlineTimeoutMinutes: timeoutMinutes,
+      });
+      
+      // Notify offline detection service to update timeouts
+      offlineDetectionService.updateTimeoutSettings();
+      setHasChanges(false); // Settings are saved automatically
+    } catch (error) {
+      console.error('Failed to update sensor timeout:', error);
+      // The error will be shown in the UI via the error state
+    }
   };
 
-  const handleResetSettings = () => {
-    dispatch(resetSettings());
-    
-    // Notify offline detection service to update timeouts with default settings
-    offlineDetectionService.updateTimeoutSettings();
-    setHasChanges(false);
+  const handleResetSettings = async () => {
+    try {
+      await resetSettingsWithSync();
+      
+      // Notify offline detection service to update timeouts with default settings
+      offlineDetectionService.updateTimeoutSettings();
+      setHasChanges(false);
+    } catch (error) {
+      console.error('Failed to reset settings:', error);
+      // The error will be shown in the UI via the error state
+    }
   };
 
   const selectedTimeoutOption = TIMEOUT_OPTIONS.find(
@@ -110,18 +133,73 @@ export const SettingsPage: React.FC = () => {
             </p>
           </div>
           
-          {hasChanges && (
-            <div className="flex gap-2">
-              <Button
-                variant="flat"
-                onPress={handleResetSettings}
-                startContent={<Icon icon="lucide:rotate-ccw" className="w-4 h-4" />}
-              >
-                Reset
-              </Button>
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            {/* Backend Status Indicator */}
+            {isLoading && (
+              <div className="flex items-center gap-2 text-default-500">
+                <Spinner size="sm" />
+                <span className="text-sm">Syncing...</span>
+              </div>
+            )}
+            
+            {hasBackendSettings && !isLoading && (
+              <Chip size="sm" variant="flat" color="success" startContent={<Icon icon="lucide:cloud-upload" className="w-3 h-3" />}>
+                Cloud Synced
+              </Chip>
+            )}
+            
+            {!hasBackendSettings && !isLoading && errorType !== 'SETTINGS_NOT_FOUND' && (
+              <Chip size="sm" variant="flat" color="warning" startContent={<Icon icon="lucide:hard-drive" className="w-3 h-3" />}>
+                Local Storage
+              </Chip>
+            )}
+
+            {!hasBackendSettings && !isLoading && errorType === 'SETTINGS_NOT_FOUND' && (
+              <Chip size="sm" variant="flat" color="default" startContent={<Icon icon="lucide:cloud-off" className="w-3 h-3" />}>
+                Not Created Yet
+              </Chip>
+            )}
+            
+            {hasChanges && (
+              <div className="flex gap-2">
+                <Button
+                  variant="flat"
+                  onPress={handleResetSettings}
+                  size="sm"
+                  startContent={<Icon icon="lucide:rotate-ccw" className="w-4 h-4" />}
+                >
+                  Reset
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Error Alert */}
+        {error && (
+          <Alert
+            color={errorType === 'SETTINGS_NOT_FOUND' ? 'warning' : 'danger'}
+            variant="flat"
+            title={getErrorTitle(errorType)}
+            description={errorMessage}
+            startContent={
+              <Icon 
+                icon={errorType === 'SETTINGS_NOT_FOUND' ? 'lucide:info' : 'lucide:alert-circle'} 
+                className="w-5 h-5" 
+              />
+            }
+            endContent={
+              <Button
+                size="sm"
+                variant="flat"
+                onPress={clearError}
+                isIconOnly
+              >
+                <Icon icon="lucide:x" className="w-4 h-4" />
+              </Button>
+            }
+          />
+        )}
       </div>
 
       {/* Settings Sections */}
@@ -171,17 +249,17 @@ export const SettingsPage: React.FC = () => {
                   if (value) handleSensorTimeoutChange(value);
                 }}
                 className="max-w-md"
-                startContent={<Icon icon="lucide:timer" className="w-4 h-4" />}
-                variant="bordered"
-                defaultSelectedKeys={[sensorSettings.offlineTimeoutMinutes.toString()]}
-                disallowEmptySelection
+                size="sm"
+                renderValue={() => {
+                  if (selectedTimeoutOption) {
+                    return `${selectedTimeoutOption.label} - ${selectedTimeoutOption.description}`;
+                  }
+                  return "Select timeout duration";
+                }}
               >
                 {TIMEOUT_OPTIONS.map((option) => (
                   <SelectItem key={option.value.toString()}>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{option.label}</span>
-                      <span className="text-xs text-default-400">{option.description}</span>
-                    </div>
+                    {option.label} - {option.description}
                   </SelectItem>
                 ))}
               </Select>
@@ -247,5 +325,3 @@ export const SettingsPage: React.FC = () => {
     </div>
   );
 };
-
-export default SettingsPage;

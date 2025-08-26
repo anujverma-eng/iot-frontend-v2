@@ -97,7 +97,7 @@ export const initializeLiveConnection = createAsyncThunk(
       
       // Add throttling for live data updates to improve performance
       let lastUpdateTime = 0;
-      const throttleDelay = 100; // Update every 100ms maximum (10 updates per second)
+      const throttleDelay = 0; // Update every 100ms maximum (10 updates per second)
       
       // Start live connection with all gateway IDs
       const callbacks: LiveCallbacks = {
@@ -123,7 +123,8 @@ export const initializeLiveConnection = createAsyncThunk(
             dispatch(updateSensorLastSeen({ 
               mac: reading.mac, 
               lastSeen: nowStr,
-              battery: reading.battery // Include battery data from socket
+              battery: reading.battery, // Include battery data from socket
+              lastValue: reading.value // Include the actual sensor reading value
             }));
 
             // Notify offline detection service of sensor activity

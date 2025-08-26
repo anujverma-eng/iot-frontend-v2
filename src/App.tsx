@@ -1,18 +1,13 @@
 // src/App.tsx
 import { useEffect } from 'react';
 import { AppRouter } from './router';
-import { useAppDispatch, useAppSelector } from './hooks/useAppDispatch';
-import { loadSettings, selectOfflineTimeout } from './store/settingsSlice';
+import { useAppDispatch } from './hooks/useAppDispatch';
+import { useSettings } from './hooks/useSettings';
 import { offlineDetectionService } from './services/offlineDetectionService';
 
 export default function App() {
   const dispatch = useAppDispatch();
-  const offlineTimeout = useAppSelector(selectOfflineTimeout);
-
-  useEffect(() => {
-    // Initialize settings first
-    dispatch(loadSettings());
-  }, [dispatch]);
+  const { offlineTimeout } = useSettings();
 
   useEffect(() => {
     // Initialize offline detection service with current settings

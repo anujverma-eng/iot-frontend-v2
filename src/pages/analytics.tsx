@@ -1,4 +1,16 @@
-import { addToast, Button, Checkbox, CheckboxGroup, DateRangePicker, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger, Input, Spinner } from "@heroui/react";
+import {
+  addToast,
+  Button,
+  Checkbox,
+  CheckboxGroup,
+  DateRangePicker,
+  Dropdown,
+  DropdownItem,
+  DropdownMenu,
+  DropdownTrigger,
+  Input,
+  Spinner,
+} from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { CalendarDate, DateValue, getLocalTimeZone } from "@internationalized/date";
 import React from "react";
@@ -41,12 +53,12 @@ import {
   toggleSensorStar,
   updateSensorDisplayName,
 } from "../store/sensorsSlice";
-import { 
-  fetchTelemetry, 
-  selectTelemetryData, 
-  selectTelemetryLoading, 
+import {
+  fetchTelemetry,
+  selectTelemetryData,
+  selectTelemetryLoading,
   setTimeRange,
-  selectLiveSensors
+  selectLiveSensors,
 } from "../store/telemetrySlice";
 import { selectIsLiveMode, selectIsConnecting, toggleLiveMode } from "../store/liveDataSlice";
 import { useDebouncedSensorSelection } from "../hooks/useDebouncedSensorSelection";
@@ -92,7 +104,7 @@ export const AnalyticsPage: React.FC = () => {
   const selectedSensorData = useSelector(selectSelectedSensor);
   const pagination = useSelector(selectSensorPagination);
   const gateways = useSelector(selectGateways);
-  
+
   // Live mode Redux state (now centralized)
   const isLiveMode = useSelector(selectIsLiveMode);
   const isConnecting = useSelector(selectIsConnecting);
@@ -103,7 +115,8 @@ export const AnalyticsPage: React.FC = () => {
 
   // DEBUG: Log when sensors or stats change (reduced frequency)
   React.useEffect(() => {
-    if (Math.random() < 0.02) { // Log only 2% of the time
+    if (Math.random() < 0.02) {
+      // Log only 2% of the time
       console.log(`[Analytics] DEBUG: Sensors data changed, count: ${sensors.length}`);
     }
   }, [sensors]);
@@ -156,7 +169,7 @@ export const AnalyticsPage: React.FC = () => {
 
   // Use optimized data fetching hook
   const { fetchData: fetchOptimizedData, cancelPendingRequests } = useOptimizedDataFetch();
-  
+
   // --- local search text (controlled input) ----------------------------
   const [searchQuery, setSearchQuery] = React.useState(filters.search || "");
 
@@ -236,10 +249,11 @@ export const AnalyticsPage: React.FC = () => {
     /* search */
     if (filters?.search?.trim()) {
       const q = filters.search.toLowerCase();
-      list = list.filter((s) => 
-        s.mac.toLowerCase().includes(q) || 
-        (s.displayName ?? "").toLowerCase().includes(q) ||
-        (s.name ?? "").toLowerCase().includes(q)
+      list = list.filter(
+        (s) =>
+          s.mac.toLowerCase().includes(q) ||
+          (s.displayName ?? "").toLowerCase().includes(q) ||
+          (s.name ?? "").toLowerCase().includes(q)
       );
     }
 
@@ -256,19 +270,19 @@ export const AnalyticsPage: React.FC = () => {
         list = list.filter((s) => s.isOnline === false);
       }
     }
-    
+
     /* sort */
     if (filters.sort) {
       const { field, direction } = filters.sort;
       list = [...list].sort((a: any, b: any) => {
         // Handle favorite/starred fields
-        if(field === "starred" || field === "favorite") {
+        if (field === "starred" || field === "favorite") {
           const af = a.favorite ? 1 : 0;
           const bf = b.favorite ? 1 : 0;
           if (af === bf) return 0;
           return (af > bf ? 1 : -1) * (direction === "asc" ? 1 : -1);
         }
-        
+
         // Handle date fields (lastSeen)
         if (field === "lastSeen") {
           const av = new Date(a[field]).getTime();
@@ -278,7 +292,7 @@ export const AnalyticsPage: React.FC = () => {
           if (isNaN(bv)) return -1;
           return (av - bv) * (direction === "asc" ? 1 : -1);
         }
-        
+
         // Handle string fields (displayName, name)
         if (field === "displayName" || field === "name") {
           const av = (a.displayName || a.name || a.mac || "").toString().toLowerCase();
@@ -286,15 +300,15 @@ export const AnalyticsPage: React.FC = () => {
           if (av === bv) return 0;
           return av.localeCompare(bv) * (direction === "asc" ? 1 : -1);
         }
-        
+
         // Handle numeric fields (battery)
         if (field === "battery") {
-          const av = typeof a[field] === 'number' ? a[field] : -1;
-          const bv = typeof b[field] === 'number' ? b[field] : -1;
+          const av = typeof a[field] === "number" ? a[field] : -1;
+          const bv = typeof b[field] === "number" ? b[field] : -1;
           if (av === bv) return 0;
           return (av - bv) * (direction === "asc" ? 1 : -1);
         }
-        
+
         // Generic field handling
         const av = a[field];
         const bv = b[field];
@@ -337,26 +351,30 @@ export const AnalyticsPage: React.FC = () => {
   // Handle URL parameter for selected sensor
   // CRITICAL FIX: Only depend on sensor IDs, not the entire filteredSensors array
   // to prevent API calls on every WebSocket message
-  const sensorIds = React.useMemo(() => 
-    filteredSensors?.map(s => s.id) || [], 
-    [filteredSensors?.length, filteredSensors?.map(s => s.id).join(',')]
+  const sensorIds = React.useMemo(
+    () => filteredSensors?.map((s) => s.id) || [],
+    [filteredSensors?.length, filteredSensors?.map((s) => s.id).join(",")]
   );
-  
+
   React.useEffect(() => {
-    console.log('[Analytics] URL sensor effect triggered with:', { sensorId, selectedSensor, sensorCount: sensorIds.length });
-    
+    console.log("[Analytics] URL sensor effect triggered with:", {
+      sensorId,
+      selectedSensor,
+      sensorCount: sensorIds.length,
+    });
+
     if (sensorId) {
-      console.log('[Analytics] Setting sensor from URL parameter:', sensorId);
+      console.log("[Analytics] Setting sensor from URL parameter:", sensorId);
       dispatch(fetchSensorById(sensorId));
       setSelectedSensor(sensorId);
     } else if (sensorIds.length > 0 && !selectedSensor) {
       const firstSensorId = sensorIds[0];
-      console.log('[Analytics] Auto-selecting first sensor:', firstSensorId);
+      console.log("[Analytics] Auto-selecting first sensor:", firstSensorId);
       dispatch(fetchSensorById(firstSensorId));
       setSelectedSensor(firstSensorId);
       navigate(`/dashboard/sensors/${firstSensorId}`, { replace: true });
     }
-  }, [sensorId, sensorIds.length, sensorIds.join(','), selectedSensor, dispatch, navigate]);
+  }, [sensorId, sensorIds.length, sensorIds.join(","), selectedSensor, dispatch, navigate]);
 
   // Note: Live mode cleanup is now handled centrally by the live data system
   // No need for page-specific cleanup
@@ -371,14 +389,14 @@ export const AnalyticsPage: React.FC = () => {
     canAddMoreSensors,
     shouldShowComparison,
     isGlobalLoading: isCompareLoading,
-    minSensorsForFetch
+    minSensorsForFetch,
   } = useCompareSelection({
     timeRange: {
       start: toISO(filters.timeRange.start),
-      end: toISO(filters.timeRange.end)
+      end: toISO(filters.timeRange.end),
     },
     maxSensors: 10,
-    minSensorsForFetch: 2 // Only start loading when 2+ sensors selected
+    minSensorsForFetch: 2, // Only start loading when 2+ sensors selected
   });
 
   // Stringify time range for reliable dependency comparison
@@ -394,12 +412,12 @@ export const AnalyticsPage: React.FC = () => {
     if (selectedSensor) {
       // Create a request ID based on current parameters
       const currentRequest = `${selectedSensor}-${timeRangeKey}`;
-      
+
       // Don't make duplicate requests
       if (lastTimeRangeRequestRef.current === currentRequest) {
         return;
       }
-      
+
       lastTimeRangeRequestRef.current = currentRequest;
 
       // Ensure end time is set to end of day
@@ -409,7 +427,7 @@ export const AnalyticsPage: React.FC = () => {
       };
       adjustedTimeRange.end.setHours(23, 59, 59, 999);
 
-      console.log('[Analytics] Effect triggered - Fetching telemetry with time range:', {
+      console.log("[Analytics] Effect triggered - Fetching telemetry with time range:", {
         start: adjustedTimeRange.start.toISOString(),
         end: adjustedTimeRange.end.toISOString(),
       });
@@ -499,7 +517,7 @@ export const AnalyticsPage: React.FC = () => {
       // 2. Update Redux state with the sanitized time range
       dispatch(setTimeRange(timeRange));
 
-      console.log('[Analytics] Fetching telemetry with time range:', {
+      console.log("[Analytics] Fetching telemetry with time range:", {
         start: timeRange.start.toISOString(),
         end: timeRange.end.toISOString(),
       });
@@ -582,20 +600,20 @@ export const AnalyticsPage: React.FC = () => {
     // Use the comparison hook for optimized loading states
     const currentIds = new Set(selectedSensorIds);
     const newIds = new Set(ids);
-    
+
     // Find added and removed sensors
-    const addedSensors = ids.filter(id => !currentIds.has(id));
-    const removedSensors = selectedSensorIds.filter(id => !newIds.has(id));
-    
+    const addedSensors = ids.filter((id) => !currentIds.has(id));
+    const removedSensors = selectedSensorIds.filter((id) => !newIds.has(id));
+
     // Handle additions
-    addedSensors.forEach(id => {
+    addedSensors.forEach((id) => {
       if (canAddMoreSensors(ids.length)) {
         addSensorToComparison(id);
       }
     });
-    
+
     // Handle removals
-    removedSensors.forEach(id => {
+    removedSensors.forEach((id) => {
       removeSensorFromComparison(id);
     });
   };
@@ -638,29 +656,29 @@ export const AnalyticsPage: React.FC = () => {
       }
 
       let csvContent = "Timestamp,Value\n";
-      
-      chartConfig.series.forEach(dataPoint => {
+
+      chartConfig.series.forEach((dataPoint) => {
         const timestamp = new Date(dataPoint.timestamp).toISOString();
         csvContent += `${timestamp},${dataPoint.value}\n`;
       });
 
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const currentSensorData = sensors.find(s => s._id === selectedSensor);
-      const filename = currentSensorData ? 
-        `${currentSensorData.displayName || currentSensorData.mac}_data.csv` : 
-        `sensor_data_${new Date().toISOString().split('T')[0]}.csv`;
-      
+      const currentSensorData = sensors.find((s) => s._id === selectedSensor);
+      const filename = currentSensorData
+        ? `${currentSensorData.displayName || currentSensorData.mac}_data.csv`
+        : `sensor_data_${new Date().toISOString().split("T")[0]}.csv`;
+
       // Create download link
       const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', filename);
-      link.style.visibility = 'hidden';
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", filename);
+      link.style.visibility = "hidden";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      
+
       addToast({
         title: "CSV Downloaded",
         description: "Sensor data has been downloaded as CSV",
@@ -713,8 +731,6 @@ export const AnalyticsPage: React.FC = () => {
     }
   };
 
-
-
   // Optional: Test publish command function
   const handleSendTestCommand = async () => {
     if (!isLiveMode) {
@@ -727,7 +743,7 @@ export const AnalyticsPage: React.FC = () => {
 
     try {
       // Get the first active gateway to send test to
-      const activeGateway = gateways.find(gateway => gateway.status === 'active');
+      const activeGateway = gateways.find((gateway) => gateway.status === "active");
       if (!activeGateway) {
         addToast({
           title: "No Active Gateway",
@@ -739,13 +755,13 @@ export const AnalyticsPage: React.FC = () => {
       const gatewayId = activeGateway._id;
       // TODO: Re-enable when publishCommand is available
       // await publishCommand(gatewayId, { type: 'ping', ts: Date.now() });
-      
+
       addToast({
         title: "Test Command Sent",
         description: `Sent ping command to ${gatewayId}`,
       });
     } catch (error) {
-      console.error('[Analytics] Test command error:', error);
+      console.error("[Analytics] Test command error:", error);
       addToast({
         title: "Command Error",
         description: error instanceof Error ? error.message : "Failed to send test command",
@@ -757,19 +773,20 @@ export const AnalyticsPage: React.FC = () => {
   const chartConfig: ChartConfig | null = React.useMemo(() => {
     if (!selectedSensor || !telemetryData[selectedSensor]) return null;
     const sensorData = telemetryData[selectedSensor];
-    
+
     // Enhanced debugging for live data
     const currentSeries = sensorData.series;
-    console.log('[Analytics] Chart data content:', {
+    console.log("[Analytics] Chart data content:", {
       sensorId: selectedSensor,
       dataPoints: currentSeries.length,
       firstPoint: currentSeries[0],
       lastPoint: currentSeries[currentSeries.length - 1],
       nonNullCount: currentSeries.filter((point) => point && point.value !== null && point.value !== undefined).length,
     });
-    
+
     // Reduced logging frequency to prevent memory issues
-    if (Math.random() < 0.01) { // Log only 1% of the time
+    if (Math.random() < 0.01) {
+      // Log only 1% of the time
       console.log(`[Analytics] Rendering with series length: ${currentSeries.length}`);
     }
 
@@ -780,10 +797,10 @@ export const AnalyticsPage: React.FC = () => {
       color: chartColors[0],
     };
   }, [
-    selectedSensor, 
+    selectedSensor,
     // Depend on the series array reference itself - will change when Redux creates new array
     selectedSensor ? telemetryData[selectedSensor]?.series : null,
-    isLiveMode // Track live mode changes
+    isLiveMode, // Track live mode changes
   ]);
 
   // Prepare multi-series chart config for comparison
@@ -817,13 +834,13 @@ export const AnalyticsPage: React.FC = () => {
       }),
     };
   }, [
-    telemetryData, 
-    selectedSensorIds, 
+    telemetryData,
+    selectedSensorIds,
     sensors,
     // In live mode, track data changes for selected sensors
-    isLiveMode ? selectedSensorIds.map(id => 
-      telemetryData[id] ? telemetryData[id].series.length : 0
-    ).join(',') : null
+    isLiveMode
+      ? selectedSensorIds.map((id) => (telemetryData[id] ? telemetryData[id].series.length : 0)).join(",")
+      : null,
   ]);
 
   // Find the currently selected sensor object
@@ -1007,23 +1024,20 @@ export const AnalyticsPage: React.FC = () => {
           <div className="w-80 border-r border-divider flex flex-col">
             <div className="p-3 border-b border-divider flex justify-between items-center">
               {/* <h3 className="text-sm font-medium">My Sensors</h3> */}
-              <FilterBar
-                filters={filters}
-                onFiltersChange={handleFiltersChange}
-                isMobile={false}
-              />
-              <div className="flex items-center gap-2">
-                {/* Live mode switch removed - now controlled via navbar and time-range-selector only */}
-                <Button
-                  size="sm"
-                  variant={isCompareMode ? "solid" : "flat"}
-                  color={isCompareMode ? "primary" : "default"}
-                  onPress={toggleCompareMode}
-                  startContent={<Icon icon="lucide:bar-chart-2" width={16} />}
-                >
-                  {isCompareMode ? "Comparing" : "Compare"}
-                </Button>
-              </div>
+              <FilterBar filters={filters} onFiltersChange={handleFiltersChange} isMobile={false} />
+              {!isLiveMode && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant={isCompareMode ? "solid" : "flat"}
+                    color={isCompareMode ? "primary" : "default"}
+                    onPress={toggleCompareMode}
+                    startContent={<Icon icon="lucide:bar-chart-2" width={16} />}
+                  >
+                    {isCompareMode ? "Comparing" : "Compare"}
+                  </Button>
+                </div>
+              )}
             </div>
 
             <SensorList
@@ -1092,27 +1106,27 @@ export const AnalyticsPage: React.FC = () => {
 
                 {selectedSensor && currentSensor && (
                   <div className="flex items-center gap-2">
-                    <div
-                      className={`w-2 h-2 rounded-full ${currentSensor.isOnline ? "bg-success" : "bg-danger"}`}
-                    />
+                    <div className={`w-2 h-2 rounded-full ${currentSensor.isOnline ? "bg-success" : "bg-danger"}`} />
                     <span className="text-sm font-medium truncate max-w-[120px]">
                       {currentSensor.displayName || currentSensor.mac}
                     </span>
                   </div>
                 )}
 
-                <div className="flex items-center gap-2">
-                  {/* Live mode switch removed - now controlled via navbar and time-range-selector only */}
-                  <Button
-                    size="sm"
-                    color={isCompareMode ? "primary" : "default"}
-                    variant={isCompareMode ? "solid" : "flat"}
-                    startContent={<Icon icon="lucide:bar-chart-2" width={16} />}
-                    onPress={toggleCompareMode}
-                  >
-                    {isCompareMode ? <>Compare ({selectedSensorIds.length})</> : "Compare"}
-                  </Button>
-                </div>
+                {!isLiveMode && (
+                  <div className="flex items-center gap-2">
+                    {/* Live mode switch removed - now controlled via navbar and time-range-selector only */}
+                    <Button
+                      size="sm"
+                      color={isCompareMode ? "primary" : "default"}
+                      variant={isCompareMode ? "solid" : "flat"}
+                      startContent={<Icon icon="lucide:bar-chart-2" width={16} />}
+                      onPress={toggleCompareMode}
+                    >
+                      {isCompareMode ? <>Compare ({selectedSensorIds.length})</> : "Compare"}
+                    </Button>
+                  </div>
+                )}
               </div>
 
               {/* Active filters display */}
@@ -1146,7 +1160,9 @@ export const AnalyticsPage: React.FC = () => {
                   {filters.status !== "all" && (
                     <div className="px-3 py-1 bg-primary-100 text-primary rounded-full text-xs flex items-center gap-1">
                       <Icon icon={filters.status === "live" ? "lucide:wifi" : "lucide:wifi-off"} width={12} />
-                      {filters.status === "live" ? "Online" : filters.status.charAt(0).toUpperCase() + filters.status.slice(1)}
+                      {filters.status === "live"
+                        ? "Online"
+                        : filters.status.charAt(0).toUpperCase() + filters.status.slice(1)}
                     </div>
                   )}
 
@@ -1177,12 +1193,11 @@ export const AnalyticsPage: React.FC = () => {
                   <Icon icon="lucide:bar-chart-2" className="text-default-300 mb-4" width={48} height={48} />
                   <h3 className="text-xl font-medium mb-2">Compare Sensors</h3>
                   <p className="text-default-500 mb-6 max-w-md">
-                    {selectedSensorIds.length === 0 
+                    {selectedSensorIds.length === 0
                       ? "Select sensors from the list to compare their data."
                       : selectedSensorIds.length === 1
-                      ? `Select ${minSensorsForFetch - selectedSensorIds.length} more sensor to start comparison.`
-                      : `Select ${minSensorsForFetch - selectedSensorIds.length} more sensors to start comparison.`
-                    }
+                        ? `Select ${minSensorsForFetch - selectedSensorIds.length} more sensor to start comparison.`
+                        : `Select ${minSensorsForFetch - selectedSensorIds.length} more sensors to start comparison.`}
                   </p>
                   {selectedSensorIds.length > 0 && (
                     <div className="mb-4">
@@ -1552,7 +1567,7 @@ export const AnalyticsPage: React.FC = () => {
                               const startJs = range.start.toDate(getLocalTimeZone());
                               const endJs = range.end.toDate(getLocalTimeZone());
 
-                              console.log('[Analytics] Mobile date range selected:', {
+                              console.log("[Analytics] Mobile date range selected:", {
                                 start: startJs,
                                 end: endJs,
                                 startISO: startJs.toISOString(),

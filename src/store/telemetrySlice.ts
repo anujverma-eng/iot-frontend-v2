@@ -133,22 +133,16 @@ export const toggleLiveMode = createAsyncThunk(
           console.log('[TelemetrySlice] Received live data callback:', JSON.stringify(data, null, 2));
           dispatch(addLiveData(data));
           
-          // Update lastSeen for each sensor that sent data (throttled to prevent spam)
+          // Update lastSeen for each sensor that sent data (immediate updates)
           const now = new Date().toISOString();
-          const currentTime = Date.now();
           
           data.sensors.forEach(reading => {
-            const lastUpdateTime = lastSeenUpdateThrottleMap.get(reading.mac) || 0;
-            
-            // Only update if it's been at least LAST_SEEN_UPDATE_THROTTLE_MS since last update
-            if (currentTime - lastUpdateTime >= LAST_SEEN_UPDATE_THROTTLE_MS) {
-              lastSeenUpdateThrottleMap.set(reading.mac, currentTime);
-              dispatch(updateSensorLastSeen({ 
-                mac: reading.mac, 
-                lastSeen: now,
-                battery: reading.battery // Include battery in sensor updates
-              }));
-            }
+            dispatch(updateSensorLastSeen({ 
+              mac: reading.mac, 
+              lastSeen: now,
+              battery: reading.battery, // Include battery in sensor updates
+              lastValue: reading.value // Include the actual sensor reading value
+            }));
           });
         },
         onPresence: (topic: string, message: any) => {
@@ -274,9 +268,10 @@ const telemetrySlice = createSlice({
       const now = Date.now();
 
       // Reduced logging frequency to prevent memory issues
-      if (sensors.length > 0 && Math.random() < 0.05) { // Log only 5% of the time
-        console.log('[TelemetrySlice] addLiveData called with', sensors.length, 'sensors');
-      }
+      // TODO: AV
+      // if (sensors.length > 0 && Math.random() < 0.05) { // Log only 5% of the time
+      //   console.log('[TelemetrySlice] addLiveData called with', sensors.length, 'sensors');
+      // }
 
       sensors.forEach(reading => {
         const { mac, name, type, unit, value, timestamp } = reading;
@@ -290,12 +285,12 @@ const telemetrySlice = createSlice({
         // Log a warning and skip this reading. This prevents polluting the state.
         if (!sensorKey) {
           // Reduced logging to prevent memory issues - only log once per minute per unknown MAC
-          const now = Date.now();
-          const lastLogTime = unknownSensorCache.get(`log_${mac}`) || 0;
-          if (now - lastLogTime > 60000) { // 1 minute cooldown for logs
-            console.warn(`[TelemetrySlice] Unknown sensor MAC: ${mac}. Auto-discovery disabled.`);
-            unknownSensorCache.set(`log_${mac}`, now);
-          }
+          // const now = Date.now();
+          // const lastLogTime = unknownSensorCache.get(`log_${mac}`) || 0;
+          // if (now - lastLogTime > 60000) { // 1 minute cooldown for logs
+            // console.warn(`[TelemetrySlice] Unknown sensor MAC: ${mac}. Auto-discovery disabled.`);
+          //   unknownSensorCache.set(`log_${mac}`, now);
+          // }
           
           return; // "return" here exits the forEach loop for this iteration.
         }
@@ -324,8 +319,8 @@ const telemetrySlice = createSlice({
         if (newSeries.length > state.maxLiveReadings) {
           const removedCount = newSeries.length - state.maxLiveReadings;
           newSeries = newSeries.slice(-state.maxLiveReadings);
-          // Only log trimming occasionally to prevent spam
-          if (removedCount > 0 && sensor.series.length % 50 === 0) {
+          // Always log trimming for immediate visibility
+          if (removedCount > 0) {
             console.log('[TelemetrySlice] Trimmed', removedCount, 'old data points, now have:', newSeries.length);
           }
         }
@@ -347,10 +342,8 @@ const telemetrySlice = createSlice({
         }
       });
       
-      // Reduced logging frequency to prevent memory issues
-      if (sensors.length > 0 && Math.random() < 0.1) { // Log only 10% of the time
-        console.log('[TelemetrySlice] Processed', sensors.length, 'sensor readings');
-      }
+      // Always log processing for immediate visibility
+      console.log('[TelemetrySlice] Processed', sensors.length, 'sensor readings');
     },
 
     clearLiveData: (state) => {

@@ -1,5 +1,6 @@
 import { Sensor } from '../types/sensor';
 import { updateSensorOnlineStatus } from '../store/sensorsSlice';
+import { SensorService } from '../api/sensor.service';
 
 // Interface for tracking sensor last seen times
 interface SensorLastSeenTracker {
@@ -171,12 +172,31 @@ class OfflineDetectionService {
         console.log(`[OfflineDetection] DEBUG: Dispatch function available:`, !!this.dispatch);
         console.log(`[OfflineDetection] DEBUG: Action payload:`, { mac, isOnline: false });
         
+        // Update Redux state first
         this.dispatch(updateSensorOnlineStatus({ mac, isOnline: false }));
         console.log(`[OfflineDetection] ✅ DISPATCHED Redux action - marked sensor ${mac} offline due to timeout (${timeoutMinutes}min)`);
+        
+        // Update backend database
+        this.updateSensorBackendStatus(mac, false, timeoutMinutes);
         
         // Clean up timeout ID
         delete this.sensorTracker[mac].timeoutId;
       }
+    }
+  }
+
+  // Update sensor online status in backend database
+  private async updateSensorBackendStatus(mac: string, isOnline: boolean, timeoutMinutes?: number): Promise<void> {
+    try {
+      console.log(`[OfflineDetection] 🔄 Updating backend for sensor ${mac}: isOnline=${isOnline}`);
+      
+      await SensorService.updateSensor(mac, { isOnline });
+      
+      console.log(`[OfflineDetection] ✅ Successfully updated backend for sensor ${mac}: isOnline=${isOnline}${timeoutMinutes ? ` (timeout: ${timeoutMinutes}min)` : ''}`);
+    } catch (error) {
+      console.error(`[OfflineDetection] ❌ Failed to update backend for sensor ${mac}:`, error);
+      // Don't throw error - we don't want to break the offline detection flow
+      // The Redux state has already been updated, which is the primary source of truth for UI
     }
   }
 
@@ -236,6 +256,9 @@ class OfflineDetectionService {
         if (onlineGateways.length === 0) {
           dispatch(updateSensorOnlineStatus({ mac: sensor.mac, isOnline: false }));
           console.log(`[OfflineDetection] ✅ Marked sensor ${sensor.mac} offline due to ALL dependent gateways being offline`);
+          
+          // Update backend database
+          this.updateSensorBackendStatus(sensor.mac, false);
           
           // Clear any pending timeout since we're marking it offline immediately
           if (this.sensorTracker[sensor.mac]?.timeoutId) {

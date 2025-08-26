@@ -248,8 +248,8 @@ const sensorSlice = createSlice({
       state.pagination.limit = action.payload;
     },
     // Update lastSeen for a sensor when live data is received
-    updateSensorLastSeen: (state, action: PayloadAction<{ mac: string; lastSeen: string; battery?: number }>) => {
-      const { mac, lastSeen, battery } = action.payload;
+    updateSensorLastSeen: (state, action: PayloadAction<{ mac: string; lastSeen: string; battery?: number; lastValue?: number }>) => {
+      const { mac, lastSeen, battery, lastValue } = action.payload;
       
       // Update in main sensors list - use more direct mutation to avoid reference changes
       const sensorIndex = state.data.findIndex((sensor: Sensor) => sensor.mac === mac);
@@ -258,13 +258,16 @@ const sensorSlice = createSlice({
         const sensor = state.data[sensorIndex];
         const newStatus = "live";
         
-        if (sensor.lastSeen !== lastSeen || sensor.status !== newStatus || sensor.battery !== battery) {
+        if (sensor.lastSeen !== lastSeen || sensor.status !== newStatus || sensor.battery !== battery || sensor.lastValue !== lastValue) {
           sensor.lastSeen = lastSeen;
           sensor.status = newStatus;
           if (battery !== undefined) {
             sensor.battery = battery;
           }
-          console.log('[SensorsSlice] Updated lastSeen for sensor', mac, 'to', lastSeen, 'battery:', battery);
+          if (lastValue !== undefined) {
+            sensor.lastValue = lastValue;
+          }
+          console.log('[SensorsSlice] Updated sensor', mac, '- lastSeen:', lastSeen, 'battery:', battery, 'lastValue:', lastValue);
         }
       }
       
@@ -273,11 +276,14 @@ const sensorSlice = createSlice({
         const selectedSensor = state.selectedSensor.data;
         const newStatus = "live";
         
-        if (selectedSensor.lastSeen !== lastSeen || selectedSensor.status !== newStatus || selectedSensor.battery !== battery) {
+        if (selectedSensor.lastSeen !== lastSeen || selectedSensor.status !== newStatus || selectedSensor.battery !== battery || selectedSensor.lastValue !== lastValue) {
           selectedSensor.lastSeen = lastSeen;
           selectedSensor.status = newStatus;
           if (battery !== undefined) {
             selectedSensor.battery = battery;
+          }
+          if (lastValue !== undefined) {
+            selectedSensor.lastValue = lastValue;
           }
         }
       }
