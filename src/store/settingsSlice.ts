@@ -161,20 +161,6 @@ export const saveSettingsToBackend = createAsyncThunk(
   }
 );
 
-// Helper functions for localStorage (fallback/migration)
-const loadSettingsFromStorage = (): AppSettings => {
-  try {
-    const stored = localStorage.getItem(SETTINGS_STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return { ...DEFAULT_SETTINGS, ...parsed };
-    }
-  } catch (error) {
-    console.error('Error loading settings from localStorage:', error);
-  }
-  return DEFAULT_SETTINGS;
-};
-
 const saveSettingsToStorage = (settings: AppSettings): void => {
   try {
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
@@ -205,14 +191,6 @@ const settingsSlice = createSlice({
   name: 'settings',
   initialState,
   reducers: {
-    // Load settings with migration support
-    loadSettings: (state) => {
-      // Load from localStorage for immediate use (fallback)
-      const localSettings = loadSettingsFromStorage();
-      state.settings = localSettings;
-      state.loaded = true;
-      console.log('Settings loaded from localStorage (immediate):', state.settings);
-    },
     
     // Update sensor settings locally (will be synced to backend automatically)
     updateSensorSettings: (state, action: PayloadAction<Partial<SensorSettings>>) => {
@@ -348,7 +326,6 @@ const settingsSlice = createSlice({
 });
 
 export const {
-  loadSettings,
   updateSensorSettings,
   updateAllSettings,
   resetSettings,

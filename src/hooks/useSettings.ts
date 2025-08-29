@@ -1,7 +1,6 @@
 import { useEffect, useCallback } from 'react';
 import { useAppDispatch, useAppSelector } from './useAppDispatch';
 import {
-  loadSettings,
   fetchSettingsFromBackend,
   saveSettingsToBackend,
   updateSensorSettings,
@@ -47,8 +46,6 @@ export const useSettings = () => {
   // Initialize settings on mount
   useEffect(() => {
     const initializeSettings = async () => {
-      // First load from localStorage for immediate availability
-      dispatch(loadSettings());
       
       // Then try to fetch from backend
       try {
