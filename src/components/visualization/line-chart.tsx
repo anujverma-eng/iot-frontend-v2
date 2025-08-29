@@ -17,6 +17,7 @@ import {
 import { formatNumericValue } from "../../utils/numberUtils";
 import { ChartConfig, MultiSeriesConfig } from "../../types/sensor";
 import { selectMaxLiveReadings } from "../../store/telemetrySlice";
+import { useBreakpoints } from "../../hooks/use-media-query";
 
 interface LineChartProps {
   config: ChartConfig | MultiSeriesConfig;
@@ -37,6 +38,9 @@ export const LineChart: React.FC<LineChartProps> = ({
 
   // Add clear check for empty data
   const hasData = isMultiSeries ? config.series?.some((s: any) => s.data?.length > 0) : config.series?.length > 0;
+
+    const { isMobile, isTablet, isLandscape, isSmallScreen, isMobileLandscape, isMobileLandscapeShort, isMobileDevice } =
+      useBreakpoints();
 
   // Get current max live readings setting
   const maxLiveReadings = useSelector(selectMaxLiveReadings);
@@ -745,7 +749,8 @@ export const LineChart: React.FC<LineChartProps> = ({
         </div>
       </div>
 
-      <div className="flex-1 min-h-[300px]">
+      <div className={`flex-1 ${(isMobile && !isLandscape && !isMobileLandscapeShort) ? "min-h-[500px]" : isMobileLandscapeShort ? "min-h-[350px]" : "min-h-[460px]"}`}>
+         {/* <div className="flex-1" style={{ minHeight: '400px', height: '100%' }}></div> */}
         <ResponsiveContainer 
           width="100%" 
           height="100%" 

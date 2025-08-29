@@ -83,7 +83,74 @@ export const AnalyticsPage: React.FC = () => {
   const isSoloMode = new URLSearchParams(location.search).get("solo") === "true";
 
   // Use responsive breakpoints
-  const { isMobile, isSmallScreen, isLandscape } = useBreakpoints();
+  const {
+    isMobile,
+    isSmallScreen,
+    isLandscape,
+    isShortHeight,
+    isVeryShortHeight,
+    isIPhone14Pro,
+    isIPhoneLandscape,
+    isPixelLandscape,
+  } = useBreakpoints();
+
+  // Enhanced mobile landscape detection - more reliable for iPhone 14 Pro
+  const isMobileLandscapeShort = React.useMemo(() => {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    // iPhone 14 Pro landscape: 844x390
+    // iPhone 13 Pro landscape: 844x390
+    // Generic mobile landscape with short height
+    return isLandscape && height <= 450 && width >= 800 && ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+  }, [isLandscape]);
+
+  // Dynamic chart height calculation for optimal visibility
+  const getChartContainerStyle = React.useCallback(() => {
+    const baseStyle = {
+      width: "100%",
+      position: "relative" as const,
+      boxSizing: "border-box" as const,
+      display: "flex" as const,
+      flexDirection: "column" as const,
+    };
+
+    let styles;
+
+    if (isMobileLandscapeShort) {
+      styles = {
+        ...baseStyle,
+        // Use a more aggressive height calculation for landscape
+        height: "100%", // Reduced from previous calc
+        minHeight: "200px", // Ensure minimum usable space
+        paddingTop: "2px",
+        paddingBottom: "2px",
+        paddingLeft: "2px",
+        paddingRight: "2px",
+      };
+    } else if (isMobile && isShortHeight) {
+      styles = {
+        ...baseStyle,
+        height: "100%", // Let it fill the flex container
+        padding: "8px",
+      };
+    } else if (isMobile) {
+      styles = {
+        ...baseStyle,
+        padding: "8px",
+      };
+    } else {
+      styles = {
+        ...baseStyle,
+        maxHeight: "700px",
+        minHeight: "150px",
+        flexGrow: 1,
+        padding: "18px",
+      };
+    }
+    console.log("..styles",styles)
+    return styles;
+  }, [isMobileLandscapeShort, isMobile, isShortHeight]);
 
   // Initialize offline detection integration
   useOfflineDetectionIntegration();
@@ -189,6 +256,71 @@ export const AnalyticsPage: React.FC = () => {
 
   // Add state for compare mode
   const [isCompareMode, setIsCompareMode] = React.useState(false);
+
+  // DEBUG: Comprehensive device and layout debugging
+  React.useEffect(() => {
+    const debugInfo = {
+      // Device Info
+      device: `${window.innerWidth}x${window.innerHeight}`,
+      screen: `${window.screen.width}x${window.screen.height}`,
+      devicePixelRatio: window.devicePixelRatio,
+      userAgent: navigator.userAgent.substring(0, 100),
+
+      // Breakpoint States
+      isMobile,
+      isLandscape,
+      isShortHeight,
+      isVeryShortHeight,
+      isMobileLandscapeShort,
+      isIPhone14Pro,
+      isIPhoneLandscape,
+      isPixelLandscape,
+
+      // Layout Decisions
+      showHeader: !isMobileLandscapeShort,
+      showMobileControls:
+        isMobile && !isSoloMode && !(isCompareMode && selectedSensorIds.length === 0) && !isMobileLandscapeShort,
+      showFloatingControls: isMobileLandscapeShort && !isSoloMode,
+      showSidebar: !isSoloMode && !isMobile,
+
+      // Chart Calculations
+      chartPaddingTop: isMobileLandscapeShort ? "48px" : "0px",
+      calculatedMinHeight: (() => {
+        if (isMobileLandscapeShort) {
+          return `${Math.max(300, window.innerHeight - 60)}px`;
+        } else if (isVeryShortHeight && isMobile) {
+          return `${Math.max(280, window.innerHeight - 140)}px`;
+        } else if (isMobile) {
+          return `${Math.max(400, window.innerHeight - 280)}px`;
+        }
+        return "auto";
+      })(),
+    };
+
+    console.log("[Analytics] Comprehensive Device Debug:", debugInfo);
+
+    // iPhone 14 Pro specific debugging
+    if (window.innerWidth === 844 && window.innerHeight === 390) {
+      console.log("[Analytics] iPhone 14 Pro Landscape Detected - Special handling active");
+    }
+
+    // Pixel phone specific debugging
+    if (window.innerHeight < 450 && window.innerWidth > 800 && window.innerWidth < 950) {
+      console.log("[Analytics] Pixel Landscape Detected - Special handling active");
+    }
+  }, [
+    isMobile,
+    isLandscape,
+    isShortHeight,
+    isVeryShortHeight,
+    isMobileLandscapeShort,
+    isIPhone14Pro,
+    isIPhoneLandscape,
+    isPixelLandscape,
+    isSoloMode,
+    isCompareMode,
+    selectedSensorIds.length,
+  ]);
 
   const syncTimeRange = (range: { start: Date; end: Date }) => {
     dispatch(setFilters({ ...filters, timeRange: range })); // sensors slice
@@ -896,99 +1028,135 @@ export const AnalyticsPage: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen m-0 p-0">
-      {/* ─────────────────────────  small header & cards  ───────────────────────── */}
-      <div className="px-6 pt-4 space-y-6">
-        {/* header row */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Sensors</h1>
+    // <div className="w-full h-screen overflow-hidden bg-background">
+    <div
+      className={`w-full bg-background ${
+        isMobileLandscapeShort || isMobile
+          ? "min-h-screen overflow-auto" // Allow scrolling
+          : "h-screen overflow-hidden" // Normal desktop behavior
+      }`}
+    >
+      {/* Mobile-first responsive structure */}
 
-          <div className="flex items-center gap-2">
-            {/* Test command button - only show when live mode is active */}
-            {isLiveMode && (
-              <Button
-                size="sm"
-                variant="flat"
-                color="secondary"
-                onPress={handleSendTestCommand}
-                startContent={<Icon icon="lucide:send" />}
-              >
-                Test
-              </Button>
-            )}
-            <Button
-              color="primary"
-              onPress={() => dispatch(setClaimModalOpen(true))}
-              startContent={<Icon icon="lucide:plus" />}
-            >
-              Add Sensor
-            </Button>
-          </div>
-        </div>
+      {/* Header Section - Mobile First Design */}
+      <div className={`shrink-0 border-b border-divider bg-content1`}>
+        {/* Mobile: Ultra-compact header */}
+        {isMobile ? (
+          <div className={`px-3 ${isShortHeight ? "py-0.5" : "py-2"}`}>
+            <div className="flex items-center justify-between">
+              <div className="px-4">
+                <Dropdown>
+                  <DropdownTrigger>
+                    <Button
+                      size="sm"
+                      variant="bordered"
+                      startContent={<Icon icon="lucide:bar-chart-3" width={16} />}
+                      endContent={<Icon icon="lucide:chevron-down" width={16} />}
+                      className="w-full justify-between"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs">Sensors:</span>
+                        <span className="font-semibold text-success">{stats?.liveSensors ?? 0}</span>
+                        <span className="text-xs text-default-500">/{stats?.claimed ?? 0}</span>
+                      </div>
+                    </Button>
+                  </DropdownTrigger>
+                  <DropdownMenu aria-label="Sensor statistics">
+                    <DropdownItem key="total" textValue="Total Sensors">
+                      <div className="flex justify-between items-center w-full">
+                        <div className="flex items-center gap-2">
+                          <Icon icon="lucide:radio" width={16} className="text-primary" />
+                          <span className="text-sm">Total</span>
+                        </div>
+                        <span className="font-semibold">{stats?.claimed ?? 0}</span>
+                      </div>
+                    </DropdownItem>
+                    <DropdownItem key="live" textValue="Live Sensors">
+                      <div className="flex justify-between items-center w-full">
+                        <div className="flex items-center gap-2">
+                          <Icon icon="lucide:wifi" width={16} className="text-success" />
+                          <span className="text-sm">Live</span>
+                        </div>
+                        <span className="font-semibold text-success">{stats?.liveSensors ?? 0}</span>
+                      </div>
+                    </DropdownItem>
+                    <DropdownItem key="offline" textValue="Offline Sensors">
+                      <div className="flex justify-between items-center w-full">
+                        <div className="flex items-center gap-2">
+                          <Icon icon="lucide:wifi-off" width={16} className="text-danger" />
+                          <span className="text-sm">Offline</span>
+                        </div>
+                        <span className="font-semibold text-danger">{stats?.offlineSensors ?? 0}</span>
+                      </div>
+                    </DropdownItem>
+                    <DropdownItem key="battery" textValue="Low Battery">
+                      <div className="flex justify-between items-center w-full">
+                        <div className="flex items-center gap-2">
+                          <Icon icon="lucide:battery-warning" width={16} className="text-red-500" />
+                          <span className="text-sm">Low Battery</span>
+                        </div>
+                        <span className="font-semibold text-red-500">{stats?.lowBatterySensors ?? 0}</span>
+                      </div>
+                    </DropdownItem>
+                  </DropdownMenu>
+                </Dropdown>
+              </div>
 
-        {/* stats section - responsive design */}
-        {isSmallScreen ? (
-          // Mobile compact stats - dropdown style
-          <div className="px-4">
-            <Dropdown>
-              <DropdownTrigger>
+              <div className="flex items-center gap-1">
+                {isLiveMode && (
+                  <Button
+                    size="md"
+                    variant="flat"
+                    color="secondary"
+                    onPress={handleSendTestCommand}
+                    isIconOnly={isShortHeight}
+                    className={`${isShortHeight ? "w-10 h-10" : "h-12"}`}
+                  >
+                    <Icon icon="lucide:send" />
+                    {!isShortHeight && <span className="ml-1 text-sm">Test</span>}
+                  </Button>
+                )}
                 <Button
+                  color="primary"
                   size="sm"
-                  variant="bordered"
-                  startContent={<Icon icon="lucide:bar-chart-3" width={16} />}
-                  endContent={<Icon icon="lucide:chevron-down" width={16} />}
-                  className="w-full justify-between"
+                  onPress={() => dispatch(setClaimModalOpen(true))}
+                  isIconOnly={isShortHeight}
+                  className={`${isShortHeight ? "w-10 h-10" : "h-12"}`}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs">Sensors:</span>
-                    <span className="font-semibold text-success">{stats?.liveSensors ?? 0}</span>
-                    <span className="text-xs text-default-500">/{stats?.claimed ?? 0}</span>
-                  </div>
+                  <Icon icon="lucide:plus" />
+                  {!isShortHeight && <span className="ml-1 text-sm">Add</span>}
                 </Button>
-              </DropdownTrigger>
-              <DropdownMenu aria-label="Sensor statistics">
-                <DropdownItem key="total" textValue="Total Sensors">
-                  <div className="flex justify-between items-center w-full">
-                    <div className="flex items-center gap-2">
-                      <Icon icon="lucide:radio" width={16} className="text-primary" />
-                      <span className="text-sm">Total</span>
-                    </div>
-                    <span className="font-semibold">{stats?.claimed ?? 0}</span>
-                  </div>
-                </DropdownItem>
-                <DropdownItem key="live" textValue="Live Sensors">
-                  <div className="flex justify-between items-center w-full">
-                    <div className="flex items-center gap-2">
-                      <Icon icon="lucide:wifi" width={16} className="text-success" />
-                      <span className="text-sm">Live</span>
-                    </div>
-                    <span className="font-semibold text-success">{stats?.liveSensors ?? 0}</span>
-                  </div>
-                </DropdownItem>
-                <DropdownItem key="offline" textValue="Offline Sensors">
-                  <div className="flex justify-between items-center w-full">
-                    <div className="flex items-center gap-2">
-                      <Icon icon="lucide:wifi-off" width={16} className="text-danger" />
-                      <span className="text-sm">Offline</span>
-                    </div>
-                    <span className="font-semibold text-danger">{stats?.offlineSensors ?? 0}</span>
-                  </div>
-                </DropdownItem>
-                <DropdownItem key="battery" textValue="Low Battery">
-                  <div className="flex justify-between items-center w-full">
-                    <div className="flex items-center gap-2">
-                      <Icon icon="lucide:battery-warning" width={16} className="text-red-500" />
-                      <span className="text-sm">Low Battery</span>
-                    </div>
-                    <span className="font-semibold text-red-500">{stats?.lowBatterySensors ?? 0}</span>
-                  </div>
-                </DropdownItem>
-              </DropdownMenu>
-            </Dropdown>
+              </div>
+            </div>
           </div>
         ) : (
-          // Desktop stats grid
-          <div className="px-4">
+          // Desktop: Standard header layout
+          <div className="px-6 py-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <h1 className="text-2xl font-semibold text-foreground">Sensors</h1>
+              <div className="flex items-center gap-2">
+                {isLiveMode && (
+                  <Button
+                    size="sm"
+                    variant="flat"
+                    color="secondary"
+                    onPress={handleSendTestCommand}
+                    startContent={<Icon icon="lucide:send" />}
+                  >
+                    Test
+                  </Button>
+                )}
+                <Button
+                  color="primary"
+                  onPress={() => dispatch(setClaimModalOpen(true))}
+                  startContent={<Icon icon="lucide:plus" />}
+                >
+                  Add Sensor
+                </Button>
+              </div>
+            </div>
+
+            {/* Desktop stats grid */}
             <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-4 gap-3">
               <StatsCard
                 title="Total Sensors"
@@ -1009,7 +1177,7 @@ export const AnalyticsPage: React.FC = () => {
                 color="danger"
               />
               <StatsCard
-                title="Low Battery Sensors"
+                title="Low Battery"
                 value={(stats?.lowBatterySensors ?? 0).toString()}
                 icon="lucide:battery-warning"
                 color="danger"
@@ -1019,6 +1187,7 @@ export const AnalyticsPage: React.FC = () => {
         )}
       </div>
 
+      {/* Main Content Area - Mobile First Responsive Layout */}
       <div className="flex flex-1 overflow-hidden">
         {!isSoloMode && !isMobile && (
           <div className="w-80 border-r border-divider flex flex-col">
@@ -1072,24 +1241,26 @@ export const AnalyticsPage: React.FC = () => {
           </div>
         )}
 
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {isMobile && !isSoloMode && (
-            <div className="p-3 border-b border-divider">
+        {/* Chart Area Container - Mobile First Design with Proper Heights */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {/* Mobile Controls Bar - Hidden on mobile landscape short, replaced with floating controls */}
+          {isMobile && !isSoloMode && !(isCompareMode && selectedSensorIds.length === 0) && (
+            <div className={`shrink-0 border-b border-divider bg-content1 px-8 py-2`}>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
                   <Button
                     size="sm"
                     variant="flat"
-                    startContent={<Icon icon="lucide:list" width={16} />}
                     onPress={() => setIsMobileSensorDrawerOpen(true)}
+                    isIconOnly
+                    className="w-10 h-10 min-w-10 bg-content1/95 backdrop-blur-md border border-divider shadow-sm"
                   >
-                    Sensors
+                    <Icon icon="lucide:list" width={20} />
                   </Button>
 
                   <Button
                     size="sm"
                     variant="flat"
-                    startContent={<Icon icon="lucide:filter" width={16} />}
                     onPress={() => {
                       setPendingFilters({ ...filters });
                       const idx = timeRangePresets.findIndex((p) => {
@@ -1099,209 +1270,209 @@ export const AnalyticsPage: React.FC = () => {
                       setSelectedTimeRangeIndex(idx === -1 ? timeRangePresets.length - 1 : idx);
                       setIsMobileFilterDrawerOpen(true);
                     }}
+                    isIconOnly
+                    className="w-10 h-10 min-w-10 bg-content1/95 backdrop-blur-md border border-divider shadow-sm"
                   >
-                    Filters
+                    <Icon icon="lucide:filter" width={20} />
                   </Button>
                 </div>
 
+                {/* Current sensor indicator */}
                 {selectedSensor && currentSensor && (
-                  <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${currentSensor.isOnline ? "bg-success" : "bg-danger"}`} />
-                    <span className="text-sm font-medium truncate max-w-[120px]">
+                  <div className="flex items-center gap-1.5 min-w-0 flex-1 mx-2">
+                    <div
+                      className={`w-1.5 h-1.5 rounded-full shrink-0 ${currentSensor.isOnline ? "bg-success" : "bg-danger"}`}
+                    />
+                    <span className={`${isShortHeight ? "text-xs" : "text-sm"} font-medium truncate`}>
                       {currentSensor.displayName || currentSensor.mac}
                     </span>
                   </div>
                 )}
 
-                {!isLiveMode && (
-                  <div className="flex items-center gap-2">
-                    {/* Live mode switch removed - now controlled via navbar and time-range-selector only */}
-                    <Button
-                      size="sm"
-                      color={isCompareMode ? "primary" : "default"}
-                      variant={isCompareMode ? "solid" : "flat"}
-                      startContent={<Icon icon="lucide:bar-chart-2" width={16} />}
-                      onPress={toggleCompareMode}
-                    >
-                      {isCompareMode ? <>Compare ({selectedSensorIds.length})</> : "Compare"}
-                    </Button>
-                  </div>
+                {/* Compare mode toggle */}
+                {!isLiveMode && !isMobile && (
+                  <Button
+                    size="sm"
+                    color={isCompareMode ? "primary" : "default"}
+                    variant={isCompareMode ? "solid" : "flat"}
+                    onPress={toggleCompareMode}
+                    isIconOnly={isShortHeight}
+                    className={isShortHeight ? "w-8 h-8 min-w-8" : "h-9"}
+                  >
+                    <Icon icon="lucide:bar-chart-2" width={16} />
+                    {!isShortHeight && (
+                      <span className="ml-1 text-sm">
+                        {isCompareMode ? `Compare (${selectedSensorIds.length})` : "Compare"}
+                      </span>
+                    )}
+                  </Button>
                 )}
               </div>
 
-              {/* Active filters display */}
-              {(filters.types.length > 0 || filters.status !== "all" || filters.search) && (
-                <div className="flex gap-2 mt-2 overflow-x-auto pb-1">
-                  {filters.search && (
-                    <div className="px-3 py-1 bg-default-100 text-default-700 rounded-full text-xs flex items-center gap-1">
-                      <Icon icon="lucide:search" width={12} />
-                      {filters.search}
-                      <Button
-                        isIconOnly
-                        size="sm"
-                        variant="light"
-                        className="p-0 ml-1 h-4 w-4 min-w-0"
-                        onPress={() => handleSearchChange("")}
-                      >
-                        <Icon icon="lucide:x" width={10} />
-                      </Button>
-                    </div>
-                  )}
-
-                  {filters.types.length > 0 && (
-                    <div className="px-3 py-1 bg-primary-100 text-primary rounded-full text-xs flex items-center gap-1">
-                      <Icon icon="lucide:tag" width={12} />
-                      {filters.types.length === 1
-                        ? filters.types[0].charAt(0).toUpperCase() + filters.types[0].slice(1)
-                        : `${filters.types.length} Types`}
-                    </div>
-                  )}
-
-                  {filters.status !== "all" && (
-                    <div className="px-3 py-1 bg-primary-100 text-primary rounded-full text-xs flex items-center gap-1">
-                      <Icon icon={filters.status === "live" ? "lucide:wifi" : "lucide:wifi-off"} width={12} />
-                      {filters.status === "live"
-                        ? "Online"
-                        : filters.status.charAt(0).toUpperCase() + filters.status.slice(1)}
-                    </div>
-                  )}
-
-                  <div className="px-3 py-1 bg-primary-100 text-primary rounded-full text-xs flex items-center gap-1">
-                    <Icon icon="lucide:calendar" width={12} />
-                    {new Date(filters.timeRange.start).toLocaleDateString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                    })}{" "}
-                    -{new Date(filters.timeRange.end).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+              {/* Active filters display - only show on mobile portrait or when not short height */}
+              {!isShortHeight &&
+                !isLandscape &&
+                (filters.types.length > 0 || filters.status !== "all" || filters.search) && (
+                  <div className="flex gap-1 mt-2 overflow-x-auto pb-1">
+                    {filters.search && (
+                      <div className="px-2 py-1 bg-default-100 text-default-700 rounded-full text-xs flex items-center gap-1 shrink-0">
+                        <Icon icon="lucide:search" width={10} />
+                        <span className="truncate max-w-[80px]">{filters.search}</span>
+                      </div>
+                    )}
+                    {filters.types.length > 0 && (
+                      <div className="px-2 py-1 bg-primary-100 text-primary rounded-full text-xs flex items-center gap-1 shrink-0">
+                        <Icon icon="lucide:tag" width={10} />
+                        <span>{filters.types.length === 1 ? filters.types[0] : `${filters.types.length} types`}</span>
+                      </div>
+                    )}
+                    {filters.status !== "all" && (
+                      <div className="px-2 py-1 bg-primary-100 text-primary rounded-full text-xs flex items-center gap-1 shrink-0">
+                        <Icon icon={filters.status === "live" ? "lucide:wifi" : "lucide:wifi-off"} width={10} />
+                        <span>{filters.status}</span>
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
+                )}
             </div>
           )}
 
-          <div className="flex-1 p-4 overflow-auto">
-            {isCompareMode ? (
-              shouldShowComparison(selectedSensorIds.length) && multiSeriesConfig ? (
-                <ComparisonChart
-                  config={multiSeriesConfig}
-                  isLoading={isCompareLoading}
-                  onDownloadCSV={handleDownloadCSV}
-                  onRemoveSensor={removeSensorFromComparison}
-                />
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full text-center">
-                  <Icon icon="lucide:bar-chart-2" className="text-default-300 mb-4" width={48} height={48} />
-                  <h3 className="text-xl font-medium mb-2">Compare Sensors</h3>
-                  <p className="text-default-500 mb-6 max-w-md">
-                    {selectedSensorIds.length === 0
-                      ? "Select sensors from the list to compare their data."
-                      : selectedSensorIds.length === 1
-                        ? `Select ${minSensorsForFetch - selectedSensorIds.length} more sensor to start comparison.`
-                        : `Select ${minSensorsForFetch - selectedSensorIds.length} more sensors to start comparison.`}
-                  </p>
-                  {selectedSensorIds.length > 0 && (
-                    <div className="mb-4">
-                      <p className="text-sm text-default-400">
-                        {selectedSensorIds.length} of {minSensorsForFetch} sensors selected
-                      </p>
+          {/* Chart Container - Responsive Design with Explicit Heights */}
+          <div className="flex-1 flex flex-col" style={{ minHeight: 0 }}>
+            {/* Chart content with dynamic height calculation */}
+            <div className="flex-1" style={getChartContainerStyle()}>
+              <div className={`w-full h-full flex flex-col`}>
+                {/* Chart Content with enhanced device-specific handling and explicit heights */}
+                {(() => {
+                  // Regular rendering logic for all other devices
+                  return isCompareMode ? (
+                    shouldShowComparison(selectedSensorIds.length) && multiSeriesConfig ? (
+                      <div className="w-full h-full">
+                        <ComparisonChart
+                          config={multiSeriesConfig}
+                          isLoading={isCompareLoading}
+                          onDownloadCSV={handleDownloadCSV}
+                          onRemoveSensor={removeSensorFromComparison}
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full text-center p-4">
+                        <Icon icon="lucide:bar-chart-2" className="text-default-300 mb-3" width={isMobile ? 32 : 48} />
+                        <h3 className={`${isMobile ? "text-base" : "text-xl"} font-medium mb-2`}>Compare Sensors</h3>
+                        <p className="text-default-500 text-sm mb-4 max-w-sm">
+                          {selectedSensorIds.length === 0
+                            ? "Select sensors from the list to compare their data."
+                            : `Select ${minSensorsForFetch - selectedSensorIds.length} more sensor${minSensorsForFetch - selectedSensorIds.length === 1 ? "" : "s"} to start comparison.`}
+                        </p>
+                        {isMobile && (
+                          <Button
+                            color="primary"
+                            onPress={() => setIsMobileSensorDrawerOpen(true)}
+                            startContent={<Icon icon="lucide:list" width={16} />}
+                            size="sm"
+                          >
+                            Select Sensors
+                          </Button>
+                        )}
+                      </div>
+                    )
+                  ) : isLoadingData ? (
+                    <div className="flex items-center justify-center h-full">
+                      <Spinner size={isMobile ? "md" : "lg"} />
                     </div>
-                  )}
-                  {isMobile && (
-                    <Button
-                      color="primary"
-                      onPress={() => setIsMobileSensorDrawerOpen(true)}
-                      startContent={<Icon icon="lucide:list" width={16} />}
-                    >
-                      Select Sensors
-                    </Button>
-                  )}
-                </div>
-              )
-            ) : isLoadingData ? (
-              <div className="flex items-center justify-center h-full">
-                <Spinner />
-              </div>
-            ) : chartConfig && currentSensor ? (
-              <div className={`h-full ${isMobile ? "relative overflow-hidden" : ""}`}>
-                {/* Main chart view */}
-                <div
-                  className={`h-full ${isMobile && isSwipingToGauge ? "translate-x-[-100%]" : ""} transition-transform duration-300`}
-                >
-                  <ChartContainer
-                    config={chartConfig}
-                    onBrushChange={handleBrushChange}
-                    onDownloadCSV={handleDownloadCSV}
-                    sensor={{
-                      id: currentSensor._id,
-                      mac: currentSensor.mac,
-                      displayName: currentSensor.displayName,
-                      isOnline: currentSensor.isOnline,
-                      status: currentSensor.status,
-                    }}
-                    onToggleStar={handleToggleStar}
-                    onDisplayNameChange={handleDisplayNameChange}
-                    onOpenInNewTab={!isSoloMode ? handleOpenInNewTab : undefined}
-                    isLoading={isLoadingData}
-                    timeRange={filters.timeRange}
-                    onTimeRangeChange={syncTimeRange}
-                    onLiveModeChange={syncLiveMode}
-                    showTimeRangeApplyButtons={true}
-                    isMobileView={isMobile}
-                    isLiveMode={isLiveMode}
-                    liveStatus={isConnecting ? "connecting" : isLiveMode ? "connected" : "disconnected"}
-                  />
-                </div>
+                  ) : chartConfig && currentSensor ? (
+                    <div className="relative w-full h-full">
+                      {/* Main chart view - ensure proper height */}
+                      <div
+                        className={`w-full h-full transition-transform duration-300 ${
+                          isMobile && isSwipingToGauge ? "transform -translate-x-full" : ""
+                        }`}
+                      >
+                        <ChartContainer
+                          config={chartConfig}
+                          onBrushChange={handleBrushChange}
+                          onDownloadCSV={handleDownloadCSV}
+                          sensor={{
+                            id: currentSensor._id,
+                            mac: currentSensor.mac,
+                            displayName: currentSensor.displayName,
+                            isOnline: currentSensor.isOnline,
+                            status: currentSensor.status,
+                          }}
+                          onToggleStar={handleToggleStar}
+                          onDisplayNameChange={handleDisplayNameChange}
+                          onOpenInNewTab={!isSoloMode ? handleOpenInNewTab : undefined}
+                          isLoading={isLoadingData}
+                          timeRange={filters.timeRange}
+                          onTimeRangeChange={syncTimeRange}
+                          onLiveModeChange={syncLiveMode}
+                          showTimeRangeApplyButtons={true}
+                          isMobileView={isMobile}
+                          isLiveMode={isLiveMode}
+                          liveStatus={isConnecting ? "connecting" : isLiveMode ? "connected" : "disconnected"}
+                        />
+                      </div>
 
-                {/* Mobile gauge view (swipe panel) */}
-                {isMobile && chartConfig && (chartConfig.type as any) !== "gauge" && (
-                  <div
-                    className="absolute top-0 left-full w-full h-full transition-transform duration-300"
-                    style={{ transform: isSwipingToGauge ? "translateX(-100%)" : "translateX(0)" }}
-                  >
-                    <div className="h-full p-4">
-                      <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-medium">Gauge View</h3>
-                        <Button
-                          size="sm"
-                          variant="light"
-                          onPress={() => setIsSwipingToGauge(false)}
-                          startContent={<Icon icon="lucide:chevron-left" width={16} />}
+                      {/* {isMobile && chartConfig && (chartConfig.type as any) !== "gauge" && (
+                        <div
+                          className={`absolute inset-0 w-full h-full transition-transform duration-300 bg-content1 p-6${
+                            isSwipingToGauge ? "transform translate-x-0 p-6" : "transform translate-x-full p-6"
+                          }`}
                         >
-                          Back to Chart
-                        </Button>
-                      </div>
-                      <div className="flex items-center justify-center h-[calc(100%-48px)]">
-                        <div className="w-64 h-64">
-                          <GaugeChart config={chartConfig} size="lg" />
+                          <div className="w-full h-full flex flex-col">
+                            <div className="flex justify-between items-center mb-4">
+                              <h3 className={`${isShortHeight ? "text-sm" : "text-base"} font-medium`}>Gauge View</h3>
+                              <Button
+                                size="sm"
+                                variant="light"
+                                onPress={() => setIsSwipingToGauge(false)}
+                                startContent={<Icon icon="lucide:chevron-left" width={16} />}
+                              >
+                                {isShortHeight ? "" : "Back"}
+                              </Button>
+                            </div>
+                            <div className="flex-1 flex items-center justify-center">
+                              <div
+                                className={`${
+                                  isShortHeight ? "w-32 h-32" : isMobile && isLandscape ? "w-40 h-40" : "w-48 h-48"
+                                }`}
+                              >
+                                <GaugeChart config={chartConfig} size="lg" />
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      )}
+                      {isMobile && (chartConfig.type as any) !== "gauge" && !isSwipingToGauge && (
+                        <div className={`absolute ${isMobileLandscapeShort ? "bottom-2 left-2" : "bottom-4 right-4"}`}>
+                          <Button
+                            size="sm"
+                            variant="flat"
+                            onPress={() => setIsSwipingToGauge(true)}
+                            isIconOnly={isMobileLandscapeShort}
+                            className={`bg-content1/95 backdrop-blur-md border border-divider shadow-lg ${
+                              isMobileLandscapeShort ? "w-10 h-10 min-w-10" : ""
+                            }`}
+                          >
+                            <Icon icon="lucide:gauge" width={isMobileLandscapeShort ? 20 : 16} />
+                            {!isMobileLandscapeShort && <span className="ml-1">Gauge</span>}
+                          </Button>
+                        </div>
+                      )} */}
                     </div>
-                  </div>
-                )}
-
-                {/* Mobile swipe indicator */}
-                {isMobile && (chartConfig.type as any) !== "gauge" && !isSwipingToGauge && (
-                  <div className="absolute bottom-4 right-4">
-                    <Button
-                      size="sm"
-                      variant="flat"
-                      onPress={() => setIsSwipingToGauge(true)}
-                      endContent={<Icon icon="lucide:chevron-right" width={16} />}
-                    >
-                      View Gauge
-                    </Button>
-                  </div>
-                )}
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <p className="text-default-500 text-sm">Select a sensor to view data</p>
+                    </div>
+                  );
+                })()}
               </div>
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <p className="text-default-500">Select a sensor to view data</p>
-              </div>
-            )}
+            </div>
           </div>
 
+          {/* Desktop Compare Tray */}
           {!isSoloMode && !isMobile && selectedSensorIds.length > 0 && isCompareMode && (
-            <div className="relative">
+            <div className="shrink-0">
               <CompareTray
                 selectedSensors={selectedSensorsForCompare}
                 onRemoveSensor={handleRemoveCompare}

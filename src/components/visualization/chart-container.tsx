@@ -1,4 +1,16 @@
-import { addToast, Button, Card, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger, Input, Tab, Tabs, useDisclosure } from "@heroui/react";
+import {
+  addToast,
+  Button,
+  Card,
+  Dropdown,
+  DropdownItem,
+  DropdownMenu,
+  DropdownTrigger,
+  Input,
+  Tab,
+  Tabs,
+  useDisclosure,
+} from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { saveAs } from "file-saver";
 import html2canvas from "html2canvas";
@@ -22,8 +34,8 @@ import { SparkTimelineChart } from "./spark-timeline-chart";
 import { GatewayResolver } from "../../utils/gatewayResolver";
 import { useBreakpoints } from "../../hooks/use-media-query";
 
-import { ChartLoadingSkeleton } from './chart-loading-skeleton';
-import { MobileChartLoading } from './mobile-chart-loading';
+import { ChartLoadingSkeleton } from "./chart-loading-skeleton";
+import { MobileChartLoading } from "./mobile-chart-loading";
 
 interface ChartContainerProps {
   config: ChartConfig | MultiSeriesConfig;
@@ -50,7 +62,7 @@ interface ChartContainerProps {
   // Live mode props
   isLiveMode?: boolean;
   onLiveModeChange?: (isLive: boolean) => void;
-  liveStatus?: 'disconnected' | 'connecting' | 'connected' | 'error' | 'slow_network';
+  liveStatus?: "disconnected" | "connecting" | "connected" | "error" | "slow_network";
   onRetryConnection?: () => void;
 }
 
@@ -71,7 +83,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   isMobileView = false,
   isLiveMode = false,
   onLiveModeChange,
-  liveStatus = 'disconnected',
+  liveStatus = "disconnected",
   onRetryConnection,
 }) => {
   const [isEditing, setIsEditing] = React.useState(false);
@@ -85,19 +97,21 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   // Use a more targeted memoization approach - simplified
   const memoizedConfig = React.useMemo(
     () => {
-      console.log('[ChartContainer] Config memoization triggered:', {
+      console.log("[ChartContainer] Config memoization triggered:", {
         isLiveMode,
         configType: config.type,
-        seriesLength: isMultiSeries 
+        seriesLength: isMultiSeries
           ? (config as MultiSeriesConfig).series?.length
           : (config as ChartConfig).series?.length,
-        lastTimestamp: !isMultiSeries && (config as ChartConfig).series?.length > 0
-          ? (config as ChartConfig).series[(config as ChartConfig).series.length - 1]?.timestamp
-          : null,
-        lastValue: !isMultiSeries && (config as ChartConfig).series?.length > 0
-          ? (config as ChartConfig).series[(config as ChartConfig).series.length - 1]?.value
-          : null,
-        timestamp: Date.now()
+        lastTimestamp:
+          !isMultiSeries && (config as ChartConfig).series?.length > 0
+            ? (config as ChartConfig).series[(config as ChartConfig).series.length - 1]?.timestamp
+            : null,
+        lastValue:
+          !isMultiSeries && (config as ChartConfig).series?.length > 0
+            ? (config as ChartConfig).series[(config as ChartConfig).series.length - 1]?.value
+            : null,
+        timestamp: Date.now(),
       });
       return config;
     },
@@ -201,7 +215,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
         // First check if we can use direct gateway IDs from sensor
         const directIds = GatewayResolver.getDirectGatewayIds(sensor as any);
         if (directIds.length > 0) {
-          console.log('[ChartContainer] Using direct gateway IDs:', directIds);
+          console.log("[ChartContainer] Using direct gateway IDs:", directIds);
           setGatewayIds(directIds);
           return;
         }
@@ -223,7 +237,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   // Check if sensor is offline and we're in live mode - only show fallback in this case
   const isSensorOffline = sensor?.isOnline === false;
   const shouldShowFallback = isLiveMode && isSensorOffline;
-  
+
   // Add error handling for when config is null
   if (!config) {
     return (
@@ -370,28 +384,28 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   const downloadCSV = async () => {
     try {
       let csvContent = "";
-      
+
       if (isMultiSeries) {
         const multiConfig = config as MultiSeriesConfig;
         // Header
-        csvContent = "Timestamp," + multiConfig.series.map(s => s.name).join(",") + "\n";
-        
+        csvContent = "Timestamp," + multiConfig.series.map((s) => s.name).join(",") + "\n";
+
         // Assuming all series have the same timestamps, use first series as reference
         if (multiConfig.series.length > 0 && multiConfig.series[0].data) {
           multiConfig.series[0].data.forEach((dataPoint, index) => {
             const timestamp = new Date(dataPoint.timestamp).toISOString();
-            const values = multiConfig.series.map(s => 
-              s.data && s.data[index] ? s.data[index].value : ""
-            ).join(",");
+            const values = multiConfig.series
+              .map((s) => (s.data && s.data[index] ? s.data[index].value : ""))
+              .join(",");
             csvContent += `${timestamp},${values}\n`;
           });
         }
       } else {
         const singleConfig = config as ChartConfig;
         csvContent = "Timestamp,Value\n";
-        
+
         if (singleConfig.series && Array.isArray(singleConfig.series)) {
-          singleConfig.series.forEach(dataPoint => {
+          singleConfig.series.forEach((dataPoint) => {
             const timestamp = new Date(dataPoint.timestamp).toISOString();
             csvContent += `${timestamp},${dataPoint.value}\n`;
           });
@@ -399,12 +413,12 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       }
 
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const filename = sensor ? 
-        `${sensor.displayName || sensor.mac}_data.csv` : 
-        `sensor_data_${new Date().toISOString().split('T')[0]}.csv`;
-      
+      const filename = sensor
+        ? `${sensor.displayName || sensor.mac}_data.csv`
+        : `sensor_data_${new Date().toISOString().split("T")[0]}.csv`;
+
       saveAs(blob, filename);
-      
+
       addToast({
         title: "CSV Downloaded",
         description: "Chart data has been downloaded as CSV",
@@ -428,21 +442,21 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
           width: chartRef.current.offsetWidth,
           height: chartRef.current.offsetHeight,
         });
-        
+
         canvas.toBlob((blob) => {
           if (blob) {
-            const filename = sensor ? 
-              `${sensor.displayName || sensor.mac}_chart.png` : 
-              `sensor_chart_${new Date().toISOString().split('T')[0]}.png`;
-            
+            const filename = sensor
+              ? `${sensor.displayName || sensor.mac}_chart.png`
+              : `sensor_chart_${new Date().toISOString().split("T")[0]}.png`;
+
             saveAs(blob, filename);
-            
+
             addToast({
               title: "Chart Downloaded",
               description: "Chart image has been downloaded as PNG",
             });
           }
-        }, 'image/png');
+        }, "image/png");
       }
     } catch (error) {
       console.error("Error downloading PNG:", error);
@@ -534,130 +548,115 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const [activeTab, setActiveTab] = React.useState("chart");
   const [isFullscreen, setIsFullscreen] = React.useState(false);
-  
+
   // Use enhanced responsive breakpoints
-  const { isMobile, isTablet, isLandscape, isSmallScreen, isMobileLandscape, isMobileDevice } = useBreakpoints();
+  const { isMobile, isTablet, isLandscape, isSmallScreen, isMobileLandscape, isMobileLandscapeShort, isMobileDevice } =
+    useBreakpoints();
 
   // Show loading skeleton when loading and no data available
-  if (isLoading && (!config || (isMultiSeries && (!config.series || config.series.length === 0)) || (!isMultiSeries && (!config.series || config.series.length === 0)))) {
+  if (
+    isLoading &&
+    (!config ||
+      (isMultiSeries && (!config.series || config.series.length === 0)) ||
+      (!isMultiSeries && (!config.series || config.series.length === 0)))
+  ) {
     return isSmallScreen ? (
-      <MobileChartLoading 
-        sensorName={sensor?.displayName || sensor?.mac}
-        sensorMac={sensor?.mac}
-      />
+      <MobileChartLoading sensorName={sensor?.displayName || sensor?.mac} sensorMac={sensor?.mac} />
     ) : (
       <ChartLoadingSkeleton />
     );
   }
+  console.log("isMobileLandscapeShort", isMobileLandscapeShort);
 
   // Mobile header component
   const renderMobileHeader = () => (
     <div className="p-3 border-b border-divider bg-default-50">
       {sensor && (
-        <div className="space-y-3">
-          {/* Top row - sensor name and essential controls */}
-          <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
+          {/* Left side: Time controls */}
+          {!isEditing && (
             <div className="flex items-center gap-2 flex-1 min-w-0">
-              {isEditing ? (
-                <div className="flex items-center gap-2 flex-1">
-                  <Input
-                    size="sm"
-                    value={displayName}
-                    onValueChange={setDisplayName}
-                    placeholder="Enter Display Name"
-                    className="flex-1"
-                    autoFocus
+              {timeRange && onTimeRangeChange && (
+                <div className="flex-1 min-w-0">
+                  <TimeRangeSelector
+                    timeRange={timeRange}
+                    onTimeRangeChange={onTimeRangeChange}
+                    showApplyButtons={showTimeRangeApplyButtons}
+                    isMobile={true}
+                    isLiveMode={isLiveMode}
+                    onLiveModeChange={onLiveModeChange}
+                    liveStatus={liveStatus}
+                    onRetryConnection={onRetryConnection}
+                    gatewayIds={gatewayIds}
                   />
-                  <Button size="sm" color="primary" onPress={handleDisplayNameSubmit} isIconOnly>
-                    <Icon icon="lucide:check" width={16} />
-                  </Button>
-                  <Button size="sm" variant="flat" onPress={() => setIsEditing(false)} isIconOnly>
-                    <Icon icon="lucide:x" width={16} />
-                  </Button>
                 </div>
-              ) : (
-                <>
-                  <div className="flex flex-col gap-1 flex-1 min-w-0">
-                    <h3 className="text-base font-medium text-primary-600 truncate">
-                      {sensor.displayName || sensor.mac}
-                    </h3>
-                    {/* Mobile status indicator */}
-                    <div className="flex items-center gap-2">
-                      <div 
-                        className={`w-1.5 h-1.5 rounded-full ${
-                          isSensorOffline ? 'bg-danger animate-pulse' : 'bg-success'
-                        }`}
-                      />
-                      <span className={`text-xs font-medium ${
-                        isSensorOffline ? 'text-danger' : 'text-success'
-                      }`}>
-                        {isSensorOffline ? 'OFFLINE' : 'ONLINE'}
-                      </span>
-                    </div>
-                  </div>
-                  <Button isIconOnly size="sm" variant="light" onPress={() => setIsEditing(true)}>
-                    <Icon icon="lucide:edit-3" width={14} className="text-primary-500" />
-                  </Button>
-                </>
+              )}
+
+              {/* Live readings selector - only visible in live mode */}
+              {isLiveMode && (
+                <div className="flex-shrink-0">
+                  <LiveReadingsSelector isLiveMode={isLiveMode} />
+                </div>
               )}
             </div>
+          )}
 
-            {/* Essential controls */}
-            <div className="flex items-center gap-1">
-              <Button
-                size="sm"
-                variant="light"
-                color="primary"
-                isIconOnly
-                onPress={() => setIsFullscreen(!isFullscreen)}
-                title="Toggle fullscreen"
-              >
-                <Icon icon={isFullscreen ? "lucide:minimize" : "lucide:maximize"} width={16} />
-              </Button>
-              
-              <Dropdown>
-                <DropdownTrigger>
-                  <Button size="sm" variant="light" color="primary" isIconOnly>
-                    <Icon icon="lucide:download" width={16} />
-                  </Button>
-                </DropdownTrigger>
-                <DropdownMenu aria-label="Download options">
-                  <DropdownItem
-                    key="csv"
-                    startContent={<Icon icon="lucide:download" width={16} />}
-                    onPress={() => handleDownload("csv")}
-                  >
-                    Download CSV
-                  </DropdownItem>
-                </DropdownMenu>
-              </Dropdown>
-            </div>
-          </div>
-
-          {/* Second row - Time range and live controls (collapsed by default) */}
-          <div className="flex flex-col gap-2">
-            {timeRange && onTimeRangeChange && (
-              <div className="flex-1">
-                <TimeRangeSelector
-                  timeRange={timeRange}
-                  onTimeRangeChange={onTimeRangeChange}
-                  showApplyButtons={showTimeRangeApplyButtons}
-                  isMobile={true}
-                  isLiveMode={isLiveMode}
-                  onLiveModeChange={onLiveModeChange}
-                  liveStatus={liveStatus}
-                  onRetryConnection={onRetryConnection}
-                  gatewayIds={gatewayIds}
+          {/* Right side: ALL controls including edit */}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {/* Edit functionality */}
+            {isEditing ? (
+              <>
+                <Input
+                  size="sm"
+                  value={displayName}
+                  onValueChange={setDisplayName}
+                  placeholder="Enter Display Name"
+                  // className="w-full" // Fixed width to prevent layout shift
+                  autoFocus
                 />
-              </div>
+                <Button size="sm" color="primary" onPress={handleDisplayNameSubmit} isIconOnly>
+                  <Icon icon="lucide:check" width={19} />
+                </Button>
+                <Button size="sm" variant="flat" onPress={() => setIsEditing(false)} isIconOnly>
+                  <Icon icon="lucide:x" width={19} />
+                </Button>
+              </>
+            ) : (
+              <Button isIconOnly size="sm" variant="light" onPress={() => setIsEditing(true)}>
+                <Icon icon="lucide:edit-3" width={18} className="text-primary-500" />
+              </Button>
             )}
-            
-            {/* Live readings selector - only visible in live mode */}
-            {isLiveMode && (
-              <LiveReadingsSelector 
-                isLiveMode={isLiveMode}
-                className="flex-shrink-0"
-              />
+
+            {!isEditing && !isMobileLandscapeShort && (
+              <>
+                <Button
+                  size="sm"
+                  variant="light"
+                  color="primary"
+                  isIconOnly
+                  onPress={() => setIsFullscreen(!isFullscreen)}
+                  title="Toggle fullscreen"
+                >
+                  <Icon icon={isFullscreen ? "lucide:minimize" : "lucide:maximize"} width={22} />
+                </Button>
+
+                <Dropdown>
+                  <DropdownTrigger>
+                    <Button size="sm" variant="light" color="primary" isIconOnly>
+                      <Icon icon="lucide:download" width={16} />
+                    </Button>
+                  </DropdownTrigger>
+                  <DropdownMenu aria-label="Download options">
+                    <DropdownItem
+                      key="csv"
+                      startContent={<Icon icon="lucide:download" width={16} />}
+                      onPress={() => handleDownload("csv")}
+                    >
+                      Download CSV
+                    </DropdownItem>
+                  </DropdownMenu>
+                </Dropdown>
+              </>
             )}
           </div>
         </div>
@@ -694,15 +693,11 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                   <h3 className="text-lg font-medium text-primary-600">{sensor.displayName || sensor.mac}</h3>
                   {/* Online/Offline status indicator */}
                   <div className="flex items-center gap-2">
-                    <div 
-                      className={`w-2 h-2 rounded-full ${
-                        isSensorOffline ? 'bg-danger animate-pulse' : 'bg-success'
-                      }`}
+                    <div
+                      className={`w-2 h-2 rounded-full ${isSensorOffline ? "bg-danger animate-pulse" : "bg-success"}`}
                     />
-                    <span className={`text-xs font-medium ${
-                      isSensorOffline ? 'text-danger' : 'text-success'
-                    }`}>
-                      {isSensorOffline ? 'OFFLINE' : 'ONLINE'}
+                    <span className={`text-xs font-medium ${isSensorOffline ? "text-danger" : "text-success"}`}>
+                      {isSensorOffline ? "OFFLINE" : "ONLINE"}
                     </span>
                   </div>
                 </div>
@@ -730,10 +725,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
             )}
 
             {/* Live Readings Selector - only shown in live mode */}
-            <LiveReadingsSelector 
-              isLiveMode={isLiveMode}
-              className="flex-shrink-0"
-            />
+            <LiveReadingsSelector isLiveMode={isLiveMode} className="flex-shrink-0" />
 
             <Dropdown>
               <DropdownTrigger>
@@ -770,25 +762,32 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
 
   // Dynamic chart height based on screen size and fullscreen mode
   const getChartHeight = () => {
+    let totalHeight;
     if (isFullscreen) {
-      if (isMobileLandscape) return "h-[calc(100vh-6rem)]"; // More space in landscape
-      if (isMobileDevice) return "h-[calc(100vh-10rem)]";
-      return "h-[calc(100vh-8rem)]";
+      if (isMobileLandscape) totalHeight = "h-[calc(100vh-6rem)]"; // More space in landscape
+      if (isMobileDevice) totalHeight = "h-[calc(100vh-10rem)]";
+      totalHeight = "h-[calc(100vh-8rem)]";
     }
     
     // Non-fullscreen heights
-    if (isMobileLandscape) return "h-[350px]"; // Taller in landscape
-    if (isMobileDevice) return "h-[300px]"; // Increased from 250px
-    if (isTablet) return "h-[400px]";
-    return "h-[500px]";
+    if (isMobileLandscape) totalHeight = "h-[350px]"; // Taller in landscape
+    if (isMobileDevice) totalHeight = "h-[300px]"; // Increased from 250px
+    if (isTablet) totalHeight = "h-[400px]";
+    totalHeight = "h-[500px]";
+    console.log("totalHeight",totalHeight,isFullscreen)
+    return totalHeight;
   };
-
+console.log("isFullscreen",isFullscreen, "isMobileDevice", isMobileDevice)
   return (
-    <Card className={`w-full border border-default-200 shadow-md ${isFullscreen && isMobileDevice ? 'fixed inset-0 z-50 rounded-none' : 'h-full'}`}>
+    <Card
+      className={`w-full h-full flex flex-col border border-default-200 shadow-md ${
+        isFullscreen && isMobileDevice ? "fixed inset-0 z-50 rounded-none" : ""
+      }`}
+    >
       {/* Responsive header */}
       {isMobileDevice ? renderMobileHeader() : renderDesktopHeader()}
 
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col flex-1 min-h-0">
         {/* Tab headers - hide on mobile fullscreen to save space */}
         {!(isFullscreen && isMobile) && (
           <Tabs
@@ -796,19 +795,29 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
             onSelectionChange={setActiveTab as any}
             variant="underlined"
             color="primary"
-            className={`${isSmallScreen ? 'px-3 mb-2' : 'px-4 mb-4'}`}
+            className={`${
+              isMobileLandscapeShort
+                ? "px-2 mb-1" // Reduced spacing
+                : isSmallScreen
+                  ? "px-3 mb-2"
+                  : "px-4 mb-4"
+            }`}
+            classNames={{
+              tabList: isMobileLandscapeShort ? "h-8" : undefined, // Smaller tab height
+            }}
           >
             <Tab key="chart" title={isSmallScreen ? "Chart" : "Chart View"} />
             <Tab key="table" title={isSmallScreen ? "Table" : "Table View"} />
           </Tabs>
         )}
 
-        {/* Chart content */}
+        {/* Chart content - Explicit height for proper chart rendering */}
         {(activeTab === "chart" || (isFullscreen && isMobile)) && (
-          <div 
-            className={`flex-1 overflow-hidden rounded-lg bg-white dark:bg-content1 ${
-              isSmallScreen ? 'mx-3 mb-3' : 'mx-4 mb-4'
-            } ${getChartHeight()}`} 
+          <div
+            className={`flex-1 h-full rounded-lg bg-white dark:bg-content ${isMobile ? "min-h-screen":""}`}
+            style={{
+              margin: isSmallScreen ? "0 12px 12px" : "0 16px 16px",
+            }}
             ref={chartRef}
           >
             {/* Show offline sensor waiting state only when in live mode */}
@@ -817,35 +826,25 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                 <div className="flex flex-col items-center gap-4 max-w-md">
                   {/* Animated loading icon */}
                   <div className="relative">
-                    <Icon 
-                      icon="lucide:wifi-off" 
-                      className="text-danger-400 animate-pulse" 
-                      width={64} 
-                      height={64} 
-                    />
+                    <Icon icon="lucide:wifi-off" className="text-danger-400 animate-pulse" width={64} height={64} />
                     <div className="absolute -bottom-2 -right-2 bg-danger-500 rounded-full p-1">
-                      <Icon 
-                        icon="lucide:loader-2" 
-                        className="text-white animate-spin" 
-                        width={16} 
-                        height={16} 
-                      />
+                      <Icon icon="lucide:loader-2" className="text-white animate-spin" width={16} height={16} />
                     </div>
                   </div>
-                  
+
                   {/* Status message */}
                   <div className="space-y-2">
-                    <h3 className="text-lg font-semibold text-danger-600">
-                      Sensor Offline
-                    </h3>
+                    <h3 className="text-lg font-semibold text-danger-600">Sensor Offline</h3>
                     <p className="text-default-600 text-sm leading-relaxed">
-                      Waiting for <span className="font-medium text-primary-600">{sensor?.displayName || sensor?.mac}</span> to come back online
+                      Waiting for{" "}
+                      <span className="font-medium text-primary-600">{sensor?.displayName || sensor?.mac}</span> to come
+                      back online
                     </p>
                     <p className="text-default-500 text-xs">
                       Chart will update automatically once the sensor becomes live
                     </p>
                   </div>
-                  
+
                   {/* View Old Readings Button */}
                   <div className="flex flex-col gap-2 mt-4">
                     <Button
@@ -868,11 +867,9 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                     >
                       View Old Readings Instead
                     </Button>
-                    <p className="text-xs text-default-400">
-                      Switch to historical data view (last 24 hours)
-                    </p>
+                    <p className="text-xs text-default-400">Switch to historical data view (last 24 hours)</p>
                   </div>
-                  
+
                   {/* Optional retry indicator */}
                   <div className="flex items-center gap-2 text-xs text-default-400 mt-2">
                     <Icon icon="lucide:refresh-cw" className="animate-spin" width={12} />
@@ -881,34 +878,31 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                 </div>
               </div>
             ) : (
-              renderChart()
+              <div className={`w-full h-full flex flex-col ${isMobile ? "max-h-10" : ""}`}>{renderChart()}</div>
             )}
           </div>
         )}
 
         {/* Table content */}
         {activeTab === "table" && !(isFullscreen && isMobile) && (
-          <div className={`flex-1 overflow-auto ${isSmallScreen ? 'mx-3 mb-3' : 'mx-4 mb-4'} ${getChartHeight()}`}>
+          <div
+            className="flex-1 overflow-auto"
+            style={{
+              margin: isSmallScreen ? "0 12px 12px" : "0 16px 16px",
+            }}
+          >
             {/* Show offline sensor waiting state in table view too - only when in live mode */}
             {shouldShowFallback ? (
               <div className="h-full flex flex-col items-center justify-center p-8 text-center">
                 <div className="flex flex-col items-center gap-4 max-w-md">
-                  <Icon 
-                    icon="lucide:table" 
-                    className="text-danger-400" 
-                    width={48} 
-                    height={48} 
-                  />
+                  <Icon icon="lucide:table" className="text-danger-400" width={48} height={48} />
                   <div className="space-y-2">
-                    <h3 className="text-lg font-semibold text-danger-600">
-                      No Data Available
-                    </h3>
+                    <h3 className="text-lg font-semibold text-danger-600">No Data Available</h3>
                     <p className="text-default-600 text-sm">
-                      Sensor <span className="font-medium text-primary-600">{sensor?.displayName || sensor?.mac}</span> is currently offline
+                      Sensor <span className="font-medium text-primary-600">{sensor?.displayName || sensor?.mac}</span>{" "}
+                      is currently offline
                     </p>
-                    <p className="text-default-500 text-xs">
-                      Table will populate once sensor comes back online
-                    </p>
+                    <p className="text-default-500 text-xs">Table will populate once sensor comes back online</p>
                   </div>
                 </div>
               </div>
@@ -916,13 +910,15 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
               <TableView
                 config={{
                   ...config,
-                  series: (config as ChartConfig).series?.map((s: any) => ({
-                    ...s,
-                    data: s.data?.map((d: any) => ({
-                      ...d,
-                      value: typeof d.value === "number" ? formatNumericValue(d.value, 4) : d.value,
+                  series:
+                    (config as ChartConfig).series?.map((s: any) => ({
+                      ...s,
+                      data:
+                        s.data?.map((d: any) => ({
+                          ...d,
+                          value: typeof d.value === "number" ? formatNumericValue(d.value, 4) : d.value,
+                        })) ?? [],
                     })) ?? [],
-                  })) ?? [],
                 }}
                 onDownloadCSV={onDownloadCSV}
               />
