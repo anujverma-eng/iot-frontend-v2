@@ -38,7 +38,8 @@ import {
 import { 
   fetchTelemetry, 
   selectTelemetryData, 
-  selectTelemetryLoading
+  selectTelemetryLoading,
+  selectMaxLiveReadings
 } from "../../store/telemetrySlice";
 import { selectIsLiveMode, selectIsConnecting, toggleLiveMode } from "../../store/liveDataSlice";
 import { fetchGateways, selectGateways } from "../../store/gatewaySlice";
@@ -94,6 +95,7 @@ export const SoloView: React.FC = () => {
   // Live mode state - use centralized Redux state directly (no local state)
   const isLiveMode = useSelector(selectIsLiveMode);
   const isConnecting = useSelector(selectIsConnecting);
+  const maxLiveReadings = useSelector(selectMaxLiveReadings);
   
   // Derive live status from centralized state
   const liveStatus = isConnecting ? 'connecting' : isLiveMode ? 'connected' : 'disconnected';
@@ -318,14 +320,31 @@ export const SoloView: React.FC = () => {
     if (!sensorId || !telemetryData[sensorId]) return null;
 
     const sensorData = telemetryData[sensorId];
+    const currentSeries = sensorData.series;
+    
+    // Apply dynamic reading limit in live mode based on user's selection
+    // In offline mode, show all data for proper historical analysis
+    const shouldLimitToLatest = isLiveMode; // Only limit in live mode
+    const displaySeries = shouldLimitToLatest && currentSeries.length > maxLiveReadings ? 
+      currentSeries.slice(-maxLiveReadings) : currentSeries;
+
+    console.log("[SoloView] 📈 Chart config created:", {
+      sensorId,
+      totalDataPoints: currentSeries.length,
+      displayedDataPoints: displaySeries.length,
+      wasLimited: displaySeries.length < currentSeries.length,
+      isLiveMode,
+      maxLiveReadings,
+      limitApplied: shouldLimitToLatest ? `Live mode - limited to ${maxLiveReadings}` : "Offline mode - show all",
+    });
 
     return {
       type: sensorData.type,
       unit: sensorData.unit,
-      series: sensorData.series,
+      series: displaySeries,
       color: chartColors[0],
     };
-  }, [sensorId, telemetryData]);
+  }, [sensorId, telemetryData, isLiveMode, maxLiveReadings]);
 
   // Check if sensor is offline
   const isSensorOffline = selectedSensorData?.data?.isOnline === false;
@@ -428,11 +447,18 @@ export const SoloView: React.FC = () => {
   const stats = React.useMemo(() => {
     if (!sensorId || !telemetryData[sensorId]) return null;
 
-    const series = telemetryData[sensorId].series;
-    if (!series.length) return null;
+    const sensorData = telemetryData[sensorId];
+    const currentSeries = sensorData.series;
+    
+    // Apply same dynamic reading limit as chart for consistency
+    const shouldLimitToLatest = isLiveMode;
+    const displaySeries = shouldLimitToLatest && currentSeries.length > maxLiveReadings ? 
+      currentSeries.slice(-maxLiveReadings) : currentSeries;
+    
+    if (!displaySeries.length) return null;
 
     // Convert string values to numbers for calculations
-    const values = series.map((point) => {
+    const values = displaySeries.map((point) => {
       const numValue = typeof point.value === 'string' ? parseFloat(point.value) : point.value;
       return isNaN(numValue) ? 0 : numValue;
     });
@@ -442,7 +468,7 @@ export const SoloView: React.FC = () => {
     const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
     
     // Ensure latest is also converted to number
-    const latestValue = series[series.length - 1].value;
+    const latestValue = displaySeries[displaySeries.length - 1].value;
     const latest = typeof latestValue === 'string' ? parseFloat(latestValue) : latestValue;
 
     // Calculate standard deviation
@@ -450,7 +476,7 @@ export const SoloView: React.FC = () => {
     const stdDev = Math.sqrt(variance);
 
     return { min, max, avg, latest: isNaN(latest) ? 0 : latest, stdDev };
-  }, [sensorId, telemetryData]);
+  }, [sensorId, telemetryData, isLiveMode, maxLiveReadings]);
 
   // Handlers
   const handleBackToAnalytics = () => {

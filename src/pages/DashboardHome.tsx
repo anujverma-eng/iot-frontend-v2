@@ -8,11 +8,14 @@ import { useDispatch, useSelector } from "react-redux";
 import { formatNumericValue } from "../utils/numberUtils";
 import { AppDispatch } from "../store";
 import { useOfflineDetectionIntegration } from "../hooks/useOfflineDetectionIntegration";
+import { useLiveDataReadiness } from "../hooks/useLiveDataReadiness";
+import { LiveDataLoading } from "../components/visualization/live-data-loading";
 import { fetchGateways, fetchGatewayStats, selectGateways, selectGatewayStats } from "../store/gatewaySlice";
 import {
   fetchSensors,
   fetchSensorStats,
   selectSensors,
+  selectSensorsLoading,
   selectSensorStats,
   selectEnhancedSensorStats,
   toggleSensorStar,
@@ -27,6 +30,7 @@ import {
   setTimeRange,
   toggleLiveMode,
 } from "../store/telemetrySlice";
+import { selectIsConnecting } from "../store/liveDataSlice";
 import { Gateway } from "../types/gateway";
 import { Sensor } from "../types/sensor";
 import { StatsCard } from "../components/stats-card";
@@ -85,10 +89,12 @@ export const DashboardHome: React.FC = () => {
   // Get state from Redux
   const gateways = useSelector(selectGateways);
   const sensors = useSelector(selectSensors);
+  const sensorsLoading = useSelector(selectSensorsLoading);
   const gatewayStats = useSelector(selectGatewayStats);
   const sensorStats = useSelector(selectEnhancedSensorStats); // Use enhanced stats for real-time calculations
   const starredSensorIds = useSelector(selectSelectedSensorIds);
   const isLiveMode = useSelector(selectIsLiveMode);
+  const isConnecting = useSelector(selectIsConnecting);
   const telemetryData = useSelector(selectTelemetryData);
   const timeRange = useSelector(selectTimeRange);
 
@@ -101,22 +107,30 @@ export const DashboardHome: React.FC = () => {
   const [favoriteViewMode, setFavoriteViewMode] = React.useState<"chart" | "table">("chart");
   const [isLoadingTelemetry, setIsLoadingTelemetry] = React.useState(false);
   const [alerts, setAlerts] = React.useState<Alert[]>([]); // We'll need to implement an alerts API/redux slice later
+  const [hasInitialLoadCompleted, setHasInitialLoadCompleted] = React.useState(false);
+
+  // Live data readiness hook for charts
+  const liveDataReadiness = useLiveDataReadiness(selectedFavoriteSensor, isLiveMode);
+
+  // Add a ref to track the most recent time range request
+  const lastTimeRangeRequestRef = React.useRef<string>("");
+
+  // Mark initial load as completed immediately - we'll fetch limited data for first load
+  React.useEffect(() => {
+    if (!hasInitialLoadCompleted) {
+      setHasInitialLoadCompleted(true);
+    }
+  }, [hasInitialLoadCompleted]);
 
   // Get favorite sensors
   const favoriteSensors = React.useMemo(() => {
     const favorites = sensors.filter((sensor) => sensor.favorite || sensor.isStarred);
-    console.log(
-      "[Dashboard] Favorite sensors:",
-      favorites.length,
-      favorites.map((s) => s.displayName || s.mac)
-    );
     return favorites;
   }, [sensors]);
 
   // Set default selected favorite sensor when favorites change
   React.useEffect(() => {
     if (favoriteSensors.length > 0 && !selectedFavoriteSensor) {
-      console.log("[Dashboard] Setting default favorite sensor:", favoriteSensors[0]._id);
       setSelectedFavoriteSensor(favoriteSensors[0]._id);
     }
   }, [favoriteSensors, selectedFavoriteSensor]);
@@ -151,76 +165,90 @@ export const DashboardHome: React.FC = () => {
   // Get sorted sensors by battery level (lowest first) for recent sensors
   // Show up to 5 sensors sorted by lowest battery level first
   const recentSensors = React.useMemo(() => {
-    console.log("[Dashboard] All sensors count:", sensors.length);
-    console.log(
-      "[Dashboard] Sensors details:",
-      sensors.map((s) => ({
-        id: s._id,
-        name: s.displayName || s.mac,
-        type: s.type,
-        favorite: s.favorite || s.isStarred,
-        battery: s.battery,
-        lastSeen: s.lastSeen,
-      }))
-    );
     return [...sensors]
       .sort((a, b) => (a.battery || 0) - (b.battery || 0)) // Sort by lowest battery first
       .slice(0, 5);
   }, [sensors]);
 
-  // Fetch telemetry data for favorite sensors when they change or time range changes
+  // Optimized telemetry fetching with live data readiness
   React.useEffect(() => {
-    if (selectedFavoriteSensor) {
-      console.log("[Dashboard] Telemetry fetch triggered - sensor:", selectedFavoriteSensor, "isLiveMode:", isLiveMode);
+    if (!selectedFavoriteSensor) {
+      setIsLoadingTelemetry(false);
+      return;
+    }
+    
+    // Create a request ID based on current parameters
+    const currentRequest = `${selectedFavoriteSensor}-${timeRange?.start}-${timeRange?.end}`;
 
+    // Don't make duplicate requests
+    if (lastTimeRangeRequestRef.current === currentRequest) {
+      return;
+    }
+
+    // Always update the request ref to prevent duplicate attempts
+    lastTimeRangeRequestRef.current = currentRequest;
+
+    // Check if we should show loading instead of fetching API data
+    if (liveDataReadiness.shouldShowLoading) {
       setIsLoadingTelemetry(true);
+      return;
+    }
 
-      // Always fetch historical data first to ensure we have baseline data
-      // In live mode, this serves as initial data that gets updated with live readings
-      // In historical mode, this is the actual data to display
+    // Check if we should fetch API data based on live data readiness
+    if (!liveDataReadiness.shouldFetchApiData) {
+      return;
+    }
+
+    setIsLoadingTelemetry(true);
+
+    // Determine time range to use based on initial load vs normal operation
+    const isInitialLoad = lastTimeRangeRequestRef.current === currentRequest; // First time for this sensor
+    let timeRangeToUse;
+
+    if (isInitialLoad) {
+      // For initial load, fetch last ~3 minutes (approximately 90 readings at 2-second intervals)
+      const now = new Date();
+      const threeMinutesAgo = new Date(now.getTime() - (3 * 60 * 1000)); // 3 minutes ago
+      
+      timeRangeToUse = {
+        start: threeMinutesAgo,
+        end: now
+      };
+    } else if (isLiveMode) {
+      // For live mode, fetch last ~4 minutes to match live data view
+      const now = new Date();
+      const fourMinutesAgo = new Date(now.getTime() - (4 * 60 * 1000));
+      
+      timeRangeToUse = {
+        start: fourMinutesAgo,
+        end: now
+      };
+    } else {
+      // For historical mode, use selected time range or default to last 24 hours
       const currentTimeRange = timeRange || {
-        start: new Date(Date.now() - 24 * 60 * 60 * 1000), // Default to last 24 hours
+        start: new Date(Date.now() - 24 * 60 * 60 * 1000),
         end: new Date(),
       };
-
-      console.log(
-        "[Dashboard] Fetching baseline telemetry for sensor:",
-        selectedFavoriteSensor,
-        "timeRange:",
-        currentTimeRange,
-        "mode:",
-        isLiveMode ? "live" : "historical"
-      );
-
-      dispatch(
-        fetchTelemetry({
-          sensorIds: [selectedFavoriteSensor],
-          timeRange: {
-            start: currentTimeRange.start.toISOString(),
-            end: currentTimeRange.end.toISOString(),
-          },
-        }) as any
-      )
-        .then(() => {
-          console.log("[Dashboard] Historical baseline data fetched for sensor:", selectedFavoriteSensor);
-          // Note: Live data will be automatically appended via WebSocket if in live mode
-          // The telemetry slice's addLiveData action handles merging live data with historical baseline
-        })
-        .finally(() => {
-          setIsLoadingTelemetry(false);
-        });
-    } else {
-      console.log("[Dashboard] No selected favorite sensor for telemetry fetch");
-      setIsLoadingTelemetry(false);
+      
+      timeRangeToUse = currentTimeRange;
     }
-  }, [dispatch, selectedFavoriteSensor, timeRange]); // Removed isLiveMode from dependencies to prevent refetch on mode change
 
-  // Separate effect to handle live mode changes
-  React.useEffect(() => {
-    console.log("[Dashboard] Live mode changed to:", isLiveMode);
-    // Live mode changes are handled by the centralized live data system
-    // No need to refetch data here as the live data system will handle the WebSocket connection
-  }, [isLiveMode]);
+    dispatch(
+      fetchTelemetry({
+        sensorIds: [selectedFavoriteSensor],
+        timeRange: {
+          start: timeRangeToUse.start.toISOString(),
+          end: timeRangeToUse.end.toISOString(),
+        },
+      }) as any
+    )
+      .then(() => {
+        // Telemetry data fetched successfully
+      })
+      .finally(() => {
+        setIsLoadingTelemetry(false);
+      });
+  }, [dispatch, selectedFavoriteSensor, timeRange, hasInitialLoadCompleted, liveDataReadiness.shouldFetchApiData, liveDataReadiness.shouldShowLoading, isLiveMode]);
 
   // Handle time range change for favorite sensor view
   const handleTimeRangeChange = (newTimeRange: any) => {
@@ -229,35 +257,19 @@ export const DashboardHome: React.FC = () => {
 
   // Get chart data for selected favorite sensor
   const selectedFavoriteSensorData = React.useMemo(() => {
-    console.log("[Dashboard] Computing chart data - selectedFavoriteSensor:", selectedFavoriteSensor);
-    console.log("[Dashboard] Current telemetryData keys:", Object.keys(telemetryData));
-    console.log("[Dashboard] IsLiveMode:", isLiveMode);
-
     if (!selectedFavoriteSensor) {
-      console.log("[Dashboard] No selected favorite sensor");
       return null;
     }
 
-    const sensorData = telemetryData[selectedFavoriteSensor];
-    if (!sensorData) {
-      console.log("[Dashboard] No telemetry data for sensor:", selectedFavoriteSensor);
+    const data = telemetryData[selectedFavoriteSensor];
+    if (!data || !data.series || data.series.length === 0) {
       return null;
     }
-
-    console.log("[Dashboard] Sensor data details:", {
-      sensorId: selectedFavoriteSensor,
-      seriesLength: sensorData.series?.length || 0,
-      isLive: sensorData.isLive,
-      lastUpdated: sensorData.lastUpdated,
-      current: sensorData.current,
-      type: sensorData.type,
-      unit: sensorData.unit,
-    });
 
     return {
-      type: sensorData.type,
-      unit: sensorData.unit,
-      series: sensorData.series || [],
+      type: data.type,
+      unit: data.unit,
+      series: data.series || [],
       color: "#006FEE", // Primary color
     };
   }, [selectedFavoriteSensor, telemetryData, isLiveMode]);
@@ -668,7 +680,7 @@ export const DashboardHome: React.FC = () => {
                   <div className="w-full">
                     {/* Chart Container - Mobile optimized heights */}
                     <div className="bg-default-50 rounded-lg border border-default-200 h-[300px] sm:h-[350px] lg:h-[400px] min-h-[300px]">
-                      {isLoadingTelemetry ? (
+                      {(isLoadingTelemetry && !liveDataReadiness.shouldShowLoading) || isLoading || sensorsLoading || (!selectedFavoriteSensor && sensors.length > 0) ? (
                         <div className="flex items-center justify-center h-full">
                           <div className="text-center">
                             <Progress
@@ -679,6 +691,12 @@ export const DashboardHome: React.FC = () => {
                             />
                             <p className="text-default-600 text-sm">Loading chart data...</p>
                           </div>
+                        </div>
+                      ) : (isLiveMode && liveDataReadiness.shouldShowLoading) ? (
+                        <div className="flex items-center justify-center h-full">
+                          <LiveDataLoading 
+                            sensorName={selectedFavoriteSensor ? (favoriteSensors.find(s => s._id === selectedFavoriteSensor)?.displayName || selectedFavoriteSensor) : undefined}
+                          />
                         </div>
                       ) : (
                         (() => {
@@ -731,7 +749,6 @@ export const DashboardHome: React.FC = () => {
                                       size="sm"
                                       startContent={<Icon icon="lucide:history" className="w-4 h-4" />}
                                       onPress={() => {
-                                        console.log("[Dashboard] Switching to historical mode due to offline sensor");
                                         dispatch(
                                           toggleLiveMode({
                                             enable: false,
@@ -798,7 +815,7 @@ export const DashboardHome: React.FC = () => {
                           </TableColumn>
                         </TableHeader>
                         <TableBody>
-                          {isLoadingTelemetry ? (
+                          {isLoadingTelemetry || isLoading || sensorsLoading || (!selectedFavoriteSensor && sensors.length > 0) ? (
                             <TableRow>
                               <TableCell colSpan={2} className="text-center py-8">
                                 <Progress
@@ -872,9 +889,6 @@ export const DashboardHome: React.FC = () => {
                                             size="sm"
                                             startContent={<Icon icon="lucide:history" className="w-4 h-4" />}
                                             onPress={() => {
-                                              console.log(
-                                                "[Dashboard] Table view: Switching to historical mode due to offline sensor"
-                                              );
                                               dispatch(
                                                 toggleLiveMode({
                                                   enable: false,

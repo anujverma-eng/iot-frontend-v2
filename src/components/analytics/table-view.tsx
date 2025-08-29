@@ -279,7 +279,7 @@ export const TableView: React.FC<TableViewProps> = ({ config, onDownloadCSV }) =
     <div className="w-full h-full flex flex-col">
       <div className="flex justify-between items-center mb-4 bg-white dark:bg-gray-900 p-3 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-2">
-          <Input
+          {/* <Input
             placeholder="Search data..."
             value={searchQuery}
             onValueChange={setSearchQuery}
@@ -287,7 +287,7 @@ export const TableView: React.FC<TableViewProps> = ({ config, onDownloadCSV }) =
             size="sm"
             className="w-48 md:w-64"
             isClearable
-          />
+          /> */}
           
           <Dropdown>
             <DropdownTrigger>

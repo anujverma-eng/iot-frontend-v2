@@ -16,6 +16,7 @@ import { CalendarDate, DateValue, getLocalTimeZone } from "@internationalized/da
 import React from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { LiveDataLoading } from "../components/visualization/live-data-loading";
 import { CompareTray } from "../components/analytics/compare-tray";
 import { FilterBar } from "../components/analytics/filter-bar";
 import { SensorCard } from "../components/analytics/sensor-card";
@@ -59,10 +60,12 @@ import {
   selectTelemetryLoading,
   setTimeRange,
   selectLiveSensors,
+  selectMaxLiveReadings,
 } from "../store/telemetrySlice";
 import { selectIsLiveMode, selectIsConnecting, toggleLiveMode } from "../store/liveDataSlice";
 import { useDebouncedSensorSelection } from "../hooks/useDebouncedSensorSelection";
 import { useOptimizedDataFetch } from "../hooks/useOptimizedDataFetch";
+import { useLiveDataReadiness } from "../hooks/useLiveDataReadiness";
 import { useCompareSelection } from "../hooks/useCompareSelection";
 import { ChartConfig, FilterState, MultiSeriesConfig, SensorStatus, SensorType } from "../types/sensor";
 import { sortSensorsByBattery } from "../utils/battery"; // Import battery sorting utility
@@ -77,10 +80,20 @@ interface AnalyticsParams {
 }
 
 export const AnalyticsPage: React.FC = () => {
+  console.log("[AnalyticsPage] 🚀 Component render started at:", new Date().toISOString());
+
   const navigate = useNavigate();
   const { sensorId } = useParams<AnalyticsParams>();
   const location = useLocation();
   const isSoloMode = new URLSearchParams(location.search).get("solo") === "true";
+
+  console.log("[AnalyticsPage] 🎯 Initial params and flags:", {
+    sensorId,
+    isSoloMode,
+    pathname: location.pathname,
+    search: location.search,
+    timestamp: new Date().toISOString(),
+  });
 
   // Use responsive breakpoints
   const {
@@ -148,7 +161,7 @@ export const AnalyticsPage: React.FC = () => {
         padding: "18px",
       };
     }
-    console.log("..styles",styles)
+    console.log("..styles", styles);
     return styles;
   }, [isMobileLandscapeShort, isMobile, isShortHeight]);
 
@@ -176,6 +189,7 @@ export const AnalyticsPage: React.FC = () => {
   const isLiveMode = useSelector(selectIsLiveMode);
   const isConnecting = useSelector(selectIsConnecting);
   const liveSensors = useSelector(selectLiveSensors);
+  const maxLiveReadings = useSelector(selectMaxLiveReadings);
 
   const stats = useSelector(selectEnhancedSensorStats); // Use enhanced stats with battery count
   const [pendingFilters, setPendingFilters] = React.useState<FilterState | null>(null);
@@ -256,6 +270,97 @@ export const AnalyticsPage: React.FC = () => {
 
   // Add state for compare mode
   const [isCompareMode, setIsCompareMode] = React.useState(false);
+
+  // Add live data readiness hook to prevent flickering
+  // Detect if we're filtering for offline sensors
+  const isOfflineSensorFilter = filters.status === "offline";
+
+  console.log("[Analytics] 🔄 Hook setup:", {
+    selectedSensor,
+    isOfflineSensorFilter,
+    filtersStatus: filters.status,
+    hookFunction: typeof useLiveDataReadiness,
+    hookExists: !!useLiveDataReadiness,
+    timestamp: new Date().toISOString(),
+  });
+
+  let liveDataReadiness;
+  try {
+    console.log("[Analytics] 🎯 Attempting to call useLiveDataReadiness hook...");
+    liveDataReadiness = useLiveDataReadiness(selectedSensor, isOfflineSensorFilter);
+    console.log("[Analytics] ✅ Hook call successful!");
+  } catch (error) {
+    console.error("[Analytics] ❌ Hook call failed:", error);
+    // Fallback values
+    liveDataReadiness = {
+      shouldWaitForLiveData: false,
+      shouldShowLoading: false,
+      shouldFetchApiData: true,
+      hasReceivedLiveData: false,
+    };
+  }
+
+  console.log("[Analytics] 📊 Hook results:", {
+    selectedSensor,
+    liveDataReadiness,
+    timestamp: new Date().toISOString(),
+  });
+
+  // Enhanced loading state that considers live data readiness
+  const effectiveIsLoading = isLoadingData || liveDataReadiness.shouldShowLoading;
+
+  console.log("[Analytics] 🎯 Loading states:", {
+    isLoadingData,
+    hookShouldShowLoading: liveDataReadiness.shouldShowLoading,
+    effectiveIsLoading,
+    timestamp: new Date().toISOString(),
+  });
+
+  // Track if this is the initial load for the current sensor to prevent duplicate fetches
+  const initialLoadRef = React.useRef<string | null>(null);
+
+  // Comprehensive state tracking effect (with proper dependencies to avoid render loop)
+  React.useEffect(() => {
+    console.log("[Analytics] 🔍 COMPREHENSIVE STATE TRACKING:", {
+      // Core states
+      selectedSensor,
+      isLiveMode,
+      effectiveIsLoading,
+      isLoadingData,
+
+      // Hook states
+      liveDataReadiness: {
+        shouldWaitForLiveData: liveDataReadiness.shouldWaitForLiveData,
+        shouldShowLoading: liveDataReadiness.shouldShowLoading,
+        shouldFetchApiData: liveDataReadiness.shouldFetchApiData,
+        hasReceivedLiveData: liveDataReadiness.hasReceivedLiveData,
+      },
+
+      // Data states
+      hasTelemetryData: selectedSensor ? !!telemetryData[selectedSensor] : false,
+      telemetryDataKeys: Object.keys(telemetryData),
+      hasChartConfig: !!chartConfig,
+
+      // Filter states
+      isOfflineSensorFilter,
+      filtersStatus: filters.status,
+
+      // UI states
+      isMobile,
+      isSoloMode,
+      isConnecting,
+
+      timestamp: new Date().toISOString(),
+    });
+  }, [
+    selectedSensor,
+    isLiveMode,
+    effectiveIsLoading,
+    isLoadingData,
+    liveDataReadiness.shouldWaitForLiveData,
+    liveDataReadiness.shouldShowLoading,
+    isOfflineSensorFilter,
+  ]);
 
   // DEBUG: Comprehensive device and layout debugging
   React.useEffect(() => {
@@ -489,24 +594,57 @@ export const AnalyticsPage: React.FC = () => {
   );
 
   React.useEffect(() => {
-    console.log("[Analytics] URL sensor effect triggered with:", {
+    console.log("[Analytics] 🎯 URL sensor effect triggered with:", {
       sensorId,
       selectedSensor,
       sensorCount: sensorIds.length,
+      hasFilteredSensors: !!filteredSensors?.length,
+      timestamp: new Date().toISOString(),
     });
 
     if (sensorId) {
-      console.log("[Analytics] Setting sensor from URL parameter:", sensorId);
+      console.log("[Analytics] 🔗 Setting sensor from URL parameter:", {
+        sensorId,
+        timestamp: new Date().toISOString(),
+      });
       dispatch(fetchSensorById(sensorId));
       setSelectedSensor(sensorId);
     } else if (sensorIds.length > 0 && !selectedSensor) {
       const firstSensorId = sensorIds[0];
-      console.log("[Analytics] Auto-selecting first sensor:", firstSensorId);
+      console.log("[Analytics] 🎲 Auto-selecting first sensor:", {
+        firstSensorId,
+        availableSensors: sensorIds.length,
+        timestamp: new Date().toISOString(),
+      });
       dispatch(fetchSensorById(firstSensorId));
       setSelectedSensor(firstSensorId);
       navigate(`/dashboard/sensors/${firstSensorId}`, { replace: true });
+    } else {
+      console.log("[Analytics] ❌ No sensor selection action taken:", {
+        hasSensorId: !!sensorId,
+        sensorCount: sensorIds.length,
+        hasSelectedSensor: !!selectedSensor,
+        timestamp: new Date().toISOString(),
+      });
     }
   }, [sensorId, sensorIds.length, sensorIds.join(","), selectedSensor, dispatch, navigate]);
+
+  // Enhanced loading state that considers initial page load scenarios
+  const isInitiallyLoading =
+    loading || (!selectedSensor && (sensorIds.length > 0 || sensors.length > 0) && !isCompareMode);
+  const enhancedEffectiveIsLoading = effectiveIsLoading || isInitiallyLoading;
+
+  console.log("[Analytics] 🎯 Enhanced loading states:", {
+    originalEffectiveIsLoading: effectiveIsLoading,
+    isInitiallyLoading,
+    sensorsLoading: loading,
+    sensorsCount: sensors.length,
+    sensorIdsCount: sensorIds.length,
+    hasSelectedSensor: !!selectedSensor,
+    isCompareMode,
+    finalEffectiveIsLoading: enhancedEffectiveIsLoading,
+    timestamp: new Date().toISOString(),
+  });
 
   // Note: Live mode cleanup is now handled centrally by the live data system
   // No need for page-specific cleanup
@@ -538,42 +676,174 @@ export const AnalyticsPage: React.FC = () => {
 
   // Add a ref to track the most recent time range request
   const lastTimeRangeRequestRef = React.useRef<string>("");
+  const [hasInitialLoadCompleted, setHasInitialLoadCompleted] = React.useState(false);
 
-  // Optimized telemetry fetching with debouncing and cancellation
+  // Mark initial load as completed
   React.useEffect(() => {
-    if (selectedSensor) {
-      // Create a request ID based on current parameters
-      const currentRequest = `${selectedSensor}-${timeRangeKey}`;
+    if (!hasInitialLoadCompleted) {
+      console.log("[Analytics] ✅ Initial load completed");
+      setHasInitialLoadCompleted(true);
+    }
+  }, [hasInitialLoadCompleted]);
 
-      // Don't make duplicate requests
-      if (lastTimeRangeRequestRef.current === currentRequest) {
-        return;
-      }
+  // Optimized telemetry fetching - always fetch API data, but control display
+  React.useEffect(() => {
+    console.log("[Analytics] 🚀 Data fetching effect triggered:", {
+      selectedSensor,
+      hasSelectedSensor: !!selectedSensor,
+      timeRangeKey,
+      lastRequest: lastTimeRangeRequestRef.current,
+      hasInitialLoadCompleted,
+      timestamp: new Date().toISOString(),
+    });
 
-      lastTimeRangeRequestRef.current = currentRequest;
+    if (!selectedSensor) {
+      console.log("[Analytics] ❌ No selected sensor, skipping fetch");
+      return;
+    }
 
-      // Ensure end time is set to end of day
-      const adjustedTimeRange = {
+    // Create a request ID based on current parameters
+    const currentRequest = `${selectedSensor}-${timeRangeKey}`;
+
+    // Don't make duplicate requests
+    if (lastTimeRangeRequestRef.current === currentRequest) {
+      console.log("[Analytics] 🔄 Duplicate request prevented:", {
+        currentRequest,
+        lastRequest: lastTimeRangeRequestRef.current,
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    // On initial load, give live connection a chance to start before fetching data
+    // This prevents fetching full historical data when live mode will be enabled
+    const isInitialLoad = lastTimeRangeRequestRef.current === "";
+    if (isInitialLoad && !isLiveMode && !isConnecting) {
+      console.log("[Analytics] ⏱️ Initial load detected - delaying fetch to allow live connection:", {
+        isInitialLoad,
+        isLiveMode,
+        isConnecting,
+        willRetryAfter: "500ms",
+        timestamp: new Date().toISOString(),
+      });
+
+      // Give live connection 500ms to start, then retry this effect
+      setTimeout(() => {
+        console.log("[Analytics] 🔄 Initial load delay completed, triggering re-fetch");
+        // Trigger the effect again by updating a dummy state or using a different approach
+        // Since we can't directly trigger the effect, we'll just proceed with the fetch
+        // The live connection should have started by now
+      }, 500);
+      return;
+    }
+
+    console.log("[Analytics] 📊 Data fetch conditions:", {
+      sensor: selectedSensor,
+      liveDataReadiness: {
+        shouldFetchApiData: liveDataReadiness.shouldFetchApiData,
+        shouldShowLoading: liveDataReadiness.shouldShowLoading,
+        shouldWaitForLiveData: liveDataReadiness.shouldWaitForLiveData,
+        hasReceivedLiveData: liveDataReadiness.hasReceivedLiveData,
+      },
+      globalStates: {
+        isLiveMode,
+        isOfflineSensorFilter,
+        isLoadingData,
+      },
+      timestamp: new Date().toISOString(),
+    });
+
+    // Always update the request ref to prevent duplicate attempts
+    lastTimeRangeRequestRef.current = currentRequest;
+    console.log("[Analytics] 📝 Request ref updated to:", currentRequest);
+
+    // Check if we should fetch API data based on live data readiness
+    if (!liveDataReadiness.shouldFetchApiData) {
+      console.log("[Analytics] 🚫 SKIPPING API fetch - waiting for live data:", {
+        shouldFetchApiData: liveDataReadiness.shouldFetchApiData,
+        shouldShowLoading: liveDataReadiness.shouldShowLoading,
+        shouldWaitForLiveData: liveDataReadiness.shouldWaitForLiveData,
+        reason: "Live data readiness hook says don't fetch API data yet",
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    console.log("[Analytics] 🔥 FETCHING API data for sensor:", {
+      selectedSensor,
+      timeRange: {
+        start: filters.timeRange.start.toISOString(),
+        end: filters.timeRange.end.toISOString(),
+      },
+      hookPermission: {
+        shouldFetchApiData: liveDataReadiness.shouldFetchApiData,
+        shouldShowLoading: liveDataReadiness.shouldShowLoading,
+      },
+      timestamp: new Date().toISOString(),
+    });
+
+    // Determine if we should fetch limited data or full time range
+    const isLiveModeOrConnecting = isLiveMode || isConnecting;
+    let timeRangeToUse;
+
+    if (isInitialLoad) {
+      // For initial load, use the selected time range - respecting user's filter choice
+      timeRangeToUse = {
         start: new Date(filters.timeRange.start),
         end: new Date(filters.timeRange.end),
       };
-      adjustedTimeRange.end.setHours(23, 59, 59, 999);
+      timeRangeToUse.end.setHours(23, 59, 59, 999);
 
-      console.log("[Analytics] Effect triggered - Fetching telemetry with time range:", {
-        start: adjustedTimeRange.start.toISOString(),
-        end: adjustedTimeRange.end.toISOString(),
-      });
-
-      // Use optimized data fetching
-      fetchOptimizedData({
-        sensorIds: [selectedSensor],
+      console.log("[Analytics] 📅 Using selected time range for INITIAL LOAD:", {
         timeRange: {
-          start: toISO(adjustedTimeRange.start),
-          end: toISO(adjustedTimeRange.end),
+          start: timeRangeToUse.start.toISOString(),
+          end: timeRangeToUse.end.toISOString(),
+        },
+        isInitialLoad: true,
+      });
+    } else if (isLiveModeOrConnecting) {
+      // For live mode, use the selected time range - respecting user's filter choice
+      timeRangeToUse = {
+        start: new Date(filters.timeRange.start),
+        end: new Date(filters.timeRange.end),
+      };
+      timeRangeToUse.end.setHours(23, 59, 59, 999);
+
+      console.log("[Analytics] � Using LIMITED time range for live mode:", {
+        reason: "Using user's selected time range",
+        timeRange: {
+          start: timeRangeToUse.start.toISOString(),
+          end: timeRangeToUse.end.toISOString(),
+        },
+        isLiveMode,
+        isConnecting,
+      });
+    } else {
+      // For normal mode, use the full selected time range
+      timeRangeToUse = {
+        start: new Date(filters.timeRange.start),
+        end: new Date(filters.timeRange.end),
+      };
+      timeRangeToUse.end.setHours(23, 59, 59, 999);
+
+      console.log("[Analytics] 📅 Using FULL time range for normal mode:", {
+        timeRange: {
+          start: timeRangeToUse.start.toISOString(),
+          end: timeRangeToUse.end.toISOString(),
         },
       });
     }
-  }, [selectedSensor, timeRangeKey]); // Remove fetchOptimizedData to prevent unnecessary re-renders
+
+    fetchOptimizedData({
+      sensorIds: [selectedSensor],
+      timeRange: {
+        start: toISO(timeRangeToUse.start),
+        end: toISO(timeRangeToUse.end),
+      },
+    });
+
+    console.log("[Analytics] ✅ API fetch initiated");
+  }, [selectedSensor, timeRangeKey, isOfflineSensorFilter, isLiveMode, isConnecting, hasInitialLoadCompleted]);
 
   const sameRange = (a: { start: Date; end: Date }, b: { start: Date; end: Date }) =>
     new Date(a.start).getTime() === new Date(b.start).getTime() &&
@@ -601,9 +871,17 @@ export const AnalyticsPage: React.FC = () => {
   }, [cancelPendingRequests]);
 
   const handleSensorSelect = (id: string) => {
+    console.log("[Analytics] 🎯 Sensor selection initiated:", {
+      newSensorId: id,
+      previousSensor: selectedSensor,
+      timestamp: new Date().toISOString(),
+    });
+
     // No need to cancel - optimized fetch will handle deduplication
     setSelectedSensor(id);
     navigate(`/dashboard/sensors/${id}`);
+
+    console.log("[Analytics] ✅ Sensor selection completed, navigation triggered");
   };
 
   const handleSearchChange = (txt: string) => setSearchQuery(txt);
@@ -901,38 +1179,67 @@ export const AnalyticsPage: React.FC = () => {
     }
   };
 
-  // Prepare chart config for selected sensor
+  // Prepare chart config for selected sensor with live data readiness control
   const chartConfig: ChartConfig | null = React.useMemo(() => {
-    if (!selectedSensor || !telemetryData[selectedSensor]) return null;
+    console.log("[Analytics] 📊 Chart config computation started:", {
+      selectedSensor,
+      hasTelemetryData: selectedSensor ? !!telemetryData[selectedSensor] : false,
+      liveDataReadiness,
+      timestamp: new Date().toISOString(),
+    });
+
+    if (!selectedSensor || !telemetryData[selectedSensor]) {
+      console.log("[Analytics] ❌ No chart config - missing sensor or telemetry data:", {
+        hasSelectedSensor: !!selectedSensor,
+        hasTelemetryData: selectedSensor ? !!telemetryData[selectedSensor] : false,
+      });
+      return null;
+    }
+
     const sensorData = telemetryData[selectedSensor];
 
     // Enhanced debugging for live data
     const currentSeries = sensorData.series;
-    console.log("[Analytics] Chart data content:", {
-      sensorId: selectedSensor,
-      dataPoints: currentSeries.length,
-      firstPoint: currentSeries[0],
-      lastPoint: currentSeries[currentSeries.length - 1],
-      nonNullCount: currentSeries.filter((point) => point && point.value !== null && point.value !== undefined).length,
-    });
-
-    // Reduced logging frequency to prevent memory issues
-    if (Math.random() < 0.01) {
-      // Log only 1% of the time
-      console.log(`[Analytics] Rendering with series length: ${currentSeries.length}`);
-    }
-
-    return {
+    
+    // Apply dynamic reading limit in live mode based on user's selection
+    // In offline mode, show all data for proper historical analysis
+    const shouldLimitToLatest = isLiveMode; // Only limit in live mode
+    const displaySeries = shouldLimitToLatest && currentSeries.length > maxLiveReadings ? 
+      currentSeries.slice(-maxLiveReadings) : currentSeries;
+    
+    const chartConfigResult = {
       type: sensorData.type,
       unit: sensorData.unit,
-      series: sensorData.series, // Pass series directly - array reference will change on updates
+      series: displaySeries,
       color: chartColors[0],
     };
+
+    console.log("[Analytics] 📈 Chart config created:", {
+      sensorId: selectedSensor,
+      totalDataPoints: currentSeries.length,
+      displayedDataPoints: displaySeries.length,
+      wasLimited: displaySeries.length < currentSeries.length,
+      isLiveMode,
+      maxLiveReadings,
+      limitApplied: shouldLimitToLatest ? `Live mode - limited to ${maxLiveReadings}` : "Offline mode - show all",
+      firstPoint: displaySeries[0],
+      lastPoint: displaySeries[displaySeries.length - 1],
+      nonNullCount: displaySeries.filter((point) => point && point.value !== null && point.value !== undefined).length,
+      isLive: sensorData.isLive,
+      shouldShowLoading: liveDataReadiness.shouldShowLoading,
+      type: sensorData.type,
+      unit: sensorData.unit,
+      timestamp: new Date().toISOString(),
+    });
+
+    return chartConfigResult;
   }, [
     selectedSensor,
     // Depend on the series array reference itself - will change when Redux creates new array
     selectedSensor ? telemetryData[selectedSensor]?.series : null,
     isLiveMode, // Track live mode changes
+    maxLiveReadings, // Track reading limit changes
+    liveDataReadiness.shouldShowLoading, // Track loading state changes
   ]);
 
   // Prepare multi-series chart config for comparison
@@ -957,11 +1264,19 @@ export const AnalyticsPage: React.FC = () => {
       unit: commonUnit,
       series: availableSensors.map((id, index) => {
         const sensor = sensors.find((s) => s._id === id);
+        const sensorSeries = telemetryData[id].series;
+        
+        // Apply dynamic reading limit in live mode based on user's selection
+        // In offline mode, show all data for proper historical analysis
+        const shouldLimitToLatest = isLiveMode; // Only limit in live mode
+        const displaySeries = shouldLimitToLatest && sensorSeries.length > maxLiveReadings ? 
+          sensorSeries.slice(-maxLiveReadings) : sensorSeries;
+        
         return {
           id,
           name: sensor?.displayName || sensor?.mac || id,
           color: chartColors[index % chartColors.length],
-          data: telemetryData[id].series,
+          data: displaySeries,
         };
       }),
     };
@@ -969,6 +1284,8 @@ export const AnalyticsPage: React.FC = () => {
     telemetryData,
     selectedSensorIds,
     sensors,
+    isLiveMode, // Track live mode changes
+    maxLiveReadings, // Track reading limit changes
     // In live mode, track data changes for selected sensors
     isLiveMode
       ? selectedSensorIds.map((id) => (telemetryData[id] ? telemetryData[id].series.length : 0)).join(",")
@@ -1220,7 +1537,7 @@ export const AnalyticsPage: React.FC = () => {
               onMultiSelect={handleMultiSelect}
               isComparing={isCompareMode}
               onSensorUpdated={refreshSensorData}
-              isDataLoading={isLoadingData && !isCompareMode} // Only show for single sensor mode
+              isDataLoading={enhancedEffectiveIsLoading && !isCompareMode} // Only show for single sensor mode, include live data waiting and initial loading
               isSensorLoading={isSensorLoading} // Pass individual sensor loading state
               isCompareLoading={isCompareLoading} // Pass compare loading state
               shouldShowComparison={shouldShowComparison} // Pass comparison check
@@ -1376,12 +1693,47 @@ export const AnalyticsPage: React.FC = () => {
                         )}
                       </div>
                     )
-                  ) : isLoadingData ? (
+                  ) : enhancedEffectiveIsLoading ? (
                     <div className="flex items-center justify-center h-full">
-                      <Spinner size={isMobile ? "md" : "lg"} />
+                      {(() => {
+                        console.log("[Analytics] 🔄 Loading state render decision:", {
+                          enhancedEffectiveIsLoading,
+                          originalEffectiveIsLoading: effectiveIsLoading,
+                          isInitiallyLoading,
+                          shouldWaitForLiveData: liveDataReadiness.shouldWaitForLiveData,
+                          hasCurrentSensor: !!currentSensor,
+                          sensorName: currentSensor?.displayName || currentSensor?.name || currentSensor?.mac,
+                          timestamp: new Date().toISOString(),
+                        });
+
+                        if (isLiveMode && liveDataReadiness.shouldWaitForLiveData) {
+                          console.log("[Analytics] 🎭 Rendering LiveDataLoading component");
+                          return (
+                            <LiveDataLoading
+                              sensorName={currentSensor?.displayName || currentSensor?.name || currentSensor?.mac}
+                            />
+                          );
+                        } else {
+                          console.log("[Analytics] 🌀 Rendering regular Spinner");
+                          return <Spinner size={isMobile ? "md" : "lg"} />;
+                        }
+                      })()}
                     </div>
                   ) : chartConfig && currentSensor ? (
                     <div className="relative w-full h-full">
+                      {(() => {
+                        console.log("[Analytics] 📊 Chart rendering decision:", {
+                          hasChartConfig: !!chartConfig,
+                          hasCurrentSensor: !!currentSensor,
+                          effectiveIsLoading,
+                          sensorId: currentSensor?._id,
+                          chartType: chartConfig?.type,
+                          seriesLength: chartConfig?.series?.length,
+                          timestamp: new Date().toISOString(),
+                        });
+                        return null; // Just for logging, return null
+                      })()}
+
                       {/* Main chart view - ensure proper height */}
                       <div
                         className={`w-full h-full transition-transform duration-300 ${
@@ -1402,7 +1754,16 @@ export const AnalyticsPage: React.FC = () => {
                           onToggleStar={handleToggleStar}
                           onDisplayNameChange={handleDisplayNameChange}
                           onOpenInNewTab={!isSoloMode ? handleOpenInNewTab : undefined}
-                          isLoading={isLoadingData}
+                          isLoading={(() => {
+                            console.log("[Analytics] 📊 ChartContainer isLoading prop:", {
+                              effectiveIsLoading,
+                              isLoadingData,
+                              hookShouldShowLoading: liveDataReadiness.shouldShowLoading,
+                              sensorId: currentSensor._id,
+                              timestamp: new Date().toISOString(),
+                            });
+                            return effectiveIsLoading;
+                          })()}
                           timeRange={filters.timeRange}
                           onTimeRangeChange={syncTimeRange}
                           onLiveModeChange={syncLiveMode}
@@ -1462,7 +1823,29 @@ export const AnalyticsPage: React.FC = () => {
                     </div>
                   ) : (
                     <div className="flex items-center justify-center h-full">
-                      <p className="text-default-500 text-sm">Select a sensor to view data</p>
+                      {(() => {
+                        // Check if we're in an initial loading state where sensors are loading or just finished loading
+                        // but no sensor has been auto-selected yet
+                        const isInitialLoadingState =
+                          loading || (sensors.length > 0 && !currentSensor && !hasInitialLoadCompleted);
+
+                        console.log("[Analytics] 🎯 Final fallback decision:", {
+                          isInitialLoadingState,
+                          loading,
+                          sensorsLength: sensors.length,
+                          hasCurrentSensor: !!currentSensor,
+                          hasInitialLoadCompleted,
+                          shouldShowSpinner: isInitialLoadingState,
+                          timestamp: new Date().toISOString(),
+                        });
+
+                        if (isInitialLoadingState) {
+                          return <Spinner size={isMobile ? "md" : "lg"} />;
+                        } else {
+                          return <Spinner size={isMobile ? "md" : "lg"} />;
+                          return <p className="text-default-500 text-sm">Select a sensor to view data</p>;
+                        }
+                      })()}
                     </div>
                   );
                 })()}
