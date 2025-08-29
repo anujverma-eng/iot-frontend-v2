@@ -45,13 +45,12 @@ export const fetchSettingsFromBackend = createAsyncThunk(
   'settings/fetchFromBackend',
   async (_, { rejectWithValue }) => {
     try {
-      console.log('[Settings] Fetching settings from backend...');
+
       const backendSettings = await SettingsService.getSettings();
-      console.log('[Settings] Settings fetched successfully:', backendSettings);
+
       return backendSettings;
     } catch (error: any) {
-      console.error('[Settings] Failed to fetch settings:', error);
-      
+
       // Handle specific error types
       if (error.message?.startsWith('SETTINGS_NOT_FOUND:')) {
         return rejectWithValue({
@@ -80,14 +79,13 @@ export const createSettingsInBackend = createAsyncThunk(
   'settings/createInBackend',
   async (settings: AppSettings, { rejectWithValue }) => {
     try {
-      console.log('[Settings] Creating settings in backend:', settings);
+
       const request = convertFrontendToBackend(settings);
       const backendSettings = await SettingsService.createSettings(request);
-      console.log('[Settings] Settings created successfully:', backendSettings);
+
       return backendSettings;
     } catch (error: any) {
-      console.error('[Settings] Failed to create settings:', error);
-      
+
       if (error.message?.startsWith('CREATE_FAILED:')) {
         return rejectWithValue({
           type: 'CREATE_ERROR',
@@ -107,14 +105,13 @@ export const updateSettingsInBackend = createAsyncThunk(
   'settings/updateInBackend',
   async (settings: AppSettings, { rejectWithValue }) => {
     try {
-      console.log('[Settings] Updating settings in backend:', settings);
+
       const request = convertFrontendToBackend(settings);
       const backendSettings = await SettingsService.updateSettings(request);
-      console.log('[Settings] Settings updated successfully:', backendSettings);
+
       return backendSettings;
     } catch (error: any) {
-      console.error('[Settings] Failed to update settings:', error);
-      
+
       if (error.message?.startsWith('UPDATE_FAILED:')) {
         return rejectWithValue({
           type: 'UPDATE_ERROR',
@@ -146,8 +143,7 @@ export const saveSettingsToBackend = createAsyncThunk(
         return await dispatch(createSettingsInBackend(settings)).unwrap();
       }
     } catch (error: any) {
-      console.error('[Settings] Failed to save settings to backend:', error);
-      
+
       // Pass through the structured error from create/update
       if (error?.type) {
         return rejectWithValue(error);
@@ -164,18 +160,18 @@ export const saveSettingsToBackend = createAsyncThunk(
 const saveSettingsToStorage = (settings: AppSettings): void => {
   try {
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
-    console.log('Settings saved to localStorage (fallback):', settings);
+
   } catch (error) {
-    console.error('Error saving settings to localStorage:', error);
+
   }
 };
 
 const clearSettingsFromStorage = (): void => {
   try {
     localStorage.removeItem(SETTINGS_STORAGE_KEY);
-    console.log('Settings removed from localStorage');
+
   } catch (error) {
-    console.error('Error removing settings from localStorage:', error);
+
   }
 };
 
@@ -200,7 +196,7 @@ const settingsSlice = createSlice({
       };
       // Save to localStorage as fallback
       saveSettingsToStorage(state.settings);
-      console.log('Sensor settings updated locally:', state.settings.sensors);
+
     },
     
     // Update all settings locally (will be synced to backend automatically)
@@ -208,7 +204,7 @@ const settingsSlice = createSlice({
       state.settings = action.payload;
       // Save to localStorage as fallback
       saveSettingsToStorage(state.settings);
-      console.log('All settings updated locally:', state.settings);
+
     },
     
     // Reset settings to defaults
@@ -216,7 +212,7 @@ const settingsSlice = createSlice({
       state.settings = DEFAULT_SETTINGS;
       // Save to localStorage as fallback
       saveSettingsToStorage(state.settings);
-      console.log('Settings reset to defaults');
+
     },
 
     // Clear any error state
@@ -238,7 +234,7 @@ const settingsSlice = createSlice({
         state.loaded = true;
         // Clear localStorage since we now have backend settings
         clearSettingsFromStorage();
-        console.log('[Settings] Backend settings loaded successfully');
+
       })
       .addCase(fetchSettingsFromBackend.rejected, (state, action) => {
         state.loading = false;
@@ -248,9 +244,9 @@ const settingsSlice = createSlice({
         };
         // If settings not found, we'll create them when user updates
         if (state.error?.type === 'SETTINGS_NOT_FOUND') {
-          console.log('[Settings] Backend settings not found, will create on first update');
+
         } else {
-          console.error('[Settings] Failed to fetch backend settings:', state.error?.message);
+
         }
       });
 
@@ -266,7 +262,7 @@ const settingsSlice = createSlice({
         state.settings = convertBackendToFrontend(action.payload);
         // Clear localStorage since we now have backend settings
         clearSettingsFromStorage();
-        console.log('[Settings] Backend settings created successfully');
+
       })
       .addCase(createSettingsInBackend.rejected, (state, action) => {
         state.loading = false;
@@ -274,7 +270,7 @@ const settingsSlice = createSlice({
           type: 'SETTINGS_NOT_FOUND' | 'API_ERROR' | 'CREATE_ERROR' | 'UPDATE_ERROR' | 'UNKNOWN_ERROR';
           message: string;
         };
-        console.error('[Settings] Failed to create backend settings:', state.error?.message);
+
       });
 
     // Update settings in backend
@@ -289,7 +285,7 @@ const settingsSlice = createSlice({
         state.settings = convertBackendToFrontend(action.payload);
         // Clear localStorage since we now have backend settings
         clearSettingsFromStorage();
-        console.log('[Settings] Backend settings updated successfully');
+
       })
       .addCase(updateSettingsInBackend.rejected, (state, action) => {
         state.loading = false;
@@ -297,7 +293,7 @@ const settingsSlice = createSlice({
           type: 'SETTINGS_NOT_FOUND' | 'API_ERROR' | 'CREATE_ERROR' | 'UPDATE_ERROR' | 'UNKNOWN_ERROR';
           message: string;
         };
-        console.error('[Settings] Failed to update backend settings:', state.error?.message);
+
       });
 
     // Save settings to backend (create or update)
@@ -312,7 +308,7 @@ const settingsSlice = createSlice({
         state.settings = convertBackendToFrontend(action.payload);
         // Clear localStorage since we now have backend settings
         clearSettingsFromStorage();
-        console.log('[Settings] Settings saved to backend successfully');
+
       })
       .addCase(saveSettingsToBackend.rejected, (state, action) => {
         state.loading = false;
@@ -320,7 +316,7 @@ const settingsSlice = createSlice({
           type: 'SETTINGS_NOT_FOUND' | 'API_ERROR' | 'CREATE_ERROR' | 'UPDATE_ERROR' | 'UNKNOWN_ERROR';
           message: string;
         };
-        console.error('[Settings] Failed to save settings to backend:', state.error?.message);
+
       });
   },
 });

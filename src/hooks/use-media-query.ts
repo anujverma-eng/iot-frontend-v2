@@ -63,14 +63,7 @@ export const useBreakpoints = () => {
   // Console logging for iPhone 14 Pro landscape debugging
   React.useEffect(() => {
     if (isIPhone14Pro && isLandscape) {
-      console.log('[useBreakpoints] iPhone 14 Pro Landscape Detected!', {
-        viewport: `${window.innerWidth}x${window.innerHeight}`,
-        isIPhone14Pro,
-        isLandscape,
-        isMobile,
-        deviceWidth: window.screen.width,
-        deviceHeight: window.screen.height
-      });
+
     }
   }, [isIPhone14Pro, isLandscape, isMobile]);
   

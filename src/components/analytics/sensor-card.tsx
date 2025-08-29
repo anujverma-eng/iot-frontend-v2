@@ -44,7 +44,7 @@ export const SensorCard: React.FC<SensorCardProps> = ({
 
   // DEBUG: Log when component renders and sensor status changes
   React.useEffect(() => {
-    console.log(`[SensorCard] DEBUG: Rendering card for ${sensor.mac} - status: ${sensor.status}, isOnline: ${sensor.isOnline}`);
+
   }, [sensor.mac, sensor.status, sensor.isOnline]);
 
   // Sync local state with prop when it changes

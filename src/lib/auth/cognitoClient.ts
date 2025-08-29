@@ -45,7 +45,7 @@ export const AuthClient = {
           });
         },
         onFailure(err) {
-          console.error("Cognito log-in failed", err);
+
           rej(err);
         },
       })
@@ -58,7 +58,7 @@ export const AuthClient = {
       user.globalSignOut({
         onSuccess: res,
         onFailure(err) {
-          console.error("Cognito globalSignOut failed", err);
+
           rej(err);
         },
       })
@@ -72,7 +72,7 @@ export const AuthClient = {
       user.forgotPassword({
         onSuccess: res,
         onFailure(err) {
-          console.error("Cognito forgotPassword failed", err);
+
           rej(err);
         },
         inputVerificationCode: () => res("CODE_SENT"),
@@ -86,7 +86,7 @@ export const AuthClient = {
       user.confirmPassword(code, newPw, {
         onSuccess: res,
         onFailure(err) {
-          console.error("Cognito confirmForgot failed", err);
+
           rej(err);
         },
       })
@@ -186,7 +186,7 @@ export async function getCachedSession(): Promise<{
       const now = Math.floor(Date.now() / 1000);
       if (sess.getAccessToken().getExpiration() - now < 60) {
         const fresh = await AuthClient.refresh(sess.getRefreshToken().getToken());
-        console.log(fresh);
+
         sess = await new Promise<CognitoUserSession>((ok, ko) =>
           user.getSession((e: unknown, s: CognitoUserSession | PromiseLike<CognitoUserSession>) => (e ? ko(e) : ok(s)))
         );

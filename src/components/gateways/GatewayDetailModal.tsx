@@ -125,7 +125,7 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
 
       setEditingLabel(false);
     } catch (error) {
-      console.error("Failed to update gateway label:", error);
+
     } finally {
       setIsSavingLabel(false);
     }
@@ -153,7 +153,7 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
 
       setEditingLocation(false);
     } catch (error) {
-      console.error("Failed to update gateway location:", error);
+
     } finally {
       setIsSavingLocation(false);
     }

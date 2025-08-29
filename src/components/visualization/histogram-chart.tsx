@@ -44,9 +44,7 @@ export const HistogramChart: React.FC<HistogramChartProps> = ({ config }) => {
         percentage: 0
       };
     });
-    
-    console.log(values)
-    console.log(bins)
+
     // Count values in each bin
     values.forEach(value => {
       console.log(`Value: ${value}, Min: ${min}, Max: ${max}, Bin Size: ${binSize}`);
@@ -58,7 +56,6 @@ export const HistogramChart: React.FC<HistogramChartProps> = ({ config }) => {
       if (isNaN(binIndex) || binIndex < 0) {
         binIndex = 0;
       }
-      console.log(binIndex)
       bins[binIndex].count++;
     });
     

@@ -97,22 +97,6 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   // Use a more targeted memoization approach - simplified
   const memoizedConfig = React.useMemo(
     () => {
-      console.log("[ChartContainer] Config memoization triggered:", {
-        isLiveMode,
-        configType: config.type,
-        seriesLength: isMultiSeries
-          ? (config as MultiSeriesConfig).series?.length
-          : (config as ChartConfig).series?.length,
-        lastTimestamp:
-          !isMultiSeries && (config as ChartConfig).series?.length > 0
-            ? (config as ChartConfig).series[(config as ChartConfig).series.length - 1]?.timestamp
-            : null,
-        lastValue:
-          !isMultiSeries && (config as ChartConfig).series?.length > 0
-            ? (config as ChartConfig).series[(config as ChartConfig).series.length - 1]?.value
-            : null,
-        timestamp: Date.now(),
-      });
       return config;
     },
     [config] // Depend on the entire config object - it will be new when data changes
@@ -178,7 +162,6 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
           setShowDailyRange(true);
         }
       } catch (e) {
-        console.error("Error parsing URL hash:", e);
         // Don't throw the error, just log it
       }
     }
@@ -215,7 +198,6 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
         // First check if we can use direct gateway IDs from sensor
         const directIds = GatewayResolver.getDirectGatewayIds(sensor as any);
         if (directIds.length > 0) {
-          console.log("[ChartContainer] Using direct gateway IDs:", directIds);
           setGatewayIds(directIds);
           return;
         }
@@ -225,7 +207,6 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
         const resolvedIds = await GatewayResolver.getGatewayIdsForSensor(sensorData);
         setGatewayIds(resolvedIds);
       } catch (error) {
-        console.error("[ChartContainer] Failed to resolve gateway IDs:", error);
         // Fallback: try to use sensor MAC as gateway ID (for compatibility)
         setGatewayIds([sensor.mac]);
       }
@@ -424,7 +405,6 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
         description: "Chart data has been downloaded as CSV",
       });
     } catch (error) {
-      console.error("Error downloading CSV:", error);
       addToast({
         title: "Download Failed",
         description: "Failed to download CSV data",
@@ -459,7 +439,6 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
         }, "image/png");
       }
     } catch (error) {
-      console.error("Error downloading PNG:", error);
       addToast({
         title: "Download Failed",
         description: "Failed to download chart image",
@@ -566,7 +545,6 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       <ChartLoadingSkeleton />
     );
   }
-  console.log("isMobileLandscapeShort", isMobileLandscapeShort);
 
   // Mobile header component
   const renderMobileHeader = () => (
@@ -768,16 +746,15 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       if (isMobileDevice) totalHeight = "h-[calc(100vh-10rem)]";
       totalHeight = "h-[calc(100vh-8rem)]";
     }
-    
+
     // Non-fullscreen heights
     if (isMobileLandscape) totalHeight = "h-[350px]"; // Taller in landscape
     if (isMobileDevice) totalHeight = "h-[300px]"; // Increased from 250px
     if (isTablet) totalHeight = "h-[400px]";
     totalHeight = "h-[500px]";
-    console.log("totalHeight",totalHeight,isFullscreen)
     return totalHeight;
   };
-console.log("isFullscreen",isFullscreen, "isMobileDevice", isMobileDevice)
+
   return (
     <Card
       className={`w-full h-full flex flex-col border border-default-200 shadow-md ${
@@ -814,7 +791,7 @@ console.log("isFullscreen",isFullscreen, "isMobileDevice", isMobileDevice)
         {/* Chart content - Explicit height for proper chart rendering */}
         {(activeTab === "chart" || (isFullscreen && isMobile)) && (
           <div
-            className={`flex-1 h-full rounded-lg bg-white dark:bg-content ${isMobile ? "min-h-screen":""}`}
+            className={`flex-1 h-full rounded-lg bg-white dark:bg-content ${isMobile ? "min-h-screen" : ""}`}
             style={{
               margin: isSmallScreen ? "0 12px 12px" : "0 16px 16px",
             }}

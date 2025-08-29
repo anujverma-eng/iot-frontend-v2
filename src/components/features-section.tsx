@@ -40,7 +40,6 @@ const features = [
   },
 ];
 
-
 export function FeaturesSection() {
   return (
     <div className="space-y-8">

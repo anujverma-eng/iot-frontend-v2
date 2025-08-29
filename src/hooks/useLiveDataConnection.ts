@@ -20,23 +20,20 @@ export const useLiveDataConnection = () => {
   const connectionError = useSelector(selectConnectionError);
 
   useEffect(() => {
-    console.log('[useLiveDataConnection] Auto-connecting on app start...');
-    
+
     // Simple auto-connect on app start  
     const timer = setTimeout(() => {
-      console.log('[useLiveDataConnection] Timer triggered - attempting auto-connect...');
-      console.log('[useLiveDataConnection] Current state:', { isLiveMode, isConnecting });
-      
+
       if (!isLiveMode && !isConnecting) {
-        console.log('[useLiveDataConnection] Starting auto-connect...');
+
         dispatch(initializeLiveConnection());
       } else {
-        console.log('[useLiveDataConnection] Skipping auto-connect - already live or connecting');
+
       }
     }, 2000); // Give app time to load
     
     return () => {
-      console.log('[useLiveDataConnection] Cleaning up timer');
+
       clearTimeout(timer);
     };
   }, []); // Run once on mount

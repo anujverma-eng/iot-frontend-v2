@@ -21,7 +21,7 @@ const apiClient: AxiosInstance = axios.create({
 /* ---------- request: add JWT & trace‑id ---------- */
 apiClient.interceptors.request.use((cfg) => {
   const t = tokenManager.load();
-  console.log(t);
+
   if (t?.idToken) {
     cfg.headers.Authorization = `Bearer ${t.idToken}`;
   } else if (t?.accessToken) {

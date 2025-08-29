@@ -12,12 +12,7 @@ export const LiveDataLoading: React.FC<LiveDataLoadingProps> = ({
   sensorName,
   className = ""
 }) => {
-  console.log('[LiveDataLoading] 🎭 Component rendered:', {
-    sensorName,
-    className,
-    timestamp: new Date().toISOString()
-  });
-  
+
   return (
     <div className={`flex items-center justify-center h-full ${className}`}>
       <motion.div

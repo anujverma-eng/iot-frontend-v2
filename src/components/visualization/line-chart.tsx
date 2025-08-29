@@ -48,7 +48,7 @@ export const LineChart: React.FC<LineChartProps> = ({
   // Debug logging for live mode
   React.useEffect(() => {
     if (isLiveMode) {
-      console.log('[LineChart] maxLiveReadings updated to:', maxLiveReadings);
+
     }
   }, [maxLiveReadings, isLiveMode]);
 
@@ -264,13 +264,7 @@ export const LineChart: React.FC<LineChartProps> = ({
       rawData = singleConfig.series || [];
       
       // Debug logging for live data updates
-      console.log('[LineChart] Processing chart data:', {
-        configType: singleConfig.type,
-        seriesLength: rawData.length,
-        lastPoint: rawData[rawData.length - 1],
-        lastThreePoints: rawData.slice(-3),
-        timestamp: Date.now()
-      });
+
     }
 
     // Apply data optimization for large datasets
@@ -279,13 +273,6 @@ export const LineChart: React.FC<LineChartProps> = ({
 
   // Add moving average calculation
   const chartDataWithMA = React.useMemo(() => {
-    console.log('[LineChart] chartDataWithMA memoization triggered:', {
-      inputLength: chartData?.length || 0,
-      lastPoint: chartData?.[chartData.length - 1],
-      lastThreeInputPoints: chartData?.slice(-3),
-      showMA: isMultiSeries ? false : (config as ChartConfig).showMovingAverage,
-      timestamp: Date.now()
-    });
 
     if (!chartData || chartData.length === 0) return chartData;
 
@@ -310,25 +297,13 @@ export const LineChart: React.FC<LineChartProps> = ({
       result[i].movingAverage = sum / count;
     }
 
-    console.log('[LineChart] chartDataWithMA completed:', {
-      outputLength: result.length,
-      lastResultPoint: result[result.length - 1]
-    });
-
     return result;
   }, [chartData, config, isMultiSeries]);
 
   const orderedData = React.useMemo(
     () => {
       const sortedData = [...chartDataWithMA].sort((a, b) => a.timestamp - b.timestamp);
-      console.log('[LineChart] orderedData memoization triggered:', {
-        inputLength: chartDataWithMA.length,
-        outputLength: sortedData.length,
-        lastInputPoint: chartDataWithMA[chartDataWithMA.length - 1],
-        lastOutputPoint: sortedData[sortedData.length - 1],
-        lastThreePoints: sortedData.slice(-3),
-        timestamp: Date.now()
-      });
+
       return sortedData;
     },
     [chartDataWithMA]
@@ -340,7 +315,7 @@ export const LineChart: React.FC<LineChartProps> = ({
     // The key must be stable for a given sensor. It should NOT change with every new data point.
     // We'll use properties from the config that don't change per reading.
     const stableKey = `recharts-line-${config.type}-${config.unit}`;
-    console.log('[LineChart] Generated stable chart key:', stableKey);
+
     return stableKey;
     // --- END REVISED LOGIC ---
   }, [config.type, config.unit]); // Only change when sensor type/unit changes
@@ -608,18 +583,9 @@ export const LineChart: React.FC<LineChartProps> = ({
     }));
   }, [orderedData, isMultiSeries, config]);
 
-  console.log('[LineChart] Final orderedData for rendering:', {
-    length: orderedData.length,
-    firstPoint: orderedData[0],
-    lastPoint: orderedData[orderedData.length - 1],
-    samplePoints: orderedData.slice(-3), // show last 3 points
-    allTimestamps: orderedData.map(p => p.timestamp),
-    allValues: orderedData.map(p => p.value)
-  });
-
   // Reduced logging frequency to prevent memory issues
   if (Math.random() < 0.01) { // Log only 1% of the time
-    console.log('[LineChart] About to render Recharts with data length:', orderedData.length);
+
   }
 
   // Data validation - render placeholder for empty data

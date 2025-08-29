@@ -44,7 +44,7 @@ export const fetchSensorDetails = createAsyncThunk(
   async (mac: string, { rejectWithValue }) => {
     // Check if there's already an ongoing request for this MAC
     if (ongoingRequests.has(mac)) {
-      console.log(`[SensorsSlice] Reusing ongoing request for sensor: ${mac}`);
+
       try {
         return await ongoingRequests.get(mac);
       } catch (error) {
@@ -59,14 +59,14 @@ export const fetchSensorDetails = createAsyncThunk(
     
     if (lastFetch && (now - lastFetch) < FETCH_COOLDOWN_MS) {
       const timeSinceLastFetch = Math.round((now - lastFetch) / 1000);
-      console.log(`[SensorsSlice] Rate limiting: Skipping fetch for ${mac} (last fetch was ${timeSinceLastFetch}s ago)`);
+
       return rejectWithValue(`Rate limited: Recently fetched sensor ${mac} (${timeSinceLastFetch}s ago)`);
     }
     
     // Create and cache the request promise
     const requestPromise = (async () => {
       try {
-        console.log(`[SensorsSlice] Fetching sensor details for MAC: ${mac}`);
+
         sensorFetchCache.set(mac, now);
         const response = await SensorService.getSensorByMac(mac);
         return response;
@@ -267,7 +267,7 @@ const sensorSlice = createSlice({
           if (lastValue !== undefined) {
             sensor.lastValue = lastValue;
           }
-          console.log('[SensorsSlice] Updated sensor', mac, '- lastSeen:', lastSeen, 'battery:', battery, 'lastValue:', lastValue);
+
         }
       }
       
@@ -301,35 +301,28 @@ const sensorSlice = createSlice({
       if (state.selectedSensor.data && state.selectedSensor.data.status === "live") {
         state.selectedSensor.data.status = "offline";
       }
-      
-      console.log('[SensorsSlice] Marked all sensors as offline');
+
     },
     // Update sensor online status based on offline detection service
     updateSensorOnlineStatus: (state, action: PayloadAction<{ mac: string; isOnline: boolean }>) => {
       const { mac, isOnline } = action.payload;
-      console.log(`[SensorsSlice] DEBUG: Received updateSensorOnlineStatus action for ${mac}, isOnline: ${isOnline}`);
-      
+
       // Update in main sensors list
       const sensorIndex = state.data.findIndex((sensor: Sensor) => sensor.mac === mac);
-      console.log(`[SensorsSlice] DEBUG: Found sensor at index ${sensorIndex} in sensors array`);
-      
+
       if (sensorIndex !== -1) {
         const sensor = state.data[sensorIndex];
         const oldIsOnline = sensor.isOnline;
-        
-        console.log(`[SensorsSlice] DEBUG: Sensor ${mac} current isOnline: ${oldIsOnline}`);
-        console.log(`[SensorsSlice] DEBUG: Sensor ${mac} new isOnline: ${isOnline}`);
-        
+
         if (sensor.isOnline !== isOnline) {
           // Only update isOnline - DO NOT automatically change status
           sensor.isOnline = isOnline;
-          console.log(`[SensorsSlice] ✅ UPDATED sensor ${mac} online status: ${isOnline ? 'online' : 'offline'}`);
-          console.log(`[SensorsSlice] INFO: sensor.status remains: ${sensor.status} (unchanged)`);
+
         } else {
-          console.log(`[SensorsSlice] ⚠️ No change needed for sensor ${mac} - already has correct isOnline status`);
+
         }
       } else {
-        console.log(`[SensorsSlice] ❌ ERROR: Sensor ${mac} not found in sensors array`);
+
       }
       
       // Update in selected sensor if it matches
@@ -339,8 +332,7 @@ const sensorSlice = createSlice({
         if (selectedSensor.isOnline !== isOnline) {
           // Only update isOnline - DO NOT automatically change status for selected sensor either
           selectedSensor.isOnline = isOnline;
-          console.log(`[SensorsSlice] ✅ UPDATED selected sensor ${mac} isOnline: ${isOnline}`);
-          console.log(`[SensorsSlice] INFO: selected sensor.status remains: ${selectedSensor.status} (unchanged)`);
+
         }
       }
     },

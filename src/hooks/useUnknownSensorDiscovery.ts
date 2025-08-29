@@ -27,21 +27,18 @@ export const useUnknownSensorDiscovery = () => {
   const unknownSensorsString = useMemo(() => JSON.stringify(unknownSensors), [unknownSensors]);
 
   useEffect(() => {
-    console.log(`[useUnknownSensorDiscovery] Hook triggered - isLiveMode: ${isLiveMode}, unknownSensors:`, unknownSensors);
-    
+
     // Only process unknown sensors in live mode
     if (!isLiveMode || unknownSensors.length === 0) {
       return;
     }
-
-    console.log(`[useUnknownSensorDiscovery] Processing ${unknownSensors.length} unknown sensors:`, unknownSensors);
 
     // Process sensors one by one with delay to prevent API spam
     const processSensorSequentially = async (sensors: string[]) => {
       for (const mac of sensors) {
         // Skip if already processed or currently processing
         if (processingRef.current.has(mac) || processedRef.current.has(mac)) {
-          console.log(`[useUnknownSensorDiscovery] Skipping ${mac} - already processed or processing`);
+
           continue;
         }
 
@@ -49,24 +46,23 @@ export const useUnknownSensorDiscovery = () => {
         processingRef.current.add(mac);
         
         try {
-          console.log(`[useUnknownSensorDiscovery] Attempting to fetch details for unknown sensor: ${mac}`);
-          
+
           // Attempt to fetch sensor details
           const result = await dispatch(fetchSensorDetails(mac));
           
           // If successful, remove from unknown list
           if (fetchSensorDetails.fulfilled.match(result)) {
-            console.log(`[useUnknownSensorDiscovery] Successfully discovered sensor: ${mac}`);
+
             dispatch(clearUnknownSensor(mac));
             processedRef.current.add(mac);
           } else if (fetchSensorDetails.rejected.match(result)) {
             // If failed, also remove from list to avoid repeated attempts
-            console.log(`[useUnknownSensorDiscovery] Failed to discover sensor ${mac}, removing from list:`, result.error);
+
             dispatch(clearUnknownSensor(mac));
             processedRef.current.add(mac);
           }
         } catch (error) {
-          console.error(`[useUnknownSensorDiscovery] Error processing unknown sensor ${mac}:`, error);
+
           // Remove from list on error to prevent repeated failures
           dispatch(clearUnknownSensor(mac));
           processedRef.current.add(mac);

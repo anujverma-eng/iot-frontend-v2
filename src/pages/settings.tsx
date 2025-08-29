@@ -85,7 +85,7 @@ export const SettingsPage: React.FC = () => {
       offlineDetectionService.updateTimeoutSettings();
       setHasChanges(false); // Settings are saved automatically
     } catch (error) {
-      console.error('Failed to update sensor timeout:', error);
+
       // The error will be shown in the UI via the error state
     }
   };
@@ -98,7 +98,7 @@ export const SettingsPage: React.FC = () => {
       offlineDetectionService.updateTimeoutSettings();
       setHasChanges(false);
     } catch (error) {
-      console.error('Failed to reset settings:', error);
+
       // The error will be shown in the UI via the error state
     }
   };

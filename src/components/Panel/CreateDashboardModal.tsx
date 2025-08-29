@@ -20,7 +20,7 @@ export const CreateDashboardModal: React.FC<CreateDashboardModalProps> = ({ isOp
 
   const handleCreateDashboard = () => {
     // Placeholder for dashboard creation logic
-    console.log("Creating dashboard:", dashboardName);
+
     onClose();
   };
 

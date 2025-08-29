@@ -17,8 +17,6 @@ export const passwordsMatch = z
   })
   .refine((v) => v.password === v.confirm, { message: "Passwords do not match", path: ["confirm"] });
 
-
-
 export const registerSchema = z.object({
   email   : emailSchema,
   password: passwordSchema,

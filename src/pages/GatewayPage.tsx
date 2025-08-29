@@ -82,7 +82,7 @@ export const GatewaysPage: React.FC = () => {
         search: ""
       })).unwrap();
     } catch (error) {
-      console.error('Error fetching data:', error);
+
     }
   }, [dispatch, pagination.page]);
 
@@ -152,7 +152,6 @@ export const GatewaysPage: React.FC = () => {
     // Apply filters when gateways array changes
     applyFilters(gateways);
   }, [gateways, sortColumn, sortDirection, applyFilters]);
-
 
   const handleSort = (column: string) => {
     if (sortColumn === column) {

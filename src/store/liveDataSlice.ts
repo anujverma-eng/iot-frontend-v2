@@ -43,9 +43,7 @@ export const handleGatewayOfflineEvent = createAsyncThunk(
   async (gatewayId: string, { getState }) => {
     const state = getState() as RootState;
     const sensors = selectSensors(state);
-    
-    console.log(`[LiveData] Handling gateway ${gatewayId} offline event with ${sensors.length} sensors`);
-    
+
     // Pass current sensors to the offline detection service
     offlineDetectionService.handleGatewayOffline(gatewayId, sensors);
     
@@ -59,39 +57,28 @@ export const initializeLiveConnection = createAsyncThunk(
   async (_, { dispatch, getState }) => {
     const state = getState() as RootState;
     const timestamp = Date.now();
-    console.log(`[LiveData:${timestamp}] Initializing live connection...`);
-    console.log(`[LiveData:${timestamp}] Current state:`, {
-      isConnected: state.liveData.isConnected,
-      isConnecting: state.liveData.isConnecting,
-      connectedGateways: state.liveData.connectedGateways
-    });
 
     try {
       // First fetch all available gateways
-      console.log(`[LiveData:${timestamp}] Fetching gateways...`);
+
       const gatewaysResponse = await dispatch(fetchGateways({ 
         page: 1, 
         limit: 100, // Get all gateways
         search: '' 
       })).unwrap();
-      
-      console.log(`[LiveData:${timestamp}] Gateways response:`, gatewaysResponse);
-      
+
       if (!gatewaysResponse || !gatewaysResponse.data || !Array.isArray(gatewaysResponse.data)) {
-        console.error(`[LiveData:${timestamp}] Invalid gateways response format:`, gatewaysResponse);
+
         return { gatewayIds: [], connected: false, timestamp, error: 'Invalid gateways response' };
       }
       
       const gatewayIds = gatewaysResponse.data.map((gateway: any) => gateway._id);
-      console.log(`[LiveData:${timestamp}] Extracted gateway IDs:`, gatewayIds);
-      
+
       if (gatewayIds.length === 0) {
-        console.log(`[LiveData:${timestamp}] No gateways found, skipping live connection`);
+
         return { gatewayIds: [], connected: false, timestamp };
       }
 
-      console.log(`[LiveData:${timestamp}] Found gateways for live connection:`, gatewayIds);
-      
       // Initialize offline detection service with known gateways
       offlineDetectionService.initializeGatewayTracking(gatewayIds);
       
@@ -102,12 +89,11 @@ export const initializeLiveConnection = createAsyncThunk(
       // Start live connection with all gateway IDs
       const callbacks: LiveCallbacks = {
         onData: (data) => {
-          console.log(`[LiveData:${timestamp}] Received sensor data:`, data);
-          
+
           // Throttle updates to prevent overwhelming the UI
           const now = Date.now();
           if (now - lastUpdateTime < throttleDelay) {
-            console.log(`[LiveData:${timestamp}] Throttling update - too frequent`);
+
             return;
           }
           lastUpdateTime = now;
@@ -132,7 +118,7 @@ export const initializeLiveConnection = createAsyncThunk(
           });
         },
         onPresence: (topic, message) => {
-          console.log(`[LiveData:${timestamp}] Received presence update:`, topic, message);
+
           // Handle gateway presence updates
           if (typeof message === 'object' && message.gatewayId && typeof message.isConnected === 'boolean') {
             const presenceData = {
@@ -163,31 +149,26 @@ export const initializeLiveConnection = createAsyncThunk(
           }
         },
         onError: (error) => {
-          console.error(`[LiveData:${timestamp}] Connection error:`, error);
+
           dispatch(setConnectionError(error.message || 'Connection error'));
         },
         onConnectionChange: (status) => {
-          console.log(`[LiveData:${timestamp}] Connection status changed:`, status);
+
           dispatch(setConnectionStatus(status));
         }
       };
 
-      console.log(`[LiveData:${timestamp}] Calling startLive with gatewayIds:`, gatewayIds);
-      console.log(`[LiveData:${timestamp}] Callbacks configured:`, Object.keys(callbacks));
-      
       try {
         const startLiveResult = await startLive(gatewayIds, callbacks);
-        console.log(`[LiveData:${timestamp}] startLive returned:`, startLiveResult);
+
       } catch (startLiveError) {
-        console.error(`[LiveData:${timestamp}] startLive threw error:`, startLiveError);
+
         throw startLiveError;
       }
-      
-      console.log(`[LiveData:${timestamp}] Live connection started successfully`);
+
       return { gatewayIds, connected: true, timestamp };
     } catch (error: any) {
-      console.error(`[LiveData:${timestamp}] Failed to initialize live connection:`, error);
-      
+
       // Reset connecting state on error
       return { gatewayIds: [], connected: false, timestamp, error: error.message };
     }
@@ -236,7 +217,7 @@ const liveDataSlice = createSlice({
     }>) => {
       const { gatewayId, isConnected } = action.payload;
       state.gatewayPresence[gatewayId] = isConnected;
-      console.log(`[LiveData] Gateway ${gatewayId} is now ${isConnected ? 'online' : 'offline'}`);
+
     },
     disconnectLive: (state) => {
       state.isConnected = false;
@@ -255,13 +236,13 @@ const liveDataSlice = createSlice({
   extraReducers: (builder) => {
     builder
       .addCase(initializeLiveConnection.pending, (state) => {
-        console.log('[LiveData] Setting state to connecting...');
+
         state.isConnecting = true;
         state.error = null;
         state.lastConnectionAttempt = Date.now();
       })
       .addCase(initializeLiveConnection.fulfilled, (state, action) => {
-        console.log('[LiveData] Connection fulfilled with payload:', action.payload);
+
         state.isConnecting = false;
         state.connectedGateways = action.payload.gatewayIds;
         state.isConnected = action.payload.connected;
@@ -269,7 +250,7 @@ const liveDataSlice = createSlice({
         state.error = null;
       })
       .addCase(initializeLiveConnection.rejected, (state, action) => {
-        console.log('[LiveData] Connection rejected with error:', action.error);
+
         state.isConnecting = false;
         state.isConnected = false;
         state.isLiveMode = false;

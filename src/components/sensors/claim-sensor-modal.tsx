@@ -63,7 +63,7 @@ export const ClaimSensorModal: React.FC<ClaimSensorModalProps> = ({ isOpen, onCl
     try {
       let response;
       if (selectedGateway) {
-        console.log({ selectedGateway });
+
         response = (await GatewayService.getSensorsByGateway(selectedGateway, false, page, 10, searchQuery))?.data;
       } else {
         response = await SensorService.getSensors({ page, limit: 10, claimed: false, search: searchQuery });
@@ -83,7 +83,7 @@ export const ClaimSensorModal: React.FC<ClaimSensorModalProps> = ({ isOpen, onCl
         setCachedGateways(gateways);
       }
     } catch (error) {
-      console.error("Failed to fetch unclaimed sensors:", error);
+
     } finally {
       setIsLoading(false);
     }
@@ -186,7 +186,7 @@ export const ClaimSensorModal: React.FC<ClaimSensorModalProps> = ({ isOpen, onCl
       setClaimingMac(mac);
       try {
         const result = await SensorService.claimSensor(mac, displayName || undefined);
-        console.log("Claim result:", result, result.error);
+
         if (result.success) {
           // Show success toast
           addToast({

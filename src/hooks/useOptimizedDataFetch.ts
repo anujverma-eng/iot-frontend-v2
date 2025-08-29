@@ -29,7 +29,7 @@ export const useOptimizedDataFetch = () => {
     
     // Don't make the same request twice
     if (lastRequestRef.current === requestId) {
-      console.log('[useOptimizedDataFetch] Duplicate request prevented:', requestId);
+
       return;
     }
     
@@ -41,7 +41,7 @@ export const useOptimizedDataFetch = () => {
     const executeFetch = () => {
       // Only cancel existing request if it's actually in progress and different
       if (abortControllerRef.current && requestInProgressRef.current && lastRequestRef.current !== requestId) {
-        console.log('[useOptimizedDataFetch] Cancelling previous request:', lastRequestRef.current);
+
         abortControllerRef.current.abort();
       }
       
@@ -49,9 +49,7 @@ export const useOptimizedDataFetch = () => {
       abortControllerRef.current = new AbortController();
       lastRequestRef.current = requestId;
       requestInProgressRef.current = true;
-      
-      console.log('[useOptimizedDataFetch] Starting new request:', requestId);
-      
+
       // Dispatch the fetch action
       dispatch(fetchTelemetry(params))
         .finally(() => {
@@ -68,7 +66,7 @@ export const useOptimizedDataFetch = () => {
   }, [dispatch]);
   
   const cancelPendingRequests = useCallback(() => {
-    console.log('[useOptimizedDataFetch] Cancelling pending requests');
+
     if (abortControllerRef.current && requestInProgressRef.current) {
       abortControllerRef.current.abort();
       requestInProgressRef.current = false;

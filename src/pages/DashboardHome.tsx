@@ -153,7 +153,7 @@ export const DashboardHome: React.FC = () => {
           dispatch(fetchSensorStats() as any),
         ]);
       } catch (error) {
-        console.error("Failed to fetch dashboard data:", error);
+
       } finally {
         setIsLoading(false);
       }
@@ -355,13 +355,6 @@ export const DashboardHome: React.FC = () => {
                         ? new Date(telemetryDataForSensor.lastUpdated)
                         : new Date(sensor.lastSeen);
 
-                    console.log(
-                      "[Dashboard] Rendering sensor row:",
-                      sensor.displayName || sensor.mac,
-                      "last value:",
-                      lastValue
-                    );
-
                     return (
                       <TableRow key={sensor._id}>
                         <TableCell>
@@ -469,7 +462,7 @@ export const DashboardHome: React.FC = () => {
                 color={isLiveMode ? "success" : "default"}
                 startContent={<Icon icon={isLiveMode ? "lucide:radio" : "lucide:database"} className="w-3 h-3" />}
                 onPress={() => {
-                  console.log("[Dashboard] Toggling live mode from:", isLiveMode, "to:", !isLiveMode);
+
                   dispatch(
                     toggleLiveMode({
                       enable: !isLiveMode,
@@ -502,7 +495,7 @@ export const DashboardHome: React.FC = () => {
                       selectedKeys={selectedFavoriteSensor ? [selectedFavoriteSensor] : []}
                       onSelectionChange={(keys) => {
                         const selectedKey = Array.from(keys)[0] as string;
-                        console.log("[Dashboard] Favorite sensor selected:", selectedKey);
+
                         setSelectedFavoriteSensor(selectedKey);
                       }}
                       className="w-full"

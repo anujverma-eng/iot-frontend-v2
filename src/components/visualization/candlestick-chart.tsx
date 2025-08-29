@@ -31,7 +31,6 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
     }
   }, [zoomDomain, onZoomChange]);
 
-    
   // Define the candlestick data type with optional movingAverage
   type CandlestickDatum = {
     open: number;
@@ -72,8 +71,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
     // Convert to array and sort by timestamp
     return Object.values(hourlyData).sort((a, b) => a.timestamp - b.timestamp);
   }, [config.series]);
-  
-  
+
   // Decide whether we're looking at more than one day
   const multiDay = React.useMemo(() => {
     if (candlestickData.length < 2) return false;

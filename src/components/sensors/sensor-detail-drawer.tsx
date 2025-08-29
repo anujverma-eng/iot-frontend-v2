@@ -25,7 +25,6 @@ import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch } from "../../store";
 import { fetchSensorDetails, selectSensorDetail, selectSensorDetailError, selectSensorDetailLoading, unclaimSensor, updateSensorLabel } from "../../store/sensorsSlice";
 
-
 interface SensorDetailDrawerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -72,7 +71,7 @@ export const SensorDetailDrawer: React.FC<SensorDetailDrawerProps> = ({
       setEditingName(false);
       onSensorUpdated();
     } catch (error) {
-      console.error("Failed to update sensor name:", error);
+
     }
   };
 
@@ -84,7 +83,7 @@ export const SensorDetailDrawer: React.FC<SensorDetailDrawerProps> = ({
       onClose();
       onSensorUpdated();
     } catch (error) {
-      console.error("Failed to unclaim sensor:", error);
+
     }
   };
 

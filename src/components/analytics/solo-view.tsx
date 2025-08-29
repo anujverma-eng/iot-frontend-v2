@@ -107,7 +107,7 @@ export const SoloView: React.FC = () => {
   // Live mode cleanup is handled centrally, no need for component-specific cleanup
   React.useEffect(() => {
     return () => {
-      console.log('[SoloView] Component unmounting, cancelling pending requests');
+
       cancelPendingRequests();
     };
   }, [cancelPendingRequests]);
@@ -210,7 +210,7 @@ export const SoloView: React.FC = () => {
   // Fetch sensors on component mount - ONLY ONCE
   React.useEffect(() => {
     if (sensorsLoaded || sensorsLoading) return; // already have / still fetching
-    console.log('[SoloView] Fetching sensors on mount');
+
     dispatch(
       fetchSensors({
         page: 1,
@@ -220,12 +220,12 @@ export const SoloView: React.FC = () => {
       })
     )
       .unwrap() // ← propagates real promise
-      .catch((e) => console.error('[SoloView] Fetch sensors error:', e));
+      .catch((e) => {});
   }, [dispatch, sensorsLoaded, sensorsLoading]); // Remove filters.search dependency
 
   // Fetch gateways for live mode functionality
   React.useEffect(() => {
-    console.log('[SoloView] Fetching gateways for live mode');
+
     dispatch(fetchGateways({ page: 1, limit: 1000, search: "" }));
   }, [dispatch]);
 
@@ -235,8 +235,7 @@ export const SoloView: React.FC = () => {
     
     // Wait for gateways to be loaded and component to be initialized
     if (gateways.length > 0 && !isLiveMode && !initialLoading) {
-      console.log('[SoloView] Auto-enabling live mode with', gateways.length, 'gateways');
-      
+
       // Small delay to ensure everything is initialized
       autoEnableTimer = setTimeout(async () => {
         try {
@@ -244,14 +243,12 @@ export const SoloView: React.FC = () => {
             .map(gateway => gateway._id)
             .slice(0, 10); // Limit to prevent too many subscriptions
 
-          console.log('[SoloView] Auto-starting live mode for gateways:', gatewayIds);
-          
           if (gatewayIds.length > 0) {
             await dispatch(toggleLiveMode({ enable: true })).unwrap();
-            console.log('[SoloView] Live mode auto-enabled successfully');
+
           }
         } catch (error) {
-          console.error('[SoloView] Failed to auto-enable live mode:', error);
+
         }
       }, 1500); // Slightly longer delay for solo-view
     }
@@ -278,10 +275,10 @@ export const SoloView: React.FC = () => {
       // Only fetch if we don't have the sensor data OR if the sensor ID is different
       // Use stable selectedSensorId to prevent re-fetches on lastSeen/status updates
       if (!selectedSensorId || selectedSensorId !== sensorId) {
-        console.log('[SoloView] Fetching sensor by ID:', sensorId, 'Current selected ID:', selectedSensorId);
+
         dispatch(fetchSensorById(sensorId));
       } else {
-        console.log('[SoloView] Sensor already loaded, skipping fetch for:', sensorId);
+
       }
       return;
     }
@@ -289,18 +286,13 @@ export const SoloView: React.FC = () => {
     /* b) no id → redirect to first sensor --------------------------------- */
     if (filteredSensors.length && !selectedSensorData.data) {
       const firstId = filteredSensors[0].id;
-      console.log('[SoloView] Redirecting to first sensor:', firstId);
+
       navigate(`/dashboard/sensors/${firstId}?solo=true`, { replace: true });
     }
   }, [sensorId, filteredIds, sensorsLoaded, selectedSensorId, dispatch, navigate]);
 
   // Fetch telemetry data when selected sensor or time range changes - FIXED DEPENDENCIES
   React.useEffect(() => {
-    console.log('[SoloView] Sensor selection effect:', { 
-      sensorId, 
-      filteredIds, 
-      selectedId: selectedSensorId 
-    });
 
     if (initialLoading) return; // wait until list call finished
     if (sensorId && !initialLoading) {
@@ -327,16 +319,6 @@ export const SoloView: React.FC = () => {
     const shouldLimitToLatest = isLiveMode; // Only limit in live mode
     const displaySeries = shouldLimitToLatest && currentSeries.length > maxLiveReadings ? 
       currentSeries.slice(-maxLiveReadings) : currentSeries;
-
-    console.log("[SoloView] 📈 Chart config created:", {
-      sensorId,
-      totalDataPoints: currentSeries.length,
-      displayedDataPoints: displaySeries.length,
-      wasLimited: displaySeries.length < currentSeries.length,
-      isLiveMode,
-      maxLiveReadings,
-      limitApplied: shouldLimitToLatest ? `Live mode - limited to ${maxLiveReadings}` : "Offline mode - show all",
-    });
 
     return {
       type: sensorData.type,
@@ -521,20 +503,18 @@ export const SoloView: React.FC = () => {
   };
 
   const handleLiveModeChange = async (isLive: boolean) => {
-    console.log('[SoloView] Live mode toggle requested:', isLive);
-    
+
     try {
       // Use centralized toggle - it handles all gateway discovery and connection logic
       await dispatch(toggleLiveMode({ enable: isLive })).unwrap();
-      console.log('[SoloView] Live mode', isLive ? 'enabled' : 'disabled', 'successfully');
+
     } catch (error) {
-      console.error('[SoloView] Live mode toggle failed:', error);
+
     }
   };
 
   const handleRetryConnection = async () => {
-    console.log('[SoloView] Retrying connection...');
-    
+
     try {
       // Simply disable and re-enable using centralized logic
       await dispatch(toggleLiveMode({ enable: false })).unwrap();
@@ -543,13 +523,13 @@ export const SoloView: React.FC = () => {
       setTimeout(async () => {
         try {
           await dispatch(toggleLiveMode({ enable: true })).unwrap();
-          console.log('[SoloView] Connection retry successful');
+
         } catch (retryError) {
-          console.error('[SoloView] Connection retry failed:', retryError);
+
         }
       }, 1000);
     } catch (error) {
-      console.error('[SoloView] Failed to retry connection:', error);
+
     }
   };
 
@@ -591,7 +571,7 @@ export const SoloView: React.FC = () => {
         description: "Sensor data has been downloaded as CSV",
       });
     } catch (error) {
-      console.error("Error downloading CSV:", error);
+
       addToast({
         title: "Download Failed",
         description: "Failed to download CSV data",
@@ -626,7 +606,7 @@ export const SoloView: React.FC = () => {
         }, "image/png");
       }
     } catch (error) {
-      console.error("Error downloading PNG:", error);
+
       addToast({
         title: "Download Failed",
         description: "Failed to download chart image",
@@ -661,7 +641,7 @@ export const SoloView: React.FC = () => {
   const handleToggleStar = async () => {
     setStarLoading(true);
     try {
-      console.log('[SoloView] Toggling star for sensor:', currentSensor?.mac);
+
       if (currentSensor?.mac) {
         await dispatch(toggleSensorStar(currentSensor.mac)).unwrap();
       }

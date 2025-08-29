@@ -5,7 +5,7 @@ export async function ensureIotPolicyAttached() {
     const response = await http.post('/realtime/attach-policy');
     return response.data;
   } catch (error) {
-    console.error('[IoT Policy] Failed to attach policy:', error);
+
     throw new Error(`attach-policy failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

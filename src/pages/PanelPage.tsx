@@ -90,7 +90,7 @@ export const PanelPage: React.FC = () => {
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <Tooltip content="View Dashboard">
-                      <Button isIconOnly variant="light" onPress={() => console.log("View", dashboard.id)}>
+                      <Button isIconOnly variant="light" onPress={() => {}}>
                         <Icon icon="lucide:eye" className="text-default-500" />
                       </Button>
                     </Tooltip>

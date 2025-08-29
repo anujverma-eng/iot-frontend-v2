@@ -107,14 +107,7 @@ export const TimeRangeSelector: React.FC<{
 
   const toggleLiveMode = async () => {
     const newLiveMode = !pendingLiveMode;
-    console.log('[TimeRangeSelector] Live mode toggled:', {
-      from: pendingLiveMode,
-      to: newLiveMode,
-      showApplyButtons,
-      isMobileDevice,
-      willAutoApply: !showApplyButtons
-    });
-    
+
     setPendingLiveMode(newLiveMode);
     
     if (newLiveMode) {
@@ -125,7 +118,7 @@ export const TimeRangeSelector: React.FC<{
     
     // Apply immediately only if NOT using apply buttons
     if (!showApplyButtons) {
-      console.log('[TimeRangeSelector] Auto-applying live mode toggle (no apply buttons)');
+
       if (onLiveModeChange) {
         onLiveModeChange(newLiveMode);
       } else {
@@ -133,7 +126,7 @@ export const TimeRangeSelector: React.FC<{
         try {
           await dispatch(toggleLiveModeAction({ enable: newLiveMode })).unwrap();
         } catch (error) {
-          console.error('Failed to toggle live mode:', error);
+
           // Revert the pending state on error
           setPendingLiveMode(!newLiveMode);
           return;
@@ -146,19 +139,12 @@ export const TimeRangeSelector: React.FC<{
       }
       setOpen(false);
     } else {
-      console.log('[TimeRangeSelector] Live mode toggled, waiting for Apply button');
+
     }
   };
 
   const choosePreset = (i: number) => {
-    console.log('[TimeRangeSelector] Preset selected:', {
-      presetIndex: i,
-      presetLabel: timeRangePresets[i]?.label,
-      showApplyButtons,
-      isMobileDevice,
-      willAutoApply: !showApplyButtons
-    });
-    
+
     setRangeIdx(i);
     setPendingLiveMode(false);
     const newRange = timeRangePresets[i].getValue();
@@ -166,12 +152,12 @@ export const TimeRangeSelector: React.FC<{
     
     // Apply immediately only if NOT using apply buttons
     if (!showApplyButtons) {
-      console.log('[TimeRangeSelector] Auto-applying preset (no apply buttons)');
+
       onLiveModeChange?.(false);
       onTimeRangeChange(newRange);
       setOpen(false);
     } else {
-      console.log('[TimeRangeSelector] Preset selected, waiting for Apply button');
+
     }
   };
 
@@ -195,14 +181,7 @@ export const TimeRangeSelector: React.FC<{
   };
 
   const handleApply = async () => {
-    console.log('[TimeRangeSelector] Apply clicked:', {
-      pendingLiveMode,
-      pendingTimeRange,
-      showApplyButtons,
-      isMobileDevice,
-      hasPendingChanges
-    });
-    
+
     if (pendingLiveMode) {
       if (onLiveModeChange) {
         onLiveModeChange(true);
@@ -210,7 +189,7 @@ export const TimeRangeSelector: React.FC<{
         try {
           await dispatch(toggleLiveModeAction({ enable: true })).unwrap();
         } catch (error) {
-          console.error('Failed to enable live mode:', error);
+
           return;
         }
       }
@@ -221,7 +200,7 @@ export const TimeRangeSelector: React.FC<{
         try {
           await dispatch(toggleLiveModeAction({ enable: false })).unwrap();
         } catch (error) {
-          console.error('Failed to disable live mode:', error);
+
         }
       }
       onTimeRangeChange(pendingTimeRange);
@@ -262,7 +241,7 @@ export const TimeRangeSelector: React.FC<{
         try {
           await dispatch(toggleLiveModeAction({ enable: false })).unwrap();
         } catch (error) {
-          console.error('Failed to disable live mode:', error);
+
         }
       }
       onTimeRangeChange(defaultRange);
@@ -282,20 +261,7 @@ export const TimeRangeSelector: React.FC<{
   // Debug logging for pending changes
   React.useEffect(() => {
     if (showApplyButtons) {
-      console.log('[TimeRangeSelector] Pending changes check:', {
-        hasPendingChanges,
-        showApplyButtons,
-        isMobileDevice,
-        currentLiveMode: isLiveMode,
-        pendingLiveMode,
-        liveModeChanged: pendingLiveMode !== isLiveMode,
-        currentTimeRange: { start: timeRange.start.toISOString(), end: timeRange.end.toISOString() },
-        pendingTimeRange: { start: pendingTimeRange.start.toISOString(), end: pendingTimeRange.end.toISOString() },
-        timeRangeChanged: !pendingLiveMode && (
-          pendingTimeRange.start.getTime() !== timeRange.start.getTime() ||
-          pendingTimeRange.end.getTime() !== timeRange.end.getTime()
-        )
-      });
+
     }
   }, [hasPendingChanges, showApplyButtons, isMobileDevice, isLiveMode, pendingLiveMode, timeRange, pendingTimeRange]);
 

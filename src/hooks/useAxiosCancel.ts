@@ -10,7 +10,6 @@ export const useAxiosCancel = () => {
   useEffect(() => cancelPendingRequests, []);
 };
 
-
 // Use in any page that fires background requests: example below:
 
 // export default function SensorListPage() {

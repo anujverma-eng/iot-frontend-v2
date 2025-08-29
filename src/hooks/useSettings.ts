@@ -50,12 +50,12 @@ export const useSettings = () => {
       // Then try to fetch from backend
       try {
         await dispatch(fetchSettingsFromBackend()).unwrap();
-        console.log('[useSettings] Settings loaded from backend successfully');
+
       } catch (error: any) {
         if (error?.type === 'SETTINGS_NOT_FOUND') {
-          console.log('[useSettings] No backend settings found, will create on first update');
+
         } else {
-          console.warn('[useSettings] Failed to load from backend, using localStorage fallback:', error?.message || error);
+
         }
       }
     };
@@ -70,9 +70,9 @@ export const useSettings = () => {
     async (settingsToSync: AppSettings) => {
       try {
         await dispatch(saveSettingsToBackend(settingsToSync)).unwrap();
-        console.log('[useSettings] Settings synced to backend successfully');
+
       } catch (error) {
-        console.error('[useSettings] Failed to sync settings to backend:', error);
+
         // Don't throw error - keep localStorage as fallback
       }
     },
@@ -156,9 +156,9 @@ export const useSettings = () => {
   const refreshFromBackend = useCallback(async () => {
     try {
       await dispatch(fetchSettingsFromBackend()).unwrap();
-      console.log('[useSettings] Settings refreshed from backend');
+
     } catch (error) {
-      console.error('[useSettings] Failed to refresh settings from backend:', error);
+
       throw error;
     }
   }, [dispatch]);

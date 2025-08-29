@@ -19,7 +19,7 @@ interface AuthState {
 const initial: AuthState = { status: "idle", user: null, pendingEmail: null, error: null };
 
 const setSession = (s: AuthState, p: { access: string; refresh: string; exp: number; id: string }) => {
-  console.log({ session: s });
+
   s.status = "auth";
   s.user = { email: JSON.parse(atob(p.id.split(".")[1])).email ?? "user", role: extractRole(p.id), orgId: null };
   tokenManager.save({ accessToken: p.access, refreshToken: p.refresh, expiresAt: p.exp, idToken: p.id });

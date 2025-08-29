@@ -80,20 +80,11 @@ interface AnalyticsParams {
 }
 
 export const AnalyticsPage: React.FC = () => {
-  console.log("[AnalyticsPage] 🚀 Component render started at:", new Date().toISOString());
 
   const navigate = useNavigate();
   const { sensorId } = useParams<AnalyticsParams>();
   const location = useLocation();
   const isSoloMode = new URLSearchParams(location.search).get("solo") === "true";
-
-  console.log("[AnalyticsPage] 🎯 Initial params and flags:", {
-    sensorId,
-    isSoloMode,
-    pathname: location.pathname,
-    search: location.search,
-    timestamp: new Date().toISOString(),
-  });
 
   // Use responsive breakpoints
   const {
@@ -161,7 +152,7 @@ export const AnalyticsPage: React.FC = () => {
         padding: "18px",
       };
     }
-    console.log("..styles", styles);
+
     return styles;
   }, [isMobileLandscapeShort, isMobile, isShortHeight]);
 
@@ -198,13 +189,13 @@ export const AnalyticsPage: React.FC = () => {
   React.useEffect(() => {
     if (Math.random() < 0.02) {
       // Log only 2% of the time
-      console.log(`[Analytics] DEBUG: Sensors data changed, count: ${sensors.length}`);
+
     }
   }, [sensors]);
 
   React.useEffect(() => {
     if (stats) {
-      console.log(`[Analytics] DEBUG: Stats updated - Live: ${stats.liveSensors}, Offline: ${stats.offlineSensors}`);
+
     }
   }, [stats]);
 
@@ -275,22 +266,13 @@ export const AnalyticsPage: React.FC = () => {
   // Detect if we're filtering for offline sensors
   const isOfflineSensorFilter = filters.status === "offline";
 
-  console.log("[Analytics] 🔄 Hook setup:", {
-    selectedSensor,
-    isOfflineSensorFilter,
-    filtersStatus: filters.status,
-    hookFunction: typeof useLiveDataReadiness,
-    hookExists: !!useLiveDataReadiness,
-    timestamp: new Date().toISOString(),
-  });
-
   let liveDataReadiness;
   try {
-    console.log("[Analytics] 🎯 Attempting to call useLiveDataReadiness hook...");
+
     liveDataReadiness = useLiveDataReadiness(selectedSensor, isOfflineSensorFilter);
-    console.log("[Analytics] ✅ Hook call successful!");
+
   } catch (error) {
-    console.error("[Analytics] ❌ Hook call failed:", error);
+
     // Fallback values
     liveDataReadiness = {
       shouldWaitForLiveData: false,
@@ -300,58 +282,15 @@ export const AnalyticsPage: React.FC = () => {
     };
   }
 
-  console.log("[Analytics] 📊 Hook results:", {
-    selectedSensor,
-    liveDataReadiness,
-    timestamp: new Date().toISOString(),
-  });
-
   // Enhanced loading state that considers live data readiness
   const effectiveIsLoading = isLoadingData || liveDataReadiness.shouldShowLoading;
-
-  console.log("[Analytics] 🎯 Loading states:", {
-    isLoadingData,
-    hookShouldShowLoading: liveDataReadiness.shouldShowLoading,
-    effectiveIsLoading,
-    timestamp: new Date().toISOString(),
-  });
 
   // Track if this is the initial load for the current sensor to prevent duplicate fetches
   const initialLoadRef = React.useRef<string | null>(null);
 
   // Comprehensive state tracking effect (with proper dependencies to avoid render loop)
   React.useEffect(() => {
-    console.log("[Analytics] 🔍 COMPREHENSIVE STATE TRACKING:", {
-      // Core states
-      selectedSensor,
-      isLiveMode,
-      effectiveIsLoading,
-      isLoadingData,
 
-      // Hook states
-      liveDataReadiness: {
-        shouldWaitForLiveData: liveDataReadiness.shouldWaitForLiveData,
-        shouldShowLoading: liveDataReadiness.shouldShowLoading,
-        shouldFetchApiData: liveDataReadiness.shouldFetchApiData,
-        hasReceivedLiveData: liveDataReadiness.hasReceivedLiveData,
-      },
-
-      // Data states
-      hasTelemetryData: selectedSensor ? !!telemetryData[selectedSensor] : false,
-      telemetryDataKeys: Object.keys(telemetryData),
-      hasChartConfig: !!chartConfig,
-
-      // Filter states
-      isOfflineSensorFilter,
-      filtersStatus: filters.status,
-
-      // UI states
-      isMobile,
-      isSoloMode,
-      isConnecting,
-
-      timestamp: new Date().toISOString(),
-    });
   }, [
     selectedSensor,
     isLiveMode,
@@ -402,16 +341,14 @@ export const AnalyticsPage: React.FC = () => {
       })(),
     };
 
-    console.log("[Analytics] Comprehensive Device Debug:", debugInfo);
-
     // iPhone 14 Pro specific debugging
     if (window.innerWidth === 844 && window.innerHeight === 390) {
-      console.log("[Analytics] iPhone 14 Pro Landscape Detected - Special handling active");
+
     }
 
     // Pixel phone specific debugging
     if (window.innerHeight < 450 && window.innerWidth > 800 && window.innerWidth < 950) {
-      console.log("[Analytics] Pixel Landscape Detected - Special handling active");
+
     }
   }, [
     isMobile,
@@ -594,38 +531,19 @@ export const AnalyticsPage: React.FC = () => {
   );
 
   React.useEffect(() => {
-    console.log("[Analytics] 🎯 URL sensor effect triggered with:", {
-      sensorId,
-      selectedSensor,
-      sensorCount: sensorIds.length,
-      hasFilteredSensors: !!filteredSensors?.length,
-      timestamp: new Date().toISOString(),
-    });
 
     if (sensorId) {
-      console.log("[Analytics] 🔗 Setting sensor from URL parameter:", {
-        sensorId,
-        timestamp: new Date().toISOString(),
-      });
+
       dispatch(fetchSensorById(sensorId));
       setSelectedSensor(sensorId);
     } else if (sensorIds.length > 0 && !selectedSensor) {
       const firstSensorId = sensorIds[0];
-      console.log("[Analytics] 🎲 Auto-selecting first sensor:", {
-        firstSensorId,
-        availableSensors: sensorIds.length,
-        timestamp: new Date().toISOString(),
-      });
+
       dispatch(fetchSensorById(firstSensorId));
       setSelectedSensor(firstSensorId);
       navigate(`/dashboard/sensors/${firstSensorId}`, { replace: true });
     } else {
-      console.log("[Analytics] ❌ No sensor selection action taken:", {
-        hasSensorId: !!sensorId,
-        sensorCount: sensorIds.length,
-        hasSelectedSensor: !!selectedSensor,
-        timestamp: new Date().toISOString(),
-      });
+
     }
   }, [sensorId, sensorIds.length, sensorIds.join(","), selectedSensor, dispatch, navigate]);
 
@@ -633,18 +551,6 @@ export const AnalyticsPage: React.FC = () => {
   const isInitiallyLoading =
     loading || (!selectedSensor && (sensorIds.length > 0 || sensors.length > 0) && !isCompareMode);
   const enhancedEffectiveIsLoading = effectiveIsLoading || isInitiallyLoading;
-
-  console.log("[Analytics] 🎯 Enhanced loading states:", {
-    originalEffectiveIsLoading: effectiveIsLoading,
-    isInitiallyLoading,
-    sensorsLoading: loading,
-    sensorsCount: sensors.length,
-    sensorIdsCount: sensorIds.length,
-    hasSelectedSensor: !!selectedSensor,
-    isCompareMode,
-    finalEffectiveIsLoading: enhancedEffectiveIsLoading,
-    timestamp: new Date().toISOString(),
-  });
 
   // Note: Live mode cleanup is now handled centrally by the live data system
   // No need for page-specific cleanup
@@ -681,24 +587,16 @@ export const AnalyticsPage: React.FC = () => {
   // Mark initial load as completed
   React.useEffect(() => {
     if (!hasInitialLoadCompleted) {
-      console.log("[Analytics] ✅ Initial load completed");
+
       setHasInitialLoadCompleted(true);
     }
   }, [hasInitialLoadCompleted]);
 
   // Optimized telemetry fetching - always fetch API data, but control display
   React.useEffect(() => {
-    console.log("[Analytics] 🚀 Data fetching effect triggered:", {
-      selectedSensor,
-      hasSelectedSensor: !!selectedSensor,
-      timeRangeKey,
-      lastRequest: lastTimeRangeRequestRef.current,
-      hasInitialLoadCompleted,
-      timestamp: new Date().toISOString(),
-    });
 
     if (!selectedSensor) {
-      console.log("[Analytics] ❌ No selected sensor, skipping fetch");
+
       return;
     }
 
@@ -707,11 +605,7 @@ export const AnalyticsPage: React.FC = () => {
 
     // Don't make duplicate requests
     if (lastTimeRangeRequestRef.current === currentRequest) {
-      console.log("[Analytics] 🔄 Duplicate request prevented:", {
-        currentRequest,
-        lastRequest: lastTimeRangeRequestRef.current,
-        timestamp: new Date().toISOString(),
-      });
+
       return;
     }
 
@@ -719,17 +613,10 @@ export const AnalyticsPage: React.FC = () => {
     // This prevents fetching full historical data when live mode will be enabled
     const isInitialLoad = lastTimeRangeRequestRef.current === "";
     if (isInitialLoad && !isLiveMode && !isConnecting) {
-      console.log("[Analytics] ⏱️ Initial load detected - delaying fetch to allow live connection:", {
-        isInitialLoad,
-        isLiveMode,
-        isConnecting,
-        willRetryAfter: "500ms",
-        timestamp: new Date().toISOString(),
-      });
 
       // Give live connection 500ms to start, then retry this effect
       setTimeout(() => {
-        console.log("[Analytics] 🔄 Initial load delay completed, triggering re-fetch");
+
         // Trigger the effect again by updating a dummy state or using a different approach
         // Since we can't directly trigger the effect, we'll just proceed with the fetch
         // The live connection should have started by now
@@ -737,50 +624,14 @@ export const AnalyticsPage: React.FC = () => {
       return;
     }
 
-    console.log("[Analytics] 📊 Data fetch conditions:", {
-      sensor: selectedSensor,
-      liveDataReadiness: {
-        shouldFetchApiData: liveDataReadiness.shouldFetchApiData,
-        shouldShowLoading: liveDataReadiness.shouldShowLoading,
-        shouldWaitForLiveData: liveDataReadiness.shouldWaitForLiveData,
-        hasReceivedLiveData: liveDataReadiness.hasReceivedLiveData,
-      },
-      globalStates: {
-        isLiveMode,
-        isOfflineSensorFilter,
-        isLoadingData,
-      },
-      timestamp: new Date().toISOString(),
-    });
-
     // Always update the request ref to prevent duplicate attempts
     lastTimeRangeRequestRef.current = currentRequest;
-    console.log("[Analytics] 📝 Request ref updated to:", currentRequest);
 
     // Check if we should fetch API data based on live data readiness
     if (!liveDataReadiness.shouldFetchApiData) {
-      console.log("[Analytics] 🚫 SKIPPING API fetch - waiting for live data:", {
-        shouldFetchApiData: liveDataReadiness.shouldFetchApiData,
-        shouldShowLoading: liveDataReadiness.shouldShowLoading,
-        shouldWaitForLiveData: liveDataReadiness.shouldWaitForLiveData,
-        reason: "Live data readiness hook says don't fetch API data yet",
-        timestamp: new Date().toISOString(),
-      });
+
       return;
     }
-
-    console.log("[Analytics] 🔥 FETCHING API data for sensor:", {
-      selectedSensor,
-      timeRange: {
-        start: filters.timeRange.start.toISOString(),
-        end: filters.timeRange.end.toISOString(),
-      },
-      hookPermission: {
-        shouldFetchApiData: liveDataReadiness.shouldFetchApiData,
-        shouldShowLoading: liveDataReadiness.shouldShowLoading,
-      },
-      timestamp: new Date().toISOString(),
-    });
 
     // Determine if we should fetch limited data or full time range
     const isLiveModeOrConnecting = isLiveMode || isConnecting;
@@ -794,13 +645,6 @@ export const AnalyticsPage: React.FC = () => {
       };
       timeRangeToUse.end.setHours(23, 59, 59, 999);
 
-      console.log("[Analytics] 📅 Using selected time range for INITIAL LOAD:", {
-        timeRange: {
-          start: timeRangeToUse.start.toISOString(),
-          end: timeRangeToUse.end.toISOString(),
-        },
-        isInitialLoad: true,
-      });
     } else if (isLiveModeOrConnecting) {
       // For live mode, use the selected time range - respecting user's filter choice
       timeRangeToUse = {
@@ -809,15 +653,6 @@ export const AnalyticsPage: React.FC = () => {
       };
       timeRangeToUse.end.setHours(23, 59, 59, 999);
 
-      console.log("[Analytics] � Using LIMITED time range for live mode:", {
-        reason: "Using user's selected time range",
-        timeRange: {
-          start: timeRangeToUse.start.toISOString(),
-          end: timeRangeToUse.end.toISOString(),
-        },
-        isLiveMode,
-        isConnecting,
-      });
     } else {
       // For normal mode, use the full selected time range
       timeRangeToUse = {
@@ -826,12 +661,6 @@ export const AnalyticsPage: React.FC = () => {
       };
       timeRangeToUse.end.setHours(23, 59, 59, 999);
 
-      console.log("[Analytics] 📅 Using FULL time range for normal mode:", {
-        timeRange: {
-          start: timeRangeToUse.start.toISOString(),
-          end: timeRangeToUse.end.toISOString(),
-        },
-      });
     }
 
     fetchOptimizedData({
@@ -842,7 +671,6 @@ export const AnalyticsPage: React.FC = () => {
       },
     });
 
-    console.log("[Analytics] ✅ API fetch initiated");
   }, [selectedSensor, timeRangeKey, isOfflineSensorFilter, isLiveMode, isConnecting, hasInitialLoadCompleted]);
 
   const sameRange = (a: { start: Date; end: Date }, b: { start: Date; end: Date }) =>
@@ -871,17 +699,11 @@ export const AnalyticsPage: React.FC = () => {
   }, [cancelPendingRequests]);
 
   const handleSensorSelect = (id: string) => {
-    console.log("[Analytics] 🎯 Sensor selection initiated:", {
-      newSensorId: id,
-      previousSensor: selectedSensor,
-      timestamp: new Date().toISOString(),
-    });
 
     // No need to cancel - optimized fetch will handle deduplication
     setSelectedSensor(id);
     navigate(`/dashboard/sensors/${id}`);
 
-    console.log("[Analytics] ✅ Sensor selection completed, navigation triggered");
   };
 
   const handleSearchChange = (txt: string) => setSearchQuery(txt);
@@ -926,11 +748,6 @@ export const AnalyticsPage: React.FC = () => {
 
       // 2. Update Redux state with the sanitized time range
       dispatch(setTimeRange(timeRange));
-
-      console.log("[Analytics] Fetching telemetry with time range:", {
-        start: timeRange.start.toISOString(),
-        end: timeRange.end.toISOString(),
-      });
 
       // 3. Force-fetch data with the new time range
       if (selectedSensor) {
@@ -1094,7 +911,7 @@ export const AnalyticsPage: React.FC = () => {
         description: "Sensor data has been downloaded as CSV",
       });
     } catch (error) {
-      console.error("Error downloading CSV:", error);
+
       addToast({
         title: "Download Failed",
         description: "Failed to download CSV data",
@@ -1171,7 +988,7 @@ export const AnalyticsPage: React.FC = () => {
         description: `Sent ping command to ${gatewayId}`,
       });
     } catch (error) {
-      console.error("[Analytics] Test command error:", error);
+
       addToast({
         title: "Command Error",
         description: error instanceof Error ? error.message : "Failed to send test command",
@@ -1181,18 +998,9 @@ export const AnalyticsPage: React.FC = () => {
 
   // Prepare chart config for selected sensor with live data readiness control
   const chartConfig: ChartConfig | null = React.useMemo(() => {
-    console.log("[Analytics] 📊 Chart config computation started:", {
-      selectedSensor,
-      hasTelemetryData: selectedSensor ? !!telemetryData[selectedSensor] : false,
-      liveDataReadiness,
-      timestamp: new Date().toISOString(),
-    });
 
     if (!selectedSensor || !telemetryData[selectedSensor]) {
-      console.log("[Analytics] ❌ No chart config - missing sensor or telemetry data:", {
-        hasSelectedSensor: !!selectedSensor,
-        hasTelemetryData: selectedSensor ? !!telemetryData[selectedSensor] : false,
-      });
+
       return null;
     }
 
@@ -1213,24 +1021,6 @@ export const AnalyticsPage: React.FC = () => {
       series: displaySeries,
       color: chartColors[0],
     };
-
-    console.log("[Analytics] 📈 Chart config created:", {
-      sensorId: selectedSensor,
-      totalDataPoints: currentSeries.length,
-      displayedDataPoints: displaySeries.length,
-      wasLimited: displaySeries.length < currentSeries.length,
-      isLiveMode,
-      maxLiveReadings,
-      limitApplied: shouldLimitToLatest ? `Live mode - limited to ${maxLiveReadings}` : "Offline mode - show all",
-      firstPoint: displaySeries[0],
-      lastPoint: displaySeries[displaySeries.length - 1],
-      nonNullCount: displaySeries.filter((point) => point && point.value !== null && point.value !== undefined).length,
-      isLive: sensorData.isLive,
-      shouldShowLoading: liveDataReadiness.shouldShowLoading,
-      type: sensorData.type,
-      unit: sensorData.unit,
-      timestamp: new Date().toISOString(),
-    });
 
     return chartConfigResult;
   }, [
@@ -1696,25 +1486,16 @@ export const AnalyticsPage: React.FC = () => {
                   ) : enhancedEffectiveIsLoading ? (
                     <div className="flex items-center justify-center h-full">
                       {(() => {
-                        console.log("[Analytics] 🔄 Loading state render decision:", {
-                          enhancedEffectiveIsLoading,
-                          originalEffectiveIsLoading: effectiveIsLoading,
-                          isInitiallyLoading,
-                          shouldWaitForLiveData: liveDataReadiness.shouldWaitForLiveData,
-                          hasCurrentSensor: !!currentSensor,
-                          sensorName: currentSensor?.displayName || currentSensor?.name || currentSensor?.mac,
-                          timestamp: new Date().toISOString(),
-                        });
 
                         if (isLiveMode && liveDataReadiness.shouldWaitForLiveData) {
-                          console.log("[Analytics] 🎭 Rendering LiveDataLoading component");
+
                           return (
                             <LiveDataLoading
                               sensorName={currentSensor?.displayName || currentSensor?.name || currentSensor?.mac}
                             />
                           );
                         } else {
-                          console.log("[Analytics] 🌀 Rendering regular Spinner");
+
                           return <Spinner size={isMobile ? "md" : "lg"} />;
                         }
                       })()}
@@ -1722,15 +1503,7 @@ export const AnalyticsPage: React.FC = () => {
                   ) : chartConfig && currentSensor ? (
                     <div className="relative w-full h-full">
                       {(() => {
-                        console.log("[Analytics] 📊 Chart rendering decision:", {
-                          hasChartConfig: !!chartConfig,
-                          hasCurrentSensor: !!currentSensor,
-                          effectiveIsLoading,
-                          sensorId: currentSensor?._id,
-                          chartType: chartConfig?.type,
-                          seriesLength: chartConfig?.series?.length,
-                          timestamp: new Date().toISOString(),
-                        });
+
                         return null; // Just for logging, return null
                       })()}
 
@@ -1755,13 +1528,7 @@ export const AnalyticsPage: React.FC = () => {
                           onDisplayNameChange={handleDisplayNameChange}
                           onOpenInNewTab={!isSoloMode ? handleOpenInNewTab : undefined}
                           isLoading={(() => {
-                            console.log("[Analytics] 📊 ChartContainer isLoading prop:", {
-                              effectiveIsLoading,
-                              isLoadingData,
-                              hookShouldShowLoading: liveDataReadiness.shouldShowLoading,
-                              sensorId: currentSensor._id,
-                              timestamp: new Date().toISOString(),
-                            });
+
                             return effectiveIsLoading;
                           })()}
                           timeRange={filters.timeRange}
@@ -1828,16 +1595,6 @@ export const AnalyticsPage: React.FC = () => {
                         // but no sensor has been auto-selected yet
                         const isInitialLoadingState =
                           loading || (sensors.length > 0 && !currentSensor && !hasInitialLoadCompleted);
-
-                        console.log("[Analytics] 🎯 Final fallback decision:", {
-                          isInitialLoadingState,
-                          loading,
-                          sensorsLength: sensors.length,
-                          hasCurrentSensor: !!currentSensor,
-                          hasInitialLoadCompleted,
-                          shouldShowSpinner: isInitialLoadingState,
-                          timestamp: new Date().toISOString(),
-                        });
 
                         if (isInitialLoadingState) {
                           return <Spinner size={isMobile ? "md" : "lg"} />;
@@ -2120,13 +1877,6 @@ export const AnalyticsPage: React.FC = () => {
 
                               const startJs = range.start.toDate(getLocalTimeZone());
                               const endJs = range.end.toDate(getLocalTimeZone());
-
-                              console.log("[Analytics] Mobile date range selected:", {
-                                start: startJs,
-                                end: endJs,
-                                startISO: startJs.toISOString(),
-                                endISO: endJs.toISOString(),
-                              });
 
                               if (isMobile) {
                                 setPendingFilters((prev) => ({

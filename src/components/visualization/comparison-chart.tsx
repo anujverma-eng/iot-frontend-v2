@@ -76,8 +76,7 @@ export const ComparisonChart: React.FC<ComparisonChartProps> = ({
              index === mergedData.length - 1 || 
              index % step === 0;
     });
-    
-    console.log(`Optimized comparison data: ${mergedData.length} → ${sampled.length} points`);
+
     return sampled;
   }, [mergedData]);
 

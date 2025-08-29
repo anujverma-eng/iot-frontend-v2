@@ -34,27 +34,23 @@ export const LiveReadingsSelector: React.FC<LiveReadingsSelectorProps> = ({
   const [, forceUpdate] = React.useReducer(x => x + 1, 0);
   
   React.useEffect(() => {
-    console.log('🔄 LiveReadingsSelector - maxLiveReadings updated to:', currentMaxReadings);
+
     forceUpdate();
   }, [currentMaxReadings]);
 
-  console.log('🎨 LiveReadingsSelector render - currentMaxReadings:', currentMaxReadings, 'isLiveMode:', isLiveMode);
-
   const handleMaxReadingsChange = (key: string | number) => {
     const newValue = typeof key === 'string' ? parseInt(key, 10) : key;
-    console.log('🔄 Dropdown change - Current:', currentMaxReadings, '→ New:', newValue);
-    
+
     if (isNaN(newValue) || newValue <= 0) {
-      console.error('❌ Invalid value:', newValue);
+
       return;
     }
     
     if (newValue === currentMaxReadings) {
-      console.log('⏭️ Value unchanged, skipping');
+
       return;
     }
-    
-    console.log('📤 Dispatching updateMaxLiveReadings:', newValue);
+
     dispatch(updateMaxLiveReadings(newValue));
   };
 
@@ -70,9 +66,6 @@ export const LiveReadingsSelector: React.FC<LiveReadingsSelectorProps> = ({
   }
 
   const currentOption = getCurrentOption();
-  
-  console.log('🎯 Current option calculated:', currentOption);
-  console.log('🔑 Selected keys for dropdown:', new Set([String(currentMaxReadings)]));
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>
@@ -100,7 +93,7 @@ export const LiveReadingsSelector: React.FC<LiveReadingsSelectorProps> = ({
         <DropdownMenu 
           aria-label="Live readings window size"
           onAction={(key) => {
-            console.log('🎯 DropdownMenu onAction triggered with key:', key);
+
             handleMaxReadingsChange(key);
           }}
           selectedKeys={new Set([String(currentMaxReadings)])}

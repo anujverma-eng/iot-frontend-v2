@@ -13,7 +13,7 @@ export class GatewayResolver {
   private static pendingRequests: Map<string, Promise<string[]>> = new Map();
 
   static {
-    console.log('[GatewayResolver] Class initialized with cache duration:', this.CACHE_DURATION, 'ms');
+
   }
 
   /**
@@ -22,40 +22,36 @@ export class GatewayResolver {
    * @returns Promise<string[]> Array of unique gateway IDs
    */
   static async getGatewayIdsForSensors(sensors: Sensor[]): Promise<string[]> {
-    console.log('[GatewayResolver] getGatewayIdsForSensors called with', sensors.length, 'sensors');
-    console.log('[GatewayResolver] Sensor details:', sensors.map(s => ({ id: s.id, mac: s.mac, lastSeenBy: s.lastSeenBy })));
-    
+
     const gatewayIds = new Set<string>();
 
     // Extract gateway IDs from sensors' lastSeenBy field
     sensors.forEach(sensor => {
       if (sensor.lastSeenBy && Array.isArray(sensor.lastSeenBy)) {
-        console.log('[GatewayResolver] Found lastSeenBy for sensor', sensor.mac, ':', sensor.lastSeenBy);
+
         sensor.lastSeenBy.forEach(gatewayId => {
           if (gatewayId) {
             gatewayIds.add(gatewayId);
-            console.log('[GatewayResolver] Added gateway ID:', gatewayId);
+
           }
         });
       } else {
-        console.log('[GatewayResolver] No lastSeenBy found for sensor:', sensor.mac);
+
       }
     });
 
-    console.log('[GatewayResolver] Initial gateway IDs from lastSeenBy:', Array.from(gatewayIds));
-
     // If no gateway IDs found in lastSeenBy, try to resolve from sensor MACs
     if (gatewayIds.size === 0) {
-      console.warn('[GatewayResolver] No gateway IDs found in lastSeenBy, attempting resolution from sensor MACs');
+
       const resolvedIds = await this.resolveGatewayIdsFromSensorMacs(
         sensors.map(s => s.mac)
       );
-      console.log('[GatewayResolver] Resolved IDs from sensor MACs:', resolvedIds);
+
       resolvedIds.forEach(id => gatewayIds.add(id));
     }
 
     const result = Array.from(gatewayIds);
-    console.log('[GatewayResolver] Final resolved gateway IDs:', result);
+
     return result;
   }
 
@@ -73,30 +69,27 @@ export class GatewayResolver {
    * This is a fallback when lastSeenBy is not available
    */
   private static async resolveGatewayIdsFromSensorMacs(sensorMacs: string[]): Promise<string[]> {
-    console.log('[GatewayResolver] resolveGatewayIdsFromSensorMacs called with MACs:', sensorMacs);
-    
+
     const cacheKey = sensorMacs.sort().join(',');
-    console.log('[GatewayResolver] Cache key:', cacheKey);
-    
+
     // Check if there's already a pending request for the same sensors
     if (this.pendingRequests.has(cacheKey)) {
-      console.log('[GatewayResolver] Using pending request for sensor MACs');
+
       return this.pendingRequests.get(cacheKey)!;
     }
 
     // Create the promise and cache it to prevent duplicate requests
     const promise = this._resolveGatewayIdsFromSensorMacs(sensorMacs);
     this.pendingRequests.set(cacheKey, promise);
-    console.log('[GatewayResolver] Created new pending request for cache key:', cacheKey);
-    
+
     try {
       const result = await promise;
-      console.log('[GatewayResolver] Pending request completed with result:', result);
+
       return result;
     } finally {
       // Clean up the pending request
       this.pendingRequests.delete(cacheKey);
-      console.log('[GatewayResolver] Cleaned up pending request for cache key:', cacheKey);
+
     }
   }
 
@@ -105,31 +98,28 @@ export class GatewayResolver {
    */
   private static async _resolveGatewayIdsFromSensorMacs(sensorMacs: string[]): Promise<string[]> {
     try {
-      console.log('[GatewayResolver] _resolveGatewayIdsFromSensorMacs starting with MACs:', sensorMacs);
-      
+
       // Check cache first
       if (this.isCacheValid()) {
-        console.log('[GatewayResolver] Cache is valid, checking for cached entries');
+
         const cachedIds = sensorMacs
           .map(mac => this.gatewayCache.get(mac))
           .filter(Boolean) as string[];
         
         if (cachedIds.length > 0) {
-          console.log('[GatewayResolver] Using cached gateway IDs:', cachedIds);
+
           return [...new Set(cachedIds)];
         } else {
-          console.log('[GatewayResolver] No cached entries found for the requested MACs');
+
         }
       } else {
-        console.log('[GatewayResolver] Cache is invalid or expired');
+
       }
 
-      console.log('[GatewayResolver] Fetching all gateways from API...');
-      console.log('[GatewayResolver] Fetching gateways to resolve sensor mappings');
       const response = await GatewayService.getGateways(1, 50); // Reduced from 100 to 50 for faster response
       
       if (!response.data?.data || !Array.isArray(response.data.data)) {
-        console.error('[GatewayResolver] Invalid gateway response format');
+
         return [];
       }
 
@@ -158,9 +148,9 @@ export class GatewayResolver {
         } catch (error: any) {
           // Log warning but don't fail the entire operation
           if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
-            console.warn(`[GatewayResolver] Timeout fetching sensors for gateway ${gateway._id}, skipping`);
+
           } else {
-            console.warn(`[GatewayResolver] Failed to fetch sensors for gateway ${gateway._id}:`, error.message);
+
           }
         }
       }
@@ -169,11 +159,11 @@ export class GatewayResolver {
       this.cacheTimestamp = Date.now();
 
       const result = Array.from(gatewayIds);
-      console.log('[GatewayResolver] Resolved gateway IDs from sensor MACs:', result);
+
       return result;
 
     } catch (error) {
-      console.error('[GatewayResolver] Failed to resolve gateway IDs:', error);
+
       return [];
     }
   }
