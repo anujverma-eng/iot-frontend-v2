@@ -54,6 +54,8 @@ import { LiveReadingsSelector } from "./live-readings-selector";
 import { TableView } from "./table-view";
 import { TimeRangeSelector } from "./time-range-selector";
 import { useBreakpoints } from "../../hooks/use-media-query";
+import { useLiveModeTransition } from "../../hooks/useLiveModeTransition";
+import { useLiveDataReadiness } from "../../hooks/useLiveDataReadiness";
 
 // Fix the interface to satisfy the Record<string, string | undefined> constraint
 interface SoloViewParams {
@@ -102,6 +104,39 @@ export const SoloView: React.FC = () => {
 
   // Use optimized data fetch hook for efficient live data updates
   const { fetchData: fetchOptimizedData, cancelPendingRequests } = useOptimizedDataFetch();
+
+  // Add live mode transition detection for automatic data refresh
+  useLiveModeTransition(
+    // onLiveToOffline - refresh data when switching to offline mode
+    () => {
+
+      // Clear the request cache to force fresh data fetch
+      lastTimeRangeRequestRef.current = "";
+      
+      // Mark that user has made a conscious choice (switching to offline)
+      setHasUserChangedTimeRange(true);
+      
+      if (sensorId) {
+
+        // Force re-fetch data with current time range when switching to offline
+        fetchOptimizedData({
+          sensorIds: [sensorId],
+          timeRange: {
+            start: filters.timeRange.start.toISOString(),
+            end: filters.timeRange.end.toISOString(),
+          },
+        }, true); // Force immediate execution
+      }
+    },
+    // onOfflineToLive - let live connection handle data when switching to live
+    () => {
+
+      // Don't immediately fetch API data - let live connection establish first
+      // The live data readiness hook will manage the transition
+      // But clear the cache to allow fresh requests when needed
+      lastTimeRangeRequestRef.current = "";
+    }
+  );
 
   // Cleanup on unmount - cancel any pending data requests only
   // Live mode cleanup is handled centrally, no need for component-specific cleanup
@@ -204,8 +239,61 @@ export const SoloView: React.FC = () => {
     return mappedSensors.find((s) => s._id === sensorId);
   }, [mappedSensors, sensorId]);
 
-  // Add state for initial loading
+  // Add state for initial loading and request tracking
   const [initialLoading, _setInitialLoading] = React.useState(true);
+  const [hasInitialLoadCompleted, setHasInitialLoadCompleted] = React.useState(false);
+  const [isInitialPageLoad, setIsInitialPageLoad] = React.useState(true);
+  const [hasUserChangedTimeRange, setHasUserChangedTimeRange] = React.useState(false);
+  const lastTimeRangeRequestRef = React.useRef<string>("");
+
+  // Track when this is truly the first page load vs subsequent navigation
+  React.useEffect(() => {
+    // Mark that we've completed the initial page load setup
+    const timer = setTimeout(() => {
+      setIsInitialPageLoad(false);
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Mark initial load as completed
+  React.useEffect(() => {
+    if (!hasInitialLoadCompleted) {
+
+      setHasInitialLoadCompleted(true);
+    }
+  }, [hasInitialLoadCompleted]);
+
+  // Track when user manually changes time range
+  React.useEffect(() => {
+    // If time range changes and we're past initial load, mark as user change
+    if (!isInitialPageLoad && hasInitialLoadCompleted) {
+      setHasUserChangedTimeRange(true);
+
+    }
+  }, [filters.timeRange, isInitialPageLoad, hasInitialLoadCompleted]);
+
+  // Add live data readiness to prevent flickering (similar to analytics page)
+  // Detect if we're filtering for offline sensors
+  const isOfflineSensorFilter = filters.status === "offline";
+
+  let liveDataReadiness;
+  try {
+    liveDataReadiness = useLiveDataReadiness(sensorId || null, isOfflineSensorFilter);
+
+  } catch (error) {
+
+    // Fallback values
+    liveDataReadiness = {
+      shouldWaitForLiveData: false,
+      shouldShowLoading: false,
+      shouldFetchApiData: true,
+      hasReceivedLiveData: false,
+    };
+  }
+
+  // Enhanced loading state that considers live data readiness
+  const effectiveIsLoading = isLoadingData || liveDataReadiness.shouldShowLoading;
 
   // Fetch sensors on component mount - ONLY ONCE
   React.useEffect(() => {
@@ -291,21 +379,92 @@ export const SoloView: React.FC = () => {
     }
   }, [sensorId, filteredIds, sensorsLoaded, selectedSensorId, dispatch, navigate]);
 
-  // Fetch telemetry data when selected sensor or time range changes - FIXED DEPENDENCIES
+  // Enhanced telemetry data fetching with proper initial load and live mode handling
   React.useEffect(() => {
 
-    if (initialLoading) return; // wait until list call finished
-    if (sensorId && !initialLoading) {
-      // Use optimized data fetch for better performance and live mode support
-      fetchOptimizedData({
-        sensorIds: [sensorId],
-        timeRange: {
-          start: filters.timeRange.start.toISOString(),
-          end: filters.timeRange.end.toISOString(),
-        },
-      });
+    if (initialLoading) {
+
+      return; // wait until list call finished
     }
-  }, [sensorId, filters.timeRange.start, filters.timeRange.end, initialLoading, fetchOptimizedData]);
+    
+    if (!sensorId) {
+
+      return;
+    }
+
+    // Create a request ID based on current parameters
+    const timeRangeKey = `${filters.timeRange.start.getTime()}-${filters.timeRange.end.getTime()}`;
+    const currentRequest = `${sensorId}-${timeRangeKey}`;
+
+    // Don't make duplicate requests
+    if (lastTimeRangeRequestRef.current === currentRequest) {
+
+      return;
+    }
+
+    // Detect initial page load scenario
+    const isInitialLoad = lastTimeRangeRequestRef.current === "";
+    
+    // For initial page load, wait for live connection to attempt before fetching full data
+    if (isInitialLoad && isInitialPageLoad && !isLiveMode && !isConnecting && !hasInitialLoadCompleted) {
+
+      // Give live connection 1.5 seconds to start, then retry this effect
+      setTimeout(() => {
+
+        setHasInitialLoadCompleted(true);
+      }, 1500);
+      return;
+    }
+
+    // Always update the request ref to prevent duplicate attempts
+    lastTimeRangeRequestRef.current = currentRequest;
+
+    // Check if we should fetch API data based on live data readiness
+    if (!liveDataReadiness.shouldFetchApiData) {
+
+      return;
+    }
+
+    // Determine the appropriate time range based on the scenario
+    let timeRangeToUse;
+    let shouldLimitToRecentData = false;
+
+    if (isInitialLoad && (isLiveMode || isConnecting) && !hasUserChangedTimeRange) {
+      // Scenario 1: Initial page load with live mode starting - show only recent 100 readings worth of data
+
+      const now = new Date();
+      const recentStart = new Date(now.getTime() - (2 * 60 * 60 * 1000)); // Last 2 hours
+      
+      timeRangeToUse = {
+        start: recentStart.toISOString(),
+        end: now.toISOString(),
+      };
+      shouldLimitToRecentData = true;
+      
+    } else if (!isLiveMode && !isConnecting) {
+      // Scenario 2: Offline mode or switching from live to offline - use full selected time range
+
+      timeRangeToUse = {
+        start: filters.timeRange.start.toISOString(),
+        end: filters.timeRange.end.toISOString(),
+      };
+      
+    } else {
+      // Scenario 3: Live mode with user-selected time range - respect user's choice
+
+      timeRangeToUse = {
+        start: filters.timeRange.start.toISOString(),
+        end: filters.timeRange.end.toISOString(),
+      };
+    }
+
+    // Use optimized data fetch for better performance and live mode support
+    fetchOptimizedData({
+      sensorIds: [sensorId],
+      timeRange: timeRangeToUse,
+    });
+
+  }, [sensorId, filters.timeRange.start, filters.timeRange.end, initialLoading, isLiveMode, isConnecting, hasInitialLoadCompleted, isInitialPageLoad, hasUserChangedTimeRange, fetchOptimizedData]);
 
   // Prepare chart config for selected sensor
   const chartConfig: ChartConfig | null = React.useMemo(() => {
@@ -752,7 +911,7 @@ export const SoloView: React.FC = () => {
 
       {/* Main content with tabs */}
       <div className="flex-1 p-4 overflow-auto" onClick={() => setIsDropdownOpen(false)}>
-        {isLoadingData ? (
+        {effectiveIsLoading ? (
           <div className="flex items-center justify-center h-full">
             <Spinner />
           </div>
@@ -971,7 +1130,7 @@ export const SoloView: React.FC = () => {
                     ) : (
                       <div className="h-full flex flex-col items-center justify-center text-center">
                         <div className="flex flex-col items-center gap-4 max-w-md">
-                          {isLoadingData ? (
+                          {effectiveIsLoading ? (
                             <>
                               <Spinner size="lg" color="primary" />
                               <div className="space-y-2">
@@ -1039,7 +1198,7 @@ export const SoloView: React.FC = () => {
                   ) : (
                     <div className="h-full flex flex-col items-center justify-center p-8 text-center">
                       <div className="flex flex-col items-center gap-4 max-w-md">
-                        {isLoadingData ? (
+                        {effectiveIsLoading ? (
                           <>
                             <Spinner size="lg" color="primary" />
                             <div className="space-y-2">
@@ -1113,7 +1272,7 @@ export const SoloView: React.FC = () => {
                             ) : (
                               <div className="h-full flex flex-col items-center justify-center text-center">
                                 <div className="flex flex-col items-center gap-4 max-w-md">
-                                  {isLoadingData ? (
+                                  {effectiveIsLoading ? (
                                     <>
                                       <Spinner size="lg" color="primary" />
                                       <div className="space-y-2">
@@ -1155,7 +1314,7 @@ export const SoloView: React.FC = () => {
                             ) : (
                               <div className="h-full flex flex-col items-center justify-center text-center">
                                 <div className="flex flex-col items-center gap-4 max-w-md">
-                                  {isLoadingData ? (
+                                  {effectiveIsLoading ? (
                                     <>
                                       <Spinner size="lg" color="primary" />
                                       <div className="space-y-2">
@@ -1197,7 +1356,7 @@ export const SoloView: React.FC = () => {
                             ) : (
                               <div className="h-full flex flex-col items-center justify-center text-center">
                                 <div className="flex flex-col items-center gap-4 max-w-md">
-                                  {isLoadingData ? (
+                                  {effectiveIsLoading ? (
                                     <>
                                       <Spinner size="lg" color="primary" />
                                       <div className="space-y-2">
@@ -1239,7 +1398,7 @@ export const SoloView: React.FC = () => {
                             ) : (
                               <div className="h-full flex flex-col items-center justify-center text-center">
                                 <div className="flex flex-col items-center gap-4 max-w-md">
-                                  {isLoadingData ? (
+                                  {effectiveIsLoading ? (
                                     <>
                                       <Spinner size="lg" color="primary" />
                                       <div className="space-y-2">
@@ -1312,7 +1471,7 @@ export const SoloView: React.FC = () => {
                         <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
                           {chartConfig ? (
                             <DistributionChart config={chartConfig} showChart isLiveMode={isLiveMode} />
-                          ) : isLoadingData ? (
+                          ) : effectiveIsLoading ? (
                             <div className="h-full flex flex-col items-center justify-center">
                               <Spinner size="md" color="primary" />
                               <p className="text-xs text-default-500 mt-2">Loading...</p>
@@ -1333,7 +1492,7 @@ export const SoloView: React.FC = () => {
                         <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
                           {chartConfig ? (
                             <TrendAnalysisChart config={chartConfig} showChart isLiveMode={isLiveMode} />
-                          ) : isLoadingData ? (
+                          ) : effectiveIsLoading ? (
                             <div className="h-full flex flex-col items-center justify-center">
                               <Spinner size="md" color="secondary" />
                               <p className="text-xs text-default-500 mt-2">Loading...</p>
@@ -1354,7 +1513,7 @@ export const SoloView: React.FC = () => {
                         <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
                           {chartConfig ? (
                             <AnomalyDetectionChart config={chartConfig} showChart isLiveMode={isLiveMode} />
-                          ) : isLoadingData ? (
+                          ) : effectiveIsLoading ? (
                             <div className="h-full flex flex-col items-center justify-center">
                               <Spinner size="md" color="danger" />
                               <p className="text-xs text-default-500 mt-2">Loading...</p>
@@ -1375,7 +1534,7 @@ export const SoloView: React.FC = () => {
                         <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
                           {chartConfig ? (
                             <CorrelationAnalysisChart config={chartConfig} showChart isLiveMode={isLiveMode} />
-                          ) : isLoadingData ? (
+                          ) : effectiveIsLoading ? (
                             <div className="h-full flex flex-col items-center justify-center">
                               <Spinner size="md" color="success" />
                               <p className="text-xs text-default-500 mt-2">Loading...</p>

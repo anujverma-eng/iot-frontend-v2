@@ -9,6 +9,7 @@ import { formatNumericValue } from "../utils/numberUtils";
 import { AppDispatch } from "../store";
 import { useOfflineDetectionIntegration } from "../hooks/useOfflineDetectionIntegration";
 import { useLiveDataReadiness } from "../hooks/useLiveDataReadiness";
+import { useLiveModeTransition } from "../hooks/useLiveModeTransition";
 import { LiveDataLoading } from "../components/visualization/live-data-loading";
 import { fetchGateways, fetchGatewayStats, selectGateways, selectGatewayStats } from "../store/gatewaySlice";
 import {
@@ -29,6 +30,7 @@ import {
   selectTimeRange,
   setTimeRange,
   toggleLiveMode,
+  selectMaxLiveReadings,
 } from "../store/telemetrySlice";
 import { selectIsConnecting } from "../store/liveDataSlice";
 import { Gateway } from "../types/gateway";
@@ -97,6 +99,7 @@ export const DashboardHome: React.FC = () => {
   const isConnecting = useSelector(selectIsConnecting);
   const telemetryData = useSelector(selectTelemetryData);
   const timeRange = useSelector(selectTimeRange);
+  const maxLiveReadings = useSelector(selectMaxLiveReadings);
 
   // Initialize offline detection service
   useOfflineDetectionIntegration();
@@ -111,6 +114,31 @@ export const DashboardHome: React.FC = () => {
 
   // Live data readiness hook for charts
   const liveDataReadiness = useLiveDataReadiness(selectedFavoriteSensor, isLiveMode);
+
+  // Add live mode transition detection for automatic data refresh
+  useLiveModeTransition(
+    // onLiveToOffline - refresh data when switching to offline mode
+    () => {
+      if (selectedFavoriteSensor && timeRange) {
+        // Force re-fetch data with current time range when switching to offline
+        setIsLoadingTelemetry(true);
+        dispatch(fetchTelemetry({
+          sensorIds: [selectedFavoriteSensor],
+          timeRange: {
+            start: timeRange.start.toISOString(),
+            end: timeRange.end.toISOString(),
+          },
+        })).finally(() => {
+          setIsLoadingTelemetry(false);
+        });
+      }
+    },
+    // onOfflineToLive - let live connection handle data when switching to live
+    () => {
+      // Live mode will handle its own data fetching via MQTT
+      // No need to fetch API data immediately
+    }
+  );
 
   // Add a ref to track the most recent time range request
   const lastTimeRangeRequestRef = React.useRef<string>("");
@@ -266,13 +294,21 @@ export const DashboardHome: React.FC = () => {
       return null;
     }
 
+    const currentSeries = data.series;
+    
+    // Apply dynamic reading limit in live mode based on user's selection
+    // In offline mode, show all data for proper historical analysis
+    const shouldLimitToLatest = isLiveMode; // Only limit in live mode
+    const displaySeries = shouldLimitToLatest && currentSeries.length > maxLiveReadings ? 
+      currentSeries.slice(-maxLiveReadings) : currentSeries;
+
     return {
       type: data.type,
       unit: data.unit,
-      series: data.series || [],
+      series: displaySeries,
       color: "#006FEE", // Primary color
     };
-  }, [selectedFavoriteSensor, telemetryData, isLiveMode]);
+  }, [selectedFavoriteSensor, telemetryData, isLiveMode, maxLiveReadings]);
 
   const stats = React.useMemo(
     () => ({
@@ -760,16 +796,10 @@ export const DashboardHome: React.FC = () => {
 
                           // Normal chart rendering
                           return selectedFavoriteSensor &&
-                            telemetryData[selectedFavoriteSensor] &&
-                            telemetryData[selectedFavoriteSensor].series?.length > 0 ? (
+                            selectedFavoriteSensorData ? (
                             <div className="h-full w-full p-2">
                               <LineChart
-                                config={{
-                                  type: telemetryData[selectedFavoriteSensor].type || "temperature",
-                                  unit: telemetryData[selectedFavoriteSensor].unit || "°C",
-                                  series: telemetryData[selectedFavoriteSensor].series || [],
-                                  color: "#006FEE",
-                                }}
+                                config={selectedFavoriteSensorData}
                                 isLiveMode={isLiveMode}
                               />
                             </div>
@@ -820,8 +850,8 @@ export const DashboardHome: React.FC = () => {
                                 <p className="text-default-600 text-sm">Loading table data...</p>
                               </TableCell>
                             </TableRow>
-                          ) : selectedFavoriteSensor && telemetryData[selectedFavoriteSensor]?.series?.length > 0 ? (
-                            telemetryData[selectedFavoriteSensor].series
+                          ) : selectedFavoriteSensor && selectedFavoriteSensorData && selectedFavoriteSensorData.series.length > 0 ? (
+                            selectedFavoriteSensorData.series
                               .slice(-10)
                               .reverse()
                               .map((point, idx) => (

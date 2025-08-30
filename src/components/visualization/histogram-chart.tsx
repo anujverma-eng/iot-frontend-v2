@@ -47,7 +47,7 @@ export const HistogramChart: React.FC<HistogramChartProps> = ({ config }) => {
 
     // Count values in each bin
     values.forEach(value => {
-      console.log(`Value: ${value}, Min: ${min}, Max: ${max}, Bin Size: ${binSize}`);
+
       let binIndex = Math.min(
         Math.floor((value - min) / binSize),
         binCount - 1

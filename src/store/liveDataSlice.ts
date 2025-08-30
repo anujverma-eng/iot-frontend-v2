@@ -180,14 +180,16 @@ export const toggleLiveMode = createAsyncThunk(
   'liveData/toggleLiveMode',
   async ({ enable }: { enable: boolean }, { dispatch, getState }) => {
     const state = getState() as RootState;
-    
+
     if (enable && !state.liveData.isConnected) {
+
       await dispatch(initializeLiveConnection());
     } else if (!enable && state.liveData.isConnected) {
+
       stopLive();
       dispatch(disconnectLive());
     }
-    
+
     return enable;
   }
 );
@@ -257,13 +259,16 @@ const liveDataSlice = createSlice({
         state.error = action.error.message || 'Failed to connect to live data';
       })
       .addCase(toggleLiveMode.pending, (state) => {
+
         state.isConnecting = true;
       })
       .addCase(toggleLiveMode.fulfilled, (state, action) => {
+
         state.isConnecting = false;
         state.isLiveMode = action.payload;
       })
       .addCase(toggleLiveMode.rejected, (state, action) => {
+
         state.isConnecting = false;
         state.error = action.error.message || 'Failed to toggle live mode';
       });
