@@ -21,7 +21,7 @@ export const useLiveDataConnection = () => {
 
   useEffect(() => {
 
-    // Auto-connect on app start with proper timing
+    // Simple auto-connect on app start  
     const timer = setTimeout(() => {
 
       if (!isLiveMode && !isConnecting) {
@@ -30,7 +30,7 @@ export const useLiveDataConnection = () => {
       } else {
 
       }
-    }, 1500); // Reduced to 1.5s to align with data fetching logic
+    }, 2000); // Give app time to load
     
     return () => {
 

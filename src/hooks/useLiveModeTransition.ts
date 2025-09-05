@@ -12,18 +12,16 @@ export const useLiveModeTransition = (
 ) => {
   const isLiveMode = useSelector(selectIsLiveMode);
   const previousLiveModeRef = useRef<boolean>(isLiveMode);
-
+  
   useEffect(() => {
     const previousLiveMode = previousLiveModeRef.current;
-
+    
     if (previousLiveMode !== isLiveMode) {
       if (previousLiveMode && !isLiveMode) {
         // Transitioned from live to offline
-
         onLiveToOffline?.();
       } else if (!previousLiveMode && isLiveMode) {
         // Transitioned from offline to live
-
         onOfflineToLive?.();
       }
       

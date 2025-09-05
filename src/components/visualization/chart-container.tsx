@@ -64,6 +64,8 @@ interface ChartContainerProps {
   onLiveModeChange?: (isLive: boolean) => void;
   liveStatus?: "disconnected" | "connecting" | "connected" | "error" | "slow_network";
   onRetryConnection?: () => void;
+  // Whether we're waiting for live data (to prevent showing "offline" too early)
+  isWaitingForLiveData?: boolean;
 }
 
 export const ChartContainer: React.FC<ChartContainerProps> = ({
@@ -85,6 +87,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   onLiveModeChange,
   liveStatus = "disconnected",
   onRetryConnection,
+  isWaitingForLiveData = false,
 }) => {
   const [isEditing, setIsEditing] = React.useState(false);
   const [displayName, setDisplayName] = React.useState(sensor?.displayName || "");
@@ -216,7 +219,9 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   }, [sensor?.id, sensor?.mac]); // Only re-run when sensor ID or MAC changes
 
   // Check if sensor is offline and we're in live mode - only show fallback in this case
-  const isSensorOffline = sensor?.isOnline === false;
+  // Only show offline state when we have sensor data and it's actually offline
+  // AND we're not waiting for live data (give live connection a chance to update the status)
+  const isSensorOffline = sensor && sensor.isOnline === false && !isWaitingForLiveData;
   const shouldShowFallback = isLiveMode && isSensorOffline;
 
   // Add error handling for when config is null
@@ -804,9 +809,9 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                   {/* Animated loading icon */}
                   <div className="relative">
                     <Icon icon="lucide:wifi-off" className="text-danger-400 animate-pulse" width={64} height={64} />
-                    <div className="absolute -bottom-2 -right-2 bg-danger-500 rounded-full p-1">
+                    {/* <div className="absolute -bottom-2 -right-2 bg-danger-500 rounded-full p-1">
                       <Icon icon="lucide:loader-2" className="text-white animate-spin" width={16} height={16} />
-                    </div>
+                    </div> */}
                   </div>
 
                   {/* Status message */}

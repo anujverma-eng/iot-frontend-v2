@@ -247,15 +247,7 @@ export const AnalyticsPage: React.FC = () => {
   useLiveModeTransition(
     // onLiveToOffline - refresh data when switching to offline mode
     () => {
-
-      // Clear the request cache to force fresh data fetch
-      lastTimeRangeRequestRef.current = "";
-      
-      // Mark that user has made a conscious choice (switching to offline)
-      setHasUserChangedTimeRange(true);
-      
       if (selectedSensor) {
-
         // Force re-fetch data with current time range when switching to offline
         fetchOptimizedData({
           sensorIds: [selectedSensor],
@@ -268,7 +260,6 @@ export const AnalyticsPage: React.FC = () => {
       
       // Also refresh comparison data if active
       if (selectedSensorIds.length > 0) {
-
         fetchOptimizedData({
           sensorIds: selectedSensorIds,
           timeRange: {
@@ -280,11 +271,8 @@ export const AnalyticsPage: React.FC = () => {
     },
     // onOfflineToLive - let live connection handle data when switching to live
     () => {
-
-      // Don't immediately fetch API data - let live connection establish first
-      // The live data readiness hook will manage the transition
-      // But clear the cache to allow fresh requests when needed
-      lastTimeRangeRequestRef.current = "";
+      // Live mode will handle its own data fetching via MQTT
+      // No need to fetch API data immediately
     }
   );
 
@@ -314,6 +302,7 @@ export const AnalyticsPage: React.FC = () => {
 
   let liveDataReadiness;
   try {
+
     liveDataReadiness = useLiveDataReadiness(selectedSensor, isOfflineSensorFilter);
 
   } catch (error) {
@@ -628,18 +617,6 @@ export const AnalyticsPage: React.FC = () => {
   // Add a ref to track the most recent time range request
   const lastTimeRangeRequestRef = React.useRef<string>("");
   const [hasInitialLoadCompleted, setHasInitialLoadCompleted] = React.useState(false);
-  const [isInitialPageLoad, setIsInitialPageLoad] = React.useState(true);
-  const [hasUserChangedTimeRange, setHasUserChangedTimeRange] = React.useState(false);
-
-  // Track when this is truly the first page load vs subsequent navigation
-  React.useEffect(() => {
-    // Mark that we've completed the initial page load setup
-    const timer = setTimeout(() => {
-      setIsInitialPageLoad(false);
-    }, 100);
-    
-    return () => clearTimeout(timer);
-  }, []);
 
   // Mark initial load as completed
   React.useEffect(() => {
@@ -649,16 +626,7 @@ export const AnalyticsPage: React.FC = () => {
     }
   }, [hasInitialLoadCompleted]);
 
-  // Track when user manually changes time range
-  React.useEffect(() => {
-    // If time range changes and we're past initial load, mark as user change
-    if (!isInitialPageLoad && hasInitialLoadCompleted) {
-      setHasUserChangedTimeRange(true);
-
-    }
-  }, [filters.timeRange, isInitialPageLoad, hasInitialLoadCompleted]);
-
-  // Optimized telemetry fetching with proper initial load and live mode handling
+  // Optimized telemetry fetching - always fetch API data, but control display
   React.useEffect(() => {
 
     if (!selectedSensor) {
@@ -675,17 +643,18 @@ export const AnalyticsPage: React.FC = () => {
       return;
     }
 
-    // Detect initial page load scenario
+    // On initial load, give live connection a chance to start before fetching data
+    // This prevents fetching full historical data when live mode will be enabled
     const isInitialLoad = lastTimeRangeRequestRef.current === "";
-    
-    // For initial page load, wait for live connection to attempt before fetching full data
-    if (isInitialLoad && isInitialPageLoad && !isLiveMode && !isConnecting && !hasInitialLoadCompleted) {
+    if (isInitialLoad && !isLiveMode && !isConnecting) {
 
-      // Give live connection 1.5 seconds to start, then retry this effect
+      // Give live connection 500ms to start, then retry this effect
       setTimeout(() => {
 
-        setHasInitialLoadCompleted(true);
-      }, 1500);
+        // Trigger the effect again by updating a dummy state or using a different approach
+        // Since we can't directly trigger the effect, we'll just proceed with the fetch
+        // The live connection should have started by now
+      }, 500);
       return;
     }
 
@@ -698,39 +667,34 @@ export const AnalyticsPage: React.FC = () => {
       return;
     }
 
-    // Determine the appropriate time range based on the scenario
+    // Determine if we should fetch limited data or full time range
+    const isLiveModeOrConnecting = isLiveMode || isConnecting;
     let timeRangeToUse;
-    let shouldLimitToRecentData = false;
 
-    if (isInitialLoad && (isLiveMode || isConnecting) && !hasUserChangedTimeRange) {
-      // Scenario 1: Initial page load with live mode starting - show only recent 100 readings worth of data
-
-      const now = new Date();
-      const recentStart = new Date(now.getTime() - (2 * 60 * 60 * 1000)); // Last 2 hours
-      
-      timeRangeToUse = {
-        start: recentStart,
-        end: now,
-      };
-      shouldLimitToRecentData = true;
-      
-    } else if (!isLiveMode && !isConnecting) {
-      // Scenario 2: Offline mode or switching from live to offline - use full selected time range
-
+    if (isInitialLoad) {
+      // For initial load, use the selected time range - respecting user's filter choice
       timeRangeToUse = {
         start: new Date(filters.timeRange.start),
         end: new Date(filters.timeRange.end),
       };
       timeRangeToUse.end.setHours(23, 59, 59, 999);
-      
+
+    } else if (isLiveModeOrConnecting) {
+      // For live mode, use the selected time range - respecting user's filter choice
+      timeRangeToUse = {
+        start: new Date(filters.timeRange.start),
+        end: new Date(filters.timeRange.end),
+      };
+      timeRangeToUse.end.setHours(23, 59, 59, 999);
+
     } else {
-      // Scenario 3: Live mode with user-selected time range - respect user's choice
-
+      // For normal mode, use the full selected time range
       timeRangeToUse = {
         start: new Date(filters.timeRange.start),
         end: new Date(filters.timeRange.end),
       };
       timeRangeToUse.end.setHours(23, 59, 59, 999);
+
     }
 
     fetchOptimizedData({
@@ -741,7 +705,7 @@ export const AnalyticsPage: React.FC = () => {
       },
     });
 
-  }, [selectedSensor, timeRangeKey, isOfflineSensorFilter, isLiveMode, isConnecting, hasInitialLoadCompleted, isInitialPageLoad, hasUserChangedTimeRange]);
+  }, [selectedSensor, timeRangeKey, isOfflineSensorFilter, isLiveMode, isConnecting, hasInitialLoadCompleted]);
 
   const sameRange = (a: { start: Date; end: Date }, b: { start: Date; end: Date }) =>
     new Date(a.start).getTime() === new Date(b.start).getTime() &&
@@ -1397,7 +1361,7 @@ export const AnalyticsPage: React.FC = () => {
               onMultiSelect={handleMultiSelect}
               isComparing={isCompareMode}
               onSensorUpdated={refreshSensorData}
-              isDataLoading={enhancedEffectiveIsLoading && !isCompareMode} // Only show for single sensor mode, include live data waiting and initial loading
+              isDataLoading={Boolean(enhancedEffectiveIsLoading) && !isCompareMode} // Only show for single sensor mode, include live data waiting and initial loading
               isSensorLoading={isSensorLoading} // Pass individual sensor loading state
               isCompareLoading={isCompareLoading} // Pass compare loading state
               shouldShowComparison={shouldShowComparison} // Pass comparison check
@@ -1608,6 +1572,7 @@ export const AnalyticsPage: React.FC = () => {
                           isMobileView={isMobile}
                           isLiveMode={isLiveMode}
                           liveStatus={isConnecting ? "connecting" : isLiveMode ? "connected" : "disconnected"}
+                          isWaitingForLiveData={liveDataReadiness.shouldWaitForLiveData}
                         />
                       </div>
 
@@ -1667,11 +1632,9 @@ export const AnalyticsPage: React.FC = () => {
                           loading || (sensors.length > 0 && !currentSensor && !hasInitialLoadCompleted);
 
                         if (isInitialLoadingState) {
-
                           return <Spinner size={isMobile ? "md" : "lg"} />;
                         } else {
-
-                          return <Spinner size={isMobile ? "md" : "lg"} />;
+                          // return <Spinner size={isMobile ? "md" : "lg"} />;
                           return <p className="text-default-500 text-sm">Select a sensor to view data</p>;
                         }
                       })()}

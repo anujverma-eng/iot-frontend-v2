@@ -56,7 +56,7 @@ export const fetchTelemetry = createAsyncThunk<
     // Detect if mobile for optimized bucket sizing
     const isMobile = window.innerWidth < 768;
     const bucketSize = chooseBucketSize(params.timeRange.start, params.timeRange.end, 400, isMobile);
-
+    
     const response = await TelemetryService.query({ ...params, bucketSize });
 
     /* map backend payload → UI-friendly structure */
@@ -83,7 +83,6 @@ export const fetchTelemetry = createAsyncThunk<
     return mapped;
   } catch (err: any) {
     const msg = err?.response?.data?.error ?? err.message ?? "Failed to fetch telemetry data";
-
     return rejectWithValue(msg);
   }
 });
@@ -374,13 +373,11 @@ const telemetrySlice = createSlice({
     builder
       /* pending */
       .addCase(fetchTelemetry.pending, (s) => {
-
         s.loading = true;
         s.error = null;
       })
       /* error */
       .addCase(fetchTelemetry.rejected, (s, a) => {
-
         s.loading = false;
         s.error = a.payload ?? a.error.message ?? "Error";
       })
@@ -390,7 +387,6 @@ const telemetrySlice = createSlice({
       //   s.data = { ...s.data, ...a.payload };
       // })
       .addCase(fetchTelemetry.fulfilled, (state, action) => {
-
         state.loading = false;
 
         // Check if response is empty and handle appropriately

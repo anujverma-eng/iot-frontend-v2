@@ -26,7 +26,7 @@ export const useOptimizedDataFetch = () => {
   
   const fetchData = useCallback((params: DataFetchParams, immediate = false) => {
     const requestId = `${params.sensorIds.join(',')}-${params.timeRange.start}-${params.timeRange.end}`;
-
+    
     // Don't make the same request twice
     if (lastRequestRef.current === requestId) {
 
@@ -35,12 +35,10 @@ export const useOptimizedDataFetch = () => {
     
     // Clear any pending throttled request
     if (throttleTimeoutRef.current) {
-
       clearTimeout(throttleTimeoutRef.current);
     }
     
     const executeFetch = () => {
-
       // Only cancel existing request if it's actually in progress and different
       if (abortControllerRef.current && requestInProgressRef.current && lastRequestRef.current !== requestId) {
 
@@ -55,16 +53,13 @@ export const useOptimizedDataFetch = () => {
       // Dispatch the fetch action
       dispatch(fetchTelemetry(params))
         .finally(() => {
-
           requestInProgressRef.current = false;
         });
     };
     
     if (immediate) {
-
       executeFetch();
     } else {
-
       // Throttle the request by 200ms to prevent rapid consecutive calls
       throttleTimeoutRef.current = setTimeout(executeFetch, 200);
     }
@@ -73,12 +68,10 @@ export const useOptimizedDataFetch = () => {
   const cancelPendingRequests = useCallback(() => {
 
     if (abortControllerRef.current && requestInProgressRef.current) {
-
       abortControllerRef.current.abort();
       requestInProgressRef.current = false;
     }
     if (throttleTimeoutRef.current) {
-
       clearTimeout(throttleTimeoutRef.current);
     }
   }, []);

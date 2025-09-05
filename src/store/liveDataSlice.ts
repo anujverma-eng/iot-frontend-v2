@@ -118,9 +118,11 @@ export const initializeLiveConnection = createAsyncThunk(
           });
         },
         onPresence: (topic, message) => {
+          console.log(`[MQTT] Presence message received on topic: ${topic}`, message);
 
           // Handle gateway presence updates
           if (typeof message === 'object' && message.gatewayId && typeof message.isConnected === 'boolean') {
+            console.log(`[MQTT] Gateway ${message.gatewayId} presence: ${message.isConnected ? 'ONLINE' : 'OFFLINE'} at ${message.ts}`);
             const presenceData = {
               gatewayId: message.gatewayId,
               isConnected: message.isConnected,
@@ -143,6 +145,7 @@ export const initializeLiveConnection = createAsyncThunk(
 
             // If gateway went offline, handle sensor dependencies
             if (!message.isConnected) {
+              console.log(`[MQTT] Dispatching handleGatewayOfflineEvent for ${message.gatewayId}`);
               // We need to trigger this through a thunk to access current state
               dispatch(handleGatewayOfflineEvent(message.gatewayId));
             }
@@ -180,16 +183,14 @@ export const toggleLiveMode = createAsyncThunk(
   'liveData/toggleLiveMode',
   async ({ enable }: { enable: boolean }, { dispatch, getState }) => {
     const state = getState() as RootState;
-
+    
     if (enable && !state.liveData.isConnected) {
-
       await dispatch(initializeLiveConnection());
     } else if (!enable && state.liveData.isConnected) {
-
       stopLive();
       dispatch(disconnectLive());
     }
-
+    
     return enable;
   }
 );
@@ -259,16 +260,13 @@ const liveDataSlice = createSlice({
         state.error = action.error.message || 'Failed to connect to live data';
       })
       .addCase(toggleLiveMode.pending, (state) => {
-
         state.isConnecting = true;
       })
       .addCase(toggleLiveMode.fulfilled, (state, action) => {
-
         state.isConnecting = false;
         state.isLiveMode = action.payload;
       })
       .addCase(toggleLiveMode.rejected, (state, action) => {
-
         state.isConnecting = false;
         state.error = action.error.message || 'Failed to toggle live mode';
       });

@@ -45,9 +45,16 @@ class OfflineDetectionService {
 
   // Initialize tracking for existing sensors (call this after sensors are loaded)
   public initializeSensorTracking(sensors: Sensor[]): void {
+    console.log(`[OfflineDetection] Initializing tracking for ${sensors.length} sensors`);
     sensors.forEach((sensor: Sensor) => {
       if (sensor.lastSeen) {
-        this.updateSensorLastSeen(sensor.mac, new Date(sensor.lastSeen));
+        console.log(`[OfflineDetection] Init sensor ${sensor.mac}, lastSeen: ${sensor.lastSeen}, isOnline: ${sensor.isOnline}`);
+        // Only initialize tracking data without starting timeout
+        // The timeout should only start when we actually receive live data
+        this.sensorTracker[sensor.mac] = {
+          lastSeen: new Date(sensor.lastSeen),
+          // Don't set timeoutId - this will start when live data arrives
+        };
       }
     });
 
@@ -70,6 +77,7 @@ class OfflineDetectionService {
 
   // Update last seen time for a sensor (called when new data arrives)
   public updateSensorLastSeen(mac: string, timestamp: Date = new Date()): void {
+    console.log(`[OfflineDetection] Live data received for sensor ${mac} at ${timestamp.toISOString()}`);
     if (!this.isInitialized || !this.dispatch) {
 
       return;
@@ -103,6 +111,7 @@ class OfflineDetectionService {
     };
 
     // Mark sensor as online immediately
+    console.log(`[OfflineDetection] Marking sensor ${mac} as ONLINE in Redux`);
     this.dispatch(updateSensorOnlineStatus({ mac, isOnline: true }));
 
     // Set new offline timeout
@@ -158,6 +167,7 @@ class OfflineDetectionService {
 
       // Only mark offline if timeout has actually passed (safety check)
       if (timeSinceLastSeen >= timeoutMs) {
+        console.log(`[OfflineDetection] TIMEOUT: Marking sensor ${mac} as OFFLINE (last seen ${Math.round(timeSinceLastSeen/60000)} minutes ago)`);
 
         // Update Redux state first
         this.dispatch(updateSensorOnlineStatus({ mac, isOnline: false }));
@@ -174,6 +184,8 @@ class OfflineDetectionService {
   // Update sensor online status in backend database
   private async updateSensorBackendStatus(mac: string, isOnline: boolean, timeoutMinutes?: number): Promise<void> {
     try {
+      console.log(`[OfflineDetection] PATCH API: Updating sensor ${mac} backend status to isOnline: ${isOnline}`);
+      console.trace(`[OfflineDetection] Call stack for PATCH API call:`);
 
       await SensorService.updateSensor(mac, { isOnline });
 
@@ -187,6 +199,7 @@ class OfflineDetectionService {
   // Update gateway status
   public updateGatewayStatus(gatewayId: string, isOnline: boolean, timestamp: Date = new Date()): void {
     const wasOnline = this.gatewayTracker[gatewayId]?.isOnline ?? true;
+    console.log(`[OfflineDetection] Gateway ${gatewayId} status change: ${wasOnline} -> ${isOnline}`);
 
     this.gatewayTracker[gatewayId] = {
       isOnline,
@@ -195,6 +208,7 @@ class OfflineDetectionService {
 
     // If gateway went offline, handle dependent sensors
     if (wasOnline && !isOnline) {
+      console.log(`[OfflineDetection] Gateway ${gatewayId} went offline via updateGatewayStatus, calling handleGatewayOffline without sensors`);
 
       this.handleGatewayOffline(gatewayId);
     } else if (!wasOnline && isOnline) {
@@ -204,6 +218,7 @@ class OfflineDetectionService {
 
   // Handle when a gateway goes offline (needs sensors data passed in)
   public handleGatewayOffline(gatewayId: string, sensors?: Sensor[]): void {
+    console.log(`[OfflineDetection] Gateway ${gatewayId} went offline, checking ${sensors?.length || 0} sensors`);
     if (!this.isInitialized || !this.dispatch || !sensors) {
 
       return;
@@ -226,6 +241,7 @@ class OfflineDetectionService {
 
         // If no online gateways left, mark sensor offline immediately
         if (onlineGateways.length === 0) {
+          console.log(`[OfflineDetection] GATEWAY OFFLINE: Marking sensor ${sensor.mac} as OFFLINE (no online gateways)`);
           dispatch(updateSensorOnlineStatus({ mac: sensor.mac, isOnline: false }));
 
           // Update backend database

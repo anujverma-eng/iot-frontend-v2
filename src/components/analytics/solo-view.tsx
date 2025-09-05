@@ -19,6 +19,7 @@ import html2canvas from "html2canvas";
 import { saveAs } from "file-saver";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, useParams } from "react-router-dom";
+import { LiveDataLoading } from "../visualization/live-data-loading";
 import { formatNumericValue } from "../../utils/numberUtils";
 import { chartColors } from "../../data/analytics";
 import { AppDispatch, RootState } from "../../store";
@@ -109,15 +110,7 @@ export const SoloView: React.FC = () => {
   useLiveModeTransition(
     // onLiveToOffline - refresh data when switching to offline mode
     () => {
-
-      // Clear the request cache to force fresh data fetch
-      lastTimeRangeRequestRef.current = "";
-      
-      // Mark that user has made a conscious choice (switching to offline)
-      setHasUserChangedTimeRange(true);
-      
       if (sensorId) {
-
         // Force re-fetch data with current time range when switching to offline
         fetchOptimizedData({
           sensorIds: [sensorId],
@@ -130,13 +123,30 @@ export const SoloView: React.FC = () => {
     },
     // onOfflineToLive - let live connection handle data when switching to live
     () => {
-
-      // Don't immediately fetch API data - let live connection establish first
-      // The live data readiness hook will manage the transition
-      // But clear the cache to allow fresh requests when needed
-      lastTimeRangeRequestRef.current = "";
+      // Live mode will handle its own data fetching via MQTT
+      // No need to fetch API data immediately
     }
   );
+
+  // Add live data readiness to prevent flickering (similar to analytics page)
+  // Detect if we're filtering for offline sensors
+  const isOfflineSensorFilter = filters.status === "offline";
+
+  let liveDataReadiness;
+  try {
+    liveDataReadiness = useLiveDataReadiness(sensorId || null, isOfflineSensorFilter);
+  } catch (error) {
+    // Fallback values
+    liveDataReadiness = {
+      shouldWaitForLiveData: false,
+      shouldShowLoading: false,
+      shouldFetchApiData: true,
+      hasReceivedLiveData: false,
+    };
+  }
+
+  // Enhanced loading state that considers live data readiness
+  const effectiveIsLoading = isLoadingData || liveDataReadiness.shouldShowLoading;
 
   // Cleanup on unmount - cancel any pending data requests only
   // Live mode cleanup is handled centrally, no need for component-specific cleanup
@@ -239,61 +249,8 @@ export const SoloView: React.FC = () => {
     return mappedSensors.find((s) => s._id === sensorId);
   }, [mappedSensors, sensorId]);
 
-  // Add state for initial loading and request tracking
+  // Add state for initial loading
   const [initialLoading, _setInitialLoading] = React.useState(true);
-  const [hasInitialLoadCompleted, setHasInitialLoadCompleted] = React.useState(false);
-  const [isInitialPageLoad, setIsInitialPageLoad] = React.useState(true);
-  const [hasUserChangedTimeRange, setHasUserChangedTimeRange] = React.useState(false);
-  const lastTimeRangeRequestRef = React.useRef<string>("");
-
-  // Track when this is truly the first page load vs subsequent navigation
-  React.useEffect(() => {
-    // Mark that we've completed the initial page load setup
-    const timer = setTimeout(() => {
-      setIsInitialPageLoad(false);
-    }, 100);
-    
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Mark initial load as completed
-  React.useEffect(() => {
-    if (!hasInitialLoadCompleted) {
-
-      setHasInitialLoadCompleted(true);
-    }
-  }, [hasInitialLoadCompleted]);
-
-  // Track when user manually changes time range
-  React.useEffect(() => {
-    // If time range changes and we're past initial load, mark as user change
-    if (!isInitialPageLoad && hasInitialLoadCompleted) {
-      setHasUserChangedTimeRange(true);
-
-    }
-  }, [filters.timeRange, isInitialPageLoad, hasInitialLoadCompleted]);
-
-  // Add live data readiness to prevent flickering (similar to analytics page)
-  // Detect if we're filtering for offline sensors
-  const isOfflineSensorFilter = filters.status === "offline";
-
-  let liveDataReadiness;
-  try {
-    liveDataReadiness = useLiveDataReadiness(sensorId || null, isOfflineSensorFilter);
-
-  } catch (error) {
-
-    // Fallback values
-    liveDataReadiness = {
-      shouldWaitForLiveData: false,
-      shouldShowLoading: false,
-      shouldFetchApiData: true,
-      hasReceivedLiveData: false,
-    };
-  }
-
-  // Enhanced loading state that considers live data readiness
-  const effectiveIsLoading = isLoadingData || liveDataReadiness.shouldShowLoading;
 
   // Fetch sensors on component mount - ONLY ONCE
   React.useEffect(() => {
@@ -379,92 +336,21 @@ export const SoloView: React.FC = () => {
     }
   }, [sensorId, filteredIds, sensorsLoaded, selectedSensorId, dispatch, navigate]);
 
-  // Enhanced telemetry data fetching with proper initial load and live mode handling
+  // Fetch telemetry data when selected sensor or time range changes - FIXED DEPENDENCIES
   React.useEffect(() => {
 
-    if (initialLoading) {
-
-      return; // wait until list call finished
+    if (initialLoading) return; // wait until list call finished
+    if (sensorId && !initialLoading) {
+      // Use optimized data fetch for better performance and live mode support
+      fetchOptimizedData({
+        sensorIds: [sensorId],
+        timeRange: {
+          start: filters.timeRange.start.toISOString(),
+          end: filters.timeRange.end.toISOString(),
+        },
+      });
     }
-    
-    if (!sensorId) {
-
-      return;
-    }
-
-    // Create a request ID based on current parameters
-    const timeRangeKey = `${filters.timeRange.start.getTime()}-${filters.timeRange.end.getTime()}`;
-    const currentRequest = `${sensorId}-${timeRangeKey}`;
-
-    // Don't make duplicate requests
-    if (lastTimeRangeRequestRef.current === currentRequest) {
-
-      return;
-    }
-
-    // Detect initial page load scenario
-    const isInitialLoad = lastTimeRangeRequestRef.current === "";
-    
-    // For initial page load, wait for live connection to attempt before fetching full data
-    if (isInitialLoad && isInitialPageLoad && !isLiveMode && !isConnecting && !hasInitialLoadCompleted) {
-
-      // Give live connection 1.5 seconds to start, then retry this effect
-      setTimeout(() => {
-
-        setHasInitialLoadCompleted(true);
-      }, 1500);
-      return;
-    }
-
-    // Always update the request ref to prevent duplicate attempts
-    lastTimeRangeRequestRef.current = currentRequest;
-
-    // Check if we should fetch API data based on live data readiness
-    if (!liveDataReadiness.shouldFetchApiData) {
-
-      return;
-    }
-
-    // Determine the appropriate time range based on the scenario
-    let timeRangeToUse;
-    let shouldLimitToRecentData = false;
-
-    if (isInitialLoad && (isLiveMode || isConnecting) && !hasUserChangedTimeRange) {
-      // Scenario 1: Initial page load with live mode starting - show only recent 100 readings worth of data
-
-      const now = new Date();
-      const recentStart = new Date(now.getTime() - (2 * 60 * 60 * 1000)); // Last 2 hours
-      
-      timeRangeToUse = {
-        start: recentStart.toISOString(),
-        end: now.toISOString(),
-      };
-      shouldLimitToRecentData = true;
-      
-    } else if (!isLiveMode && !isConnecting) {
-      // Scenario 2: Offline mode or switching from live to offline - use full selected time range
-
-      timeRangeToUse = {
-        start: filters.timeRange.start.toISOString(),
-        end: filters.timeRange.end.toISOString(),
-      };
-      
-    } else {
-      // Scenario 3: Live mode with user-selected time range - respect user's choice
-
-      timeRangeToUse = {
-        start: filters.timeRange.start.toISOString(),
-        end: filters.timeRange.end.toISOString(),
-      };
-    }
-
-    // Use optimized data fetch for better performance and live mode support
-    fetchOptimizedData({
-      sensorIds: [sensorId],
-      timeRange: timeRangeToUse,
-    });
-
-  }, [sensorId, filters.timeRange.start, filters.timeRange.end, initialLoading, isLiveMode, isConnecting, hasInitialLoadCompleted, isInitialPageLoad, hasUserChangedTimeRange, fetchOptimizedData]);
+  }, [sensorId, filters.timeRange.start, filters.timeRange.end, initialLoading, fetchOptimizedData]);
 
   // Prepare chart config for selected sensor
   const chartConfig: ChartConfig | null = React.useMemo(() => {
@@ -487,8 +373,11 @@ export const SoloView: React.FC = () => {
     };
   }, [sensorId, telemetryData, isLiveMode, maxLiveReadings]);
 
-  // Check if sensor is offline
-  const isSensorOffline = selectedSensorData?.data?.isOnline === false;
+  // Check if sensor is offline - only show offline state when we have sensor data and it's actually offline
+  // AND we're not waiting for live data (give live connection a chance to update the status)
+  const isSensorOffline = selectedSensorData?.data && 
+                         selectedSensorData.data.isOnline === false && 
+                         !liveDataReadiness.shouldWaitForLiveData;
 
   // Prepare table data with grouping
   // const tableData = React.useMemo(() => {
@@ -911,7 +800,7 @@ export const SoloView: React.FC = () => {
 
       {/* Main content with tabs */}
       <div className="flex-1 p-4 overflow-auto" onClick={() => setIsDropdownOpen(false)}>
-        {effectiveIsLoading ? (
+        {isLoadingData ? (
           <div className="flex items-center justify-center h-full">
             <Spinner />
           </div>
@@ -1065,7 +954,7 @@ export const SoloView: React.FC = () => {
                   }`} 
                   ref={chartRef}
                 >
-                  {/* Show offline sensor waiting state - only in live mode */}
+                  {/* Show offline sensor waiting state - only in live mode and when we're not loading chart data */}
                   {isSensorOffline && isLiveMode ? (
                       <div className="h-full flex flex-col items-center justify-center text-center">
                         <div className="flex flex-col items-center gap-4 max-w-md">
@@ -1077,14 +966,14 @@ export const SoloView: React.FC = () => {
                               width={64} 
                               height={64} 
                             />
-                            <div className="absolute -bottom-2 -right-2 bg-danger-500 rounded-full p-1">
+                            {/* <div className="absolute -bottom-2 -right-2 bg-danger-500 rounded-full p-1">
                               <Icon 
                                 icon="lucide:loader-2" 
                                 className="text-white animate-spin" 
                                 width={16} 
                                 height={16} 
                               />
-                            </div>
+                            </div> */}
                           </div>
                           
                           {/* Status message */}
@@ -1127,42 +1016,46 @@ export const SoloView: React.FC = () => {
                       </div>
                     ) : chartConfig ? (
                       <LineChart config={chartConfig} isLiveMode={isLiveMode} />
-                    ) : (
+                    ) : effectiveIsLoading ? (
                       <div className="h-full flex flex-col items-center justify-center text-center">
                         <div className="flex flex-col items-center gap-4 max-w-md">
-                          {effectiveIsLoading ? (
+                          {isLiveMode && liveDataReadiness.shouldWaitForLiveData ? (
+                            <LiveDataLoading sensorName={selectedSensorData?.data?.displayName || selectedSensorData?.data?.mac} />
+                          ) : (
                             <>
                               <Spinner size="lg" color="primary" />
                               <div className="space-y-2">
                                 <h3 className="text-lg font-semibold text-primary-600">
-                                  Loading Historical Data
+                                  {isLiveMode ? "Connecting to Live Data" : "Loading Data"}
                                 </h3>
                                 <p className="text-default-600 text-sm">
-                                  Fetching data for selected time range...
-                                </p>
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <Icon 
-                                icon="lucide:chart-no-axes-column" 
-                                className="text-default-400" 
-                                width={64} 
-                                height={64} 
-                              />
-                              <div className="space-y-2">
-                                <h3 className="text-lg font-semibold text-default-600">
-                                  No Data Available
-                                </h3>
-                                <p className="text-default-600 text-sm">
-                                  No data found for the selected time range
-                                </p>
-                                <p className="text-default-500 text-xs">
-                                  Try selecting a different time range or check if the sensor was active during this period
+                                  {isLiveMode ? "Establishing real-time connection..." : "Fetching sensor readings..."}
                                 </p>
                               </div>
                             </>
                           )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="h-full flex flex-col items-center justify-center text-center">
+                        <div className="flex flex-col items-center gap-4 max-w-md">
+                          <Icon 
+                            icon="lucide:chart-no-axes-column" 
+                            className="text-default-400" 
+                            width={64} 
+                            height={64} 
+                          />
+                          <div className="space-y-2">
+                            <h3 className="text-lg font-semibold text-default-600">
+                              No Data Available
+                            </h3>
+                            <p className="text-default-600 text-sm">
+                              No data found for the selected time range
+                            </p>
+                            <p className="text-default-500 text-xs">
+                              Try selecting a different time range or check if the sensor was active during this period
+                            </p>
+                          </div>
                         </div>
                       </div>
                     )}

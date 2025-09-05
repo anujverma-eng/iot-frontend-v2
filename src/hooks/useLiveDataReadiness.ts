@@ -24,7 +24,7 @@ export const useLiveDataReadiness = (sensorId: string | null, isOfflineSensorFil
   const timeoutRef = useRef<NodeJS.Timeout>();
   
   // Maximum time to wait for live data before falling back to API
-  const LIVE_DATA_TIMEOUT = 3000; // Reduced to 3 seconds for better UX
+  const LIVE_DATA_TIMEOUT = 4000; // 4 seconds
   
   // Check if we already have live data for the current sensor
   const hasLiveData = useMemo(() => {
@@ -136,18 +136,14 @@ export const useLiveDataReadiness = (sensorId: string | null, isOfflineSensorFil
   const shouldFetchApiData = (!isLiveMode && !isConnecting) || // Not in live mode and not connecting
                             isOfflineSensorFilter || // Filtering offline sensors
                             hasTimedOut || // Timed out waiting
-                            hasLiveData || // Already have live data (allow API calls for historical data)
-                            !sensorId; // No sensor selected
+                            hasLiveData || // Already have live data
+                            !sensorId || // No sensor selected
+                            !shouldShowLoader; // Not currently waiting
 
-  // Note: Removed !shouldShowLoader condition to allow API calls even while showing live loader
-  // This enables fetching limited historical data while waiting for live data
-
-  const result = {
+  return {
     shouldWaitForLiveData,
     hasReceivedLiveData: hasLiveData,
     shouldShowLoading: shouldShowLoader,
     shouldFetchApiData
   };
-
-  return result;
 };
