@@ -13,7 +13,7 @@ export default function OnboardingPage() {
   const profile = useAppSelector((s) => s.profile);
 
   // Redirect to dashboard if user already has an organization
-  if (profile.loaded && profile.data?.orgId) {
+  if (profile.loaded && (profile.data?.memberships?.length ?? 0) > 0) {
     return <Navigate to="/dashboard/home" replace />;
   }
   

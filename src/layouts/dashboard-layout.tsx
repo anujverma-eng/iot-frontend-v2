@@ -19,7 +19,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   // Initialize centralized live data connection
   useLiveDataConnection();
 
-  if (profile.loaded && !profile.data?.orgId && location.pathname !== "/onboarding") {
+  if (profile.loaded && (profile.data?.memberships?.length ?? 0) === 0 && location.pathname !== "/onboarding") {
     return;
   }
   // const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);

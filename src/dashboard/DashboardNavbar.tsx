@@ -45,7 +45,7 @@ export const DashboardNavbar = ({ onMenuToggle, className }: DashboardNavbarProp
   // show skeleton until both slices have loaded
   const isBusy = profile.loading || orgDetails.loading || !profile.loaded || !orgDetails.loaded;
 
-  const userEmail = profile.data?.email ?? "";
+  const userEmail = profile.data?.user.email ?? "";
   const orgName = orgDetails.data?.name ?? "";
 
   /* Avatar fallback: first letter of e‑mail or a user icon  */

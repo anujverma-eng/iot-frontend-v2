@@ -1,4 +1,5 @@
 import http from "./http";
+import { ApiResponse, unwrapApiResponse } from "./types";
 
 // Response interfaces
 export interface SettingsResponse {
@@ -23,9 +24,8 @@ export const SettingsService = {
    */
   async getSettings(): Promise<SettingsResponse> {
     try {
-      const { data } = await http.get("/settings");
-      if (!data?.success) throw new Error(data?.message ?? "GET_SETTINGS_FAILED");
-      return data.data;
+      const response = await http.get<ApiResponse<SettingsResponse>>("/settings");
+      return unwrapApiResponse(response.data);
     } catch (error: any) {
       // Handle 404 specifically - settings don't exist yet
       if (error.response?.status === 404) {

@@ -12,7 +12,7 @@ export default function AuthBootstrap() {
       .unwrap()
       .then(() => dispatch(fetchProfile()).unwrap())
       .then((p) => {
-        if (p.orgId) dispatch(fetchOrg());
+        // Note: We'll add org fetching in Step 2
       })
       .catch(() => {
         /* not logged‑in */

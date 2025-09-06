@@ -1,5 +1,6 @@
 // src/api/org.service.ts
 import http from "./http";
+import { ApiResponse, unwrapApiResponse } from "./types";
 
 export interface OrgDTO {
   _id: string;
@@ -19,7 +20,8 @@ export const OrgService = {
   create(name: string) {
     return http.post("/organizations", { name });
   },
-  me(): Promise<OrgDTO> {
-    return http.get("/organizations/me").then((r) => r.data.data);
+  async me(): Promise<OrgDTO> {
+    const response = await http.get<ApiResponse<OrgDTO>>("/organizations/me");
+    return unwrapApiResponse(response.data);
   },
 };

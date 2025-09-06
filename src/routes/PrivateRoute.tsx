@@ -28,7 +28,7 @@ export default function PrivateRoute() {
   }
 
   /* onboarding gate */
-  if (profile.loaded && !profile.data?.orgId && location.pathname !== "/onboarding") {
+  if (profile.loaded && (profile.data?.memberships?.length ?? 0) === 0 && location.pathname !== "/onboarding") {
     return <Navigate to="/onboarding" replace />;
   }
 

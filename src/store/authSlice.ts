@@ -6,13 +6,12 @@ import { UserRole } from "../types/User";
 import { tokenManager } from "../utils/tokenManager";
 import { start } from "./confirmationSlice";
 import { fetchProfile } from "./profileSlice";
-import { fetchOrg } from "./orgSlice";
 
 type Status = "idle" | "loading" | "auth" | "guest" | "error";
 
 interface AuthState {
   status: Status;
-  user: { email: string; role: UserRole; orgId: string | null } | null;
+  user: { email: string; role: UserRole } | null;
   pendingEmail: string | null;
   error: string | null;
 }
@@ -21,7 +20,7 @@ const initial: AuthState = { status: "idle", user: null, pendingEmail: null, err
 const setSession = (s: AuthState, p: { access: string; refresh: string; exp: number; id: string }) => {
 
   s.status = "auth";
-  s.user = { email: JSON.parse(atob(p.id.split(".")[1])).email ?? "user", role: extractRole(p.id), orgId: null };
+  s.user = { email: JSON.parse(atob(p.id.split(".")[1])).email ?? "user", role: extractRole(p.id) };
   tokenManager.save({ accessToken: p.access, refreshToken: p.refresh, expiresAt: p.exp, idToken: p.id });
 };
 
@@ -30,7 +29,6 @@ export const login = createAsyncThunk("auth/login", async (form: { email: string
   try {
     const tokens = await AuthClient.signIn(form.email, form.password);
     dispatch(fetchProfile());
-    dispatch(fetchOrg());
     return tokens;
   } catch (e: any) {
     if (e.code === "UserNotConfirmedException") {
@@ -122,7 +120,6 @@ const slice = createSlice({
       s.user = {
         email: a.payload.email,
         role: extractRole(a.payload.id),
-        orgId: null,
       };
     });
     builder.addCase(initSession.rejected, (s, action) => {
@@ -133,8 +130,10 @@ const slice = createSlice({
     builder.addCase(logout.fulfilled, () => ({ ...initial, status: "guest" }));
     builder.addCase(fetchProfile.fulfilled, (s, a) => {
       if (!s.user) return;
-      s.user.orgId = a.payload.orgId ?? null; // ← keep auth slice consistent
-      s.user.role = a.payload.role as UserRole;
+      // Update role from profile data if available
+      if (a.payload.memberships?.[0]?.role) {
+        s.user.role = a.payload.memberships[0].role as UserRole;
+      }
     });
   },
 });
