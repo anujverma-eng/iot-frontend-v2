@@ -5,6 +5,8 @@ import { DashboardSidebar } from "../dashboard/DashboardSidebar";
 import { useAppSelector } from "../hooks/useAppDispatch";
 import { useUnknownSensorDiscovery } from "../hooks/useUnknownSensorDiscovery";
 import { useLiveDataConnection } from "../hooks/useLiveDataConnection";
+import { selectActiveOrgStatus, selectShowOrgPicker } from "../store/activeOrgSlice";
+import { OrgPickerModal } from "../components/OrgPickerModal";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -12,6 +14,8 @@ interface DashboardLayoutProps {
 
 export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const profile = useAppSelector((s) => s.profile);
+  const activeOrgStatus = useAppSelector(selectActiveOrgStatus);
+  const showOrgPicker = useAppSelector(selectShowOrgPicker);
 
   // DISABLED: Unknown sensor auto-discovery to prevent API spam
   // useUnknownSensorDiscovery();
@@ -22,6 +26,20 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   if (profile.loaded && (profile.data?.memberships?.length ?? 0) === 0 && location.pathname !== "/onboarding") {
     return;
   }
+
+  // Show org picker modal when the store indicates it should be shown
+  const shouldShowOrgPicker = showOrgPicker && profile.loaded;
+  
+  // Debug logging
+  React.useEffect(() => {
+    console.log('[DEBUG] Dashboard Layout State:', {
+      showOrgPicker,
+      profileLoaded: profile.loaded,
+      shouldShowOrgPicker,
+      activeOrgStatus,
+      membershipsCount: profile.data?.memberships?.length || 0
+    });
+  }, [showOrgPicker, profile.loaded, shouldShowOrgPicker, activeOrgStatus, profile.data?.memberships?.length]);
   // const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
   const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(isDesktop ? false /* rail */ : false /* hidden */);
@@ -80,6 +98,15 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           </div>
         </motion.main>
       </div>
+
+      {/* Organization Picker Modal */}
+      <OrgPickerModal 
+        isOpen={shouldShowOrgPicker}
+        onClose={() => {
+          // Modal shouldn't be closeable for multi-org users who need to pick
+          // This is just for type safety - the modal handles its own logic
+        }}
+      />
     </div>
   );
 };

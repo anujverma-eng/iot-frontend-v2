@@ -60,6 +60,11 @@ const appPages = [
     badge: "5",
   },
   {
+    name: "Team",
+    icon: "lucide:users",
+    path: "/dashboard/team",
+  },
+  {
     name: "Settings",
     icon: "lucide:settings",
     path: "/dashboard/settings",

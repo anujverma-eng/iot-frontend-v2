@@ -6,12 +6,13 @@ import { formatDistanceToNow } from "date-fns";
 import { Link } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { formatNumericValue } from "../utils/numberUtils";
-import { AppDispatch } from "../store";
+import { AppDispatch, RootState } from "../store";
 import { useOfflineDetectionIntegration } from "../hooks/useOfflineDetectionIntegration";
 import { useLiveDataReadiness } from "../hooks/useLiveDataReadiness";
 import { useLiveModeTransition } from "../hooks/useLiveModeTransition";
 import { LiveDataLoading } from "../components/visualization/live-data-loading";
 import { fetchGateways, fetchGatewayStats, selectGateways, selectGatewayStats } from "../store/gatewaySlice";
+import DebugActiveOrg from "../components/DebugActiveOrg";
 import {
   fetchSensors,
   fetchSensorStats,
@@ -33,6 +34,7 @@ import {
   selectMaxLiveReadings,
 } from "../store/telemetrySlice";
 import { selectIsConnecting } from "../store/liveDataSlice";
+import { selectActiveOrgReady } from "../store/activeOrgSlice";
 import { Gateway } from "../types/gateway";
 import { Sensor } from "../types/sensor";
 import { StatsCard } from "../components/stats-card";
@@ -100,6 +102,7 @@ export const DashboardHome: React.FC = () => {
   const telemetryData = useSelector(selectTelemetryData);
   const timeRange = useSelector(selectTimeRange);
   const maxLiveReadings = useSelector(selectMaxLiveReadings);
+  const activeOrgReady = useSelector(selectActiveOrgReady);
 
   // Initialize offline detection service
   useOfflineDetectionIntegration();
@@ -165,6 +168,14 @@ export const DashboardHome: React.FC = () => {
 
   React.useEffect(() => {
     const fetchData = async () => {
+      // Don't fetch org-scoped data until active org is ready
+      if (!activeOrgReady) {
+        // Set loading to false when org is not ready - this allows the dashboard 
+        // layout to show (with the org picker modal if needed)
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(true);
       try {
         await Promise.all([
@@ -188,7 +199,7 @@ export const DashboardHome: React.FC = () => {
     };
 
     fetchData();
-  }, [dispatch]);
+  }, [dispatch, activeOrgReady]);
 
   // Get sorted sensors by battery level (lowest first) for recent sensors
   // Show up to 5 sensors sorted by lowest battery level first
@@ -200,7 +211,7 @@ export const DashboardHome: React.FC = () => {
 
   // Optimized telemetry fetching with live data readiness
   React.useEffect(() => {
-    if (!selectedFavoriteSensor) {
+    if (!selectedFavoriteSensor || !activeOrgReady) {
       setIsLoadingTelemetry(false);
       return;
     }
@@ -276,7 +287,7 @@ export const DashboardHome: React.FC = () => {
       .finally(() => {
         setIsLoadingTelemetry(false);
       });
-  }, [dispatch, selectedFavoriteSensor, timeRange, hasInitialLoadCompleted, liveDataReadiness.shouldFetchApiData, liveDataReadiness.shouldShowLoading, isLiveMode]);
+  }, [dispatch, selectedFavoriteSensor, timeRange, hasInitialLoadCompleted, liveDataReadiness.shouldFetchApiData, liveDataReadiness.shouldShowLoading, isLiveMode, activeOrgReady]);
 
   // Handle time range change for favorite sensor view
   const handleTimeRangeChange = (newTimeRange: any) => {
@@ -330,8 +341,21 @@ export const DashboardHome: React.FC = () => {
     );
   }
 
+  // Show waiting state when org is not ready (e.g., waiting for user to select org)
+  if (!activeOrgReady) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="text-center space-y-4">
+          <Progress size="sm" isIndeterminate aria-label="Setting up organization..." className="max-w-md" />
+          <p className="text-default-500">Setting up your organization...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto max-w-7xl p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
+      <DebugActiveOrg />
       <motion.h1
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}

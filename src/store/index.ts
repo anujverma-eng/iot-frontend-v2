@@ -2,15 +2,36 @@ import { configureStore } from "@reduxjs/toolkit";
 import auth from "./authSlice";
 import profile from "./profileSlice";
 import org from "./orgSlice";
+import activeOrg from "./activeOrgSlice";
 import confirmation from "./confirmationSlice";
 import gateways from "./gatewaySlice";
 import sensors from "./sensorsSlice";
 import telemetry from "./telemetrySlice";
 import liveData from "./liveDataSlice";
 import settings from "./settingsSlice";
+import members from "./membersSlice";
+import invites from "./invitesSlice";
+import permissionsCatalog from "./permissionsCatalogSlice";
+import rolePermissions from "./rolePermissionsSlice";
+import { setStoreReference } from "../api/http";
 
 export const store = configureStore({
-  reducer: { auth, profile, org, confirmation, gateways, sensors, telemetry, liveData, settings },
+  reducer: { 
+    auth, 
+    profile, 
+    org, 
+    activeOrg, 
+    confirmation, 
+    gateways, 
+    sensors, 
+    telemetry, 
+    liveData, 
+    settings,
+    members,
+    invites,
+    permissionsCatalog,
+    rolePermissions
+  },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: {
@@ -28,5 +49,9 @@ export const store = configureStore({
       },
     }),
 });
+
+// Set store reference for HTTP client to avoid circular dependency
+setStoreReference(store);
+
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;

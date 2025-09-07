@@ -34,9 +34,39 @@ export interface MeDTO {
   pendingInvitesCount: number;
 }
 
+export interface MyPermissionsDTO {
+  organizationId: string;
+  role: string;
+  permissions: string[];
+}
+
+export interface UserSettings {
+  userId: string;
+  defaultOrgId?: string;
+  orgChoiceMode: 'remember' | 'ask-every-time';
+}
+
+export interface UpdateUserSettingsRequest {
+  defaultOrgId?: string;
+  orgChoiceMode?: 'remember' | 'ask-every-time';
+}
+
 export const UserService = {
   async me(): Promise<MeDTO> {
     const response = await http.get<ApiResponse<MeDTO>>("/users/me");
+    return unwrapApiResponse(response.data);
+  },
+  async myPermissions(): Promise<MyPermissionsDTO> {
+    const response = await http.get<ApiResponse<MyPermissionsDTO>>("/users/me/permissions");
+    return unwrapApiResponse(response.data);
+  },
+  async getMySettings(): Promise<UserSettings> {
+    const response = await http.get<ApiResponse<UserSettings>>("/settings/me");
+    return unwrapApiResponse(response.data);
+  },
+  async updateMySettings(request: UpdateUserSettingsRequest, orgId?: string): Promise<UserSettings> {
+    const config = orgId ? { headers: { 'X-Org-Id': orgId } } : {};
+    const response = await http.put<ApiResponse<UserSettings>>("/settings/me", request, config);
     return unwrapApiResponse(response.data);
   },
 };

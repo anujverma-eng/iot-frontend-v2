@@ -22,6 +22,7 @@ import { AnalyticsPage } from "./pages/analytics";
 import { DashboardHome } from "./pages/DashboardHome";
 import { PanelPage } from "./pages/PanelPage";
 import { SettingsPage } from "./pages/settings";
+import { TeamPage } from "./pages/TeamPage";
 
 export function AppRouter() {
   return (
@@ -55,6 +56,7 @@ export function AppRouter() {
               <Route path="panel" element={<PanelPage />} />
               <Route path="gateways" element={<GatewaysPage />} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="team" element={<TeamPage />} />
               <Route path="sensors">
                 <Route index element={<AnalyticsPage />} />
                 <Route path=":sensorId" element={<AnalyticsPage />} />

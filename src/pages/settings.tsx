@@ -18,6 +18,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useBreadcrumbNavigation } from '../hooks/useBreadcrumbNavigation';
 import { useSettings } from '../hooks/useSettings';
 import { offlineDetectionService } from '../services/offlineDetectionService';
+import { OrganizationPreferences } from '../components/OrganizationPreferences';
 
 // Timeout options
 const TIMEOUT_OPTIONS = [
@@ -280,6 +281,27 @@ export const SettingsPage: React.FC = () => {
                 </div>
               </div>
             </div>
+          </CardBody>
+        </Card>
+
+        {/* Organization Preferences */}
+        <Card className="shadow-sm">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <Icon icon="lucide:building" className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-foreground">Organization Preferences</h2>
+                <p className="text-sm text-default-500">
+                  Manage how you interact with multiple organizations
+                </p>
+              </div>
+            </div>
+          </CardHeader>
+          <Divider />
+          <CardBody className="gap-6">
+            <OrganizationPreferences />
           </CardBody>
         </Card>
 

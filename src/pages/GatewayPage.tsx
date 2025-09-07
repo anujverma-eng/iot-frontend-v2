@@ -33,6 +33,7 @@ import {
   selectGatewayStats,
   setPage
 } from "../store/gatewaySlice";
+import { selectActiveOrgReady } from "../store/activeOrgSlice";
 import type { Gateway } from "../types/gateway";
 
 // Helper function to determine gateway online status
@@ -62,6 +63,7 @@ export const GatewaysPage: React.FC = () => {
   const pagination = useSelector(selectGatewayPagination);
   const isLoading = useSelector(gatewaysIsBusy);
   const deleteLoadingIds = useSelector(selectDeleteLoadingIds);
+  const activeOrgReady = useSelector(selectActiveOrgReady);
   const [selectedGateway, setSelectedGateway] = React.useState<string | null>(null);
   const [gatewayToDelete, setGatewayToDelete] = React.useState<Gateway | null>(null);
   const [sortColumn, setSortColumn] = React.useState<string | null>(null);
@@ -75,6 +77,10 @@ export const GatewaysPage: React.FC = () => {
   const error = useSelector((state: RootState) => state.gateways.error);
 
   const fetchData = React.useCallback(async () => {
+    if (!activeOrgReady) {
+      return;
+    }
+    
     try {
       await dispatch(refreshGatewayData({
         page: pagination.page,
@@ -84,7 +90,7 @@ export const GatewaysPage: React.FC = () => {
     } catch (error) {
 
     }
-  }, [dispatch, pagination.page]);
+  }, [dispatch, pagination.page, activeOrgReady]);
 
   React.useEffect(() => {
     fetchData();

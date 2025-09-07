@@ -13,12 +13,17 @@ import {
   Chip,
   Skeleton,
   Tooltip,
+  useDisclosure,
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { cn } from "../lib/utils";
 import { useAppDispatch, useAppSelector } from "../hooks/useAppDispatch";
 import { logout } from "../store/authSlice";
 import { selectIsLiveMode, selectIsConnecting, toggleLiveMode } from "../store/liveDataSlice";
+import { selectActiveOrgName, selectActiveOrgStatus } from "../store/activeOrgSlice";
+import { OrgSelector } from "../components/OrgSelector";
+import { CreateOrganizationModal } from "../components/CreateOrganizationModal";
+import { canUserCreateOrganization } from "../utils/organizationUtils";
 import { useNavigate } from "react-router-dom";
 
 interface DashboardNavbarProps {
@@ -29,24 +34,36 @@ interface DashboardNavbarProps {
 export const DashboardNavbar = ({ onMenuToggle, className }: DashboardNavbarProps) => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const {
+    isOpen: isCreateOrgModalOpen,
+    onOpen: onCreateOrgModalOpen,
+    onClose: onCreateOrgModalClose,
+  } = useDisclosure();
+
   const handleMenuAction = (key: React.Key) => {
     if (key === "logout") {
       dispatch(logout());
     } else if (key === "settings") {
       navigate("/dashboard/settings");
+    } else if (key === "create_org") {
+      onCreateOrgModalOpen();
     }
   };
 
   const profile = useAppSelector((s) => s.profile);
-  const orgDetails = useAppSelector((s) => s.org);
+  const activeOrgName = useAppSelector(selectActiveOrgName);
+  const activeOrgStatus = useAppSelector(selectActiveOrgStatus);
   const isLiveMode = useAppSelector(selectIsLiveMode);
   const isConnecting = useAppSelector(selectIsConnecting);
 
-  // show skeleton until both slices have loaded
-  const isBusy = profile.loading || orgDetails.loading || !profile.loaded || !orgDetails.loaded;
+  // Check if user can create organization
+  const memberships = profile.data?.memberships || [];
+  const userCanCreateOrg = canUserCreateOrganization(memberships);
+
+  // show skeleton until profile has loaded and org is ready
+  const isBusy = profile.loading || !profile.loaded || activeOrgStatus === "resolving";
 
   const userEmail = profile.data?.user.email ?? "";
-  const orgName = orgDetails.data?.name ?? "";
 
   /* Avatar fallback: first letter of e‑mail or a user icon  */
   const avatarFallback =
@@ -98,13 +115,16 @@ export const DashboardNavbar = ({ onMenuToggle, className }: DashboardNavbarProp
       </NavbarContent> */}
 
       <NavbarContent justify="end" className="gap-3">
+        {/* Organization Selector */}
+        <OrgSelector />
+
         {/* Real-time mode indicator */}
-        <Tooltip 
+        <Tooltip
           content={
-            isConnecting 
-              ? "Connecting to live data..." 
-              : isLiveMode 
-                ? "Live mode is active - Click to disable" 
+            isConnecting
+              ? "Connecting to live data..."
+              : isLiveMode
+                ? "Live mode is active - Click to disable"
                 : "Live mode is disabled - Click to enable"
           }
         >
@@ -115,18 +135,12 @@ export const DashboardNavbar = ({ onMenuToggle, className }: DashboardNavbarProp
             color={isLiveMode ? "success" : "default"}
             onPress={handleLiveModeToggle}
             isLoading={isConnecting}
-            className={cn(
-              "transition-all duration-200",
-              isLiveMode && "animate-pulse"
-            )}
+            className={cn("transition-all duration-200", isLiveMode && "animate-pulse")}
           >
             {isConnecting ? (
               <Icon icon="lucide:loader-2" className="h-4 w-4 animate-spin" />
             ) : (
-              <Icon 
-                icon={isLiveMode ? "lucide:radio" : "lucide:wifi-off"} 
-                className="h-4 w-4" 
-              />
+              <Icon icon={isLiveMode ? "lucide:radio" : "lucide:wifi-off"} className="h-4 w-4" />
             )}
           </Button>
         </Tooltip>
@@ -136,16 +150,8 @@ export const DashboardNavbar = ({ onMenuToggle, className }: DashboardNavbarProp
           size="sm"
           variant="flat"
           color={isLiveMode ? "success" : "default"}
-          startContent={
-            <Icon 
-              icon={isLiveMode ? "lucide:activity" : "lucide:pause"} 
-              className="h-3 w-3" 
-            />
-          }
-          className={cn(
-            "transition-all duration-200",
-            isLiveMode && "animate-pulse"
-          )}
+          startContent={<Icon icon={isLiveMode ? "lucide:activity" : "lucide:pause"} className="h-3 w-3" />}
+          className={cn("transition-all duration-200", isLiveMode && "animate-pulse")}
         >
           {isConnecting ? "Connecting..." : isLiveMode ? "LIVE" : "OFFLINE"}
         </Chip>
@@ -200,11 +206,17 @@ export const DashboardNavbar = ({ onMenuToggle, className }: DashboardNavbarProp
                 </div>
               ) : (
                 <div className="flex flex-col">
-                  <p className="font-semibold truncate max-w-[14rem]">{orgName || "—"}</p>
+                  <p className="font-semibold truncate max-w-[14rem]">{activeOrgName || "—"}</p>
                   <p className="font-normal text-default-500 text-tiny truncate max-w-[14rem]">{userEmail}</p>
                 </div>
               )}
             </DropdownItem>
+            {userCanCreateOrg ? (
+              <DropdownItem key="create_org" color="primary" startContent={<Icon icon="lucide:plus" />}>
+                <span className="relative z-10 font-medium">Create Organization</span>
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent skew-x-12" />
+              </DropdownItem>
+            ) : null}
             <DropdownItem key="profile_page" startContent={<Icon icon="lucide:user" />}>
               My Profile
             </DropdownItem>
@@ -223,6 +235,16 @@ export const DashboardNavbar = ({ onMenuToggle, className }: DashboardNavbarProp
           </DropdownMenu>
         </Dropdown>
       </NavbarContent>
+
+      {/* Create Organization Modal */}
+      <CreateOrganizationModal
+        isOpen={isCreateOrgModalOpen}
+        onClose={onCreateOrgModalClose}
+        onSuccess={() => {
+          console.log("Organization created successfully from navbar!");
+          // You can add toast notification here
+        }}
+      />
     </Navbar>
   );
 };

@@ -4,6 +4,13 @@ import { v4 as uuid } from "uuid";
 import { tokenManager } from "../utils/tokenManager";
 import { AuthClient } from "../lib/auth/cognitoClient";
 
+// Store reference will be set later to avoid circular dependency
+let storeRef: any = null;
+
+export const setStoreReference = (store: any) => {
+  storeRef = store;
+};
+
 /* ------------------------------------------------------------------ */
 /*  axios singleton                                                   */
 /* ------------------------------------------------------------------ */
@@ -13,12 +20,30 @@ const http: AxiosInstance = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-/* ---------- request: JWT + trace‑id ---------------------------------- */
+/* ---------- request: JWT + trace‑id + org-id ------------------------ */
 http.interceptors.request.use((cfg) => {
   const t = tokenManager.load();
   if (t?.idToken) cfg.headers.Authorization = `Bearer ${t.idToken}`;
   else if (t?.accessToken) cfg.headers.Authorization = `Bearer ${t.accessToken}`;
   cfg.headers["X-Request-ID"] = uuid();
+  
+  // Add X-Org-Id header from Redux store
+  if (storeRef) {
+    const state = storeRef.getState();
+    const activeOrgId = state.activeOrg?.orgId;
+    if (activeOrgId) {
+      cfg.headers["X-Org-Id"] = activeOrgId;
+    }
+  }
+  
+  // Debug logging (guarded by env flag)
+  if (import.meta.env.VITE_DEBUG_ORG_REQUESTS === 'true') {
+    console.log(`[HTTP] ${cfg.method?.toUpperCase()} ${cfg.url}`, {
+      'X-Org-Id': cfg.headers["X-Org-Id"] || 'NOT_SET',
+      'Authorization': cfg.headers.Authorization ? 'PRESENT' : 'MISSING',
+    });
+  }
+  
   return cfg;
 });
 

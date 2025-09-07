@@ -43,13 +43,35 @@ const convertFrontendToBackend = (frontendSettings: AppSettings) => ({
 // Async thunks for backend API operations
 export const fetchSettingsFromBackend = createAsyncThunk(
   'settings/fetchFromBackend',
-  async (_, { rejectWithValue }) => {
+  async (_, { rejectWithValue, getState }) => {
     try {
+      const state = getState() as any;
+      const activeOrgReady = state.activeOrg?.orgId && state.activeOrg?.status === 'ready';
+      
+      if (!activeOrgReady) {
+        return rejectWithValue({
+          type: 'API_ERROR',
+          message: 'Cannot fetch settings: active organization not ready',
+        });
+      }
 
       const backendSettings = await SettingsService.getSettings();
 
       return backendSettings;
     } catch (error: any) {
+      // Handle 500 errors specifically - likely org context missing
+      if (error.response?.status === 500) {
+        console.error('[Settings] 500 error - checking request headers:', {
+          'X-Org-Id': error.config?.headers?.['X-Org-Id'] || 'NOT_SET',
+          'Authorization': error.config?.headers?.Authorization ? 'PRESENT' : 'MISSING',
+          url: error.config?.url,
+        });
+        
+        return rejectWithValue({
+          type: 'API_ERROR',
+          message: 'Server error - organization context may be missing. Please try again.',
+        });
+      }
 
       // Handle specific error types
       if (error.message?.startsWith('SETTINGS_NOT_FOUND:')) {

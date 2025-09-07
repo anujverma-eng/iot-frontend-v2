@@ -19,6 +19,7 @@ import {
   type AppSettings,
   type SensorSettings,
 } from '../store/settingsSlice';
+import { selectActiveOrgReady } from '../store/activeOrgSlice';
 
 /**
  * Custom hook for managing application settings with backend synchronization
@@ -42,10 +43,15 @@ export const useSettings = () => {
   const errorMessage = useAppSelector(selectSettingsErrorMessage);
   const errorType = useAppSelector(selectSettingsErrorType);
   const hasBackendSettings = useAppSelector(selectHasBackendSettings);
+  const activeOrgReady = useAppSelector(selectActiveOrgReady);
 
   // Initialize settings on mount
   useEffect(() => {
     const initializeSettings = async () => {
+      // Don't fetch from backend until active org is ready
+      if (!activeOrgReady) {
+        return;
+      }
       
       // Then try to fetch from backend
       try {
@@ -60,10 +66,10 @@ export const useSettings = () => {
       }
     };
 
-    if (!isLoaded) {
+    if (!isLoaded && activeOrgReady) {
       initializeSettings();
     }
-  }, [dispatch, isLoaded]);
+  }, [dispatch, isLoaded, activeOrgReady]);
 
   // Sync to backend when settings change (debounced)
   const syncToBackend = useCallback(

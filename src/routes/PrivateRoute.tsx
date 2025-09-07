@@ -2,6 +2,7 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAppSelector, useAppDispatch } from "../hooks/useAppDispatch";
 import { fetchProfile } from "../store/profileSlice";
+import { resolveInitialActiveOrg } from "../store/activeOrgSlice";
 import React from "react";
 import { FullScreenLoader } from "../components/Loader";
 
@@ -9,6 +10,7 @@ export default function PrivateRoute() {
   const dispatch = useAppDispatch();
   const auth = useAppSelector((s) => s.auth);
   const profile = useAppSelector((s) => s.profile);
+  const activeOrg = useAppSelector((s) => s.activeOrg);
   const location = useLocation();
 
   /* fetch profile exactly once */
@@ -17,6 +19,14 @@ export default function PrivateRoute() {
       dispatch(fetchProfile());
     }
   }, [auth.status, profile.loaded, profile.loading, dispatch]);
+
+  /* resolve active org after profile is loaded */
+  React.useEffect(() => {
+    if (auth.status === "auth" && profile.loaded && activeOrg.status === "idle") {
+      console.log('[DEBUG] PrivateRoute: Triggering resolveInitialActiveOrg after profile load');
+      dispatch(resolveInitialActiveOrg());
+    }
+  }, [auth.status, profile.loaded, activeOrg.status, dispatch]);
 
   /* --- guards --- */
   if (auth.status === "idle" || auth.status === "loading" || profile.loading) {
