@@ -2,10 +2,12 @@ import { motion } from "framer-motion";
 import React from "react";
 import { DashboardNavbar } from "../dashboard/DashboardNavbar";
 import { DashboardSidebar } from "../dashboard/DashboardSidebar";
-import { useAppSelector } from "../hooks/useAppDispatch";
+import { useAppSelector, useAppDispatch } from "../hooks/useAppDispatch";
 import { useUnknownSensorDiscovery } from "../hooks/useUnknownSensorDiscovery";
 import { useLiveDataConnection } from "../hooks/useLiveDataConnection";
 import { selectActiveOrgStatus, selectShowOrgPicker } from "../store/activeOrgSlice";
+import { fetchMyInvitations, selectMyInvitationsLoading, selectMyInvitations } from "../store/invitesSlice";
+import { fetchCatalog, selectPermissionsCatalogLoading } from "../store/permissionsCatalogSlice";
 import { OrgPickerModal } from "../components/OrgPickerModal";
 
 interface DashboardLayoutProps {
@@ -13,15 +15,43 @@ interface DashboardLayoutProps {
 }
 
 export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
+  const dispatch = useAppDispatch();
   const profile = useAppSelector((s) => s.profile);
   const activeOrgStatus = useAppSelector(selectActiveOrgStatus);
   const showOrgPicker = useAppSelector(selectShowOrgPicker);
+  const myInvitationsLoading = useAppSelector(selectMyInvitationsLoading);
+  const myInvitations = useAppSelector(selectMyInvitations);
+  const permissionsCatalogLoading = useAppSelector(selectPermissionsCatalogLoading);
+  const hasFetchedInvitations = React.useRef(false);
+  const hasFetchedPermissions = React.useRef(false);
+
+  // Reset fetch flags when user changes
+  React.useEffect(() => {
+    hasFetchedInvitations.current = false;
+    hasFetchedPermissions.current = false;
+  }, [profile.data?.user?.id]);
 
   // DISABLED: Unknown sensor auto-discovery to prevent API spam
   // useUnknownSensorDiscovery();
 
   // Initialize centralized live data connection
   useLiveDataConnection();
+
+  // Fetch permissions catalog early
+  React.useEffect(() => {
+    if (!permissionsCatalogLoading && !hasFetchedPermissions.current) {
+      hasFetchedPermissions.current = true;
+      dispatch(fetchCatalog());
+    }
+  }, [dispatch, permissionsCatalogLoading]);
+
+  // Fetch invitation count as soon as dashboard is loaded and user is authenticated
+  React.useEffect(() => {
+    if (profile.loaded && profile.data?.user?.id && !myInvitationsLoading && !hasFetchedInvitations.current) {
+      hasFetchedInvitations.current = true;
+      dispatch(fetchMyInvitations({}));
+    }
+  }, [dispatch, profile.loaded, profile.data?.user?.id]);
 
   if (profile.loaded && (profile.data?.memberships?.length ?? 0) === 0 && location.pathname !== "/onboarding") {
     return;
@@ -32,12 +62,13 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   
   // Debug logging
   React.useEffect(() => {
+    const membershipsCount = profile.data?.memberships?.length || 0;
     console.log('[DEBUG] Dashboard Layout State:', {
       showOrgPicker,
       profileLoaded: profile.loaded,
       shouldShowOrgPicker,
       activeOrgStatus,
-      membershipsCount: profile.data?.memberships?.length || 0
+      membershipsCount
     });
   }, [showOrgPicker, profile.loaded, shouldShowOrgPicker, activeOrgStatus, profile.data?.memberships?.length]);
   // const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);

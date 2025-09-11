@@ -1,5 +1,6 @@
 // src/pages/TeamPage.tsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { useSearchParams, useLocation, useNavigate } from "react-router-dom";
 import {
   Table,
   TableHeader,
@@ -29,9 +30,14 @@ import {
   SortDescriptor,
   Accordion,
   AccordionItem,
+  addToast,
 } from "@heroui/react";
 import { useAppDispatch, useAppSelector } from "../hooks/useAppDispatch";
 import { useBreakpoints } from "../hooks/use-media-query";
+import { usePermissions } from "../hooks/usePermissions";
+import { PermissionWrapper } from "../components/PermissionWrapper";
+import { PermissionButton } from "../components/PermissionButton";
+import { debounce } from "../utils/debounce";
 import {
   fetchMembers,
   changeRole,
@@ -42,6 +48,7 @@ import {
   selectMembersError,
   selectMembersPagination,
   selectMembersUpdatingId,
+  selectMembersDeletingId,
 } from "../store/membersSlice";
 import {
   createInvite,
@@ -80,7 +87,8 @@ import { ChangeRoleModal } from "../components/ChangeRoleModal";
 import { EditPermissionsModal } from "../components/EditPermissionsModal";
 
 // Icons
-import { EllipsisVerticalIcon, PlusIcon, PaperAirplaneIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { Icon } from "@iconify/react";
+import { EllipsisVerticalIcon, PlusIcon, PaperAirplaneIcon, XMarkIcon, LinkIcon, ClipboardDocumentIcon, ArrowLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 
 interface InviteFormData {
   email: string;
@@ -172,6 +180,41 @@ const categorizeMyInvitations = (invitations: Invite[]) => {
   return { pending, others };
 };
 
+// Helper function to copy invite link to clipboard
+const copyInviteLink = async (token: string) => {
+  const inviteLink = `${window.location.origin}/invites/${token}`;
+  try {
+    await navigator.clipboard.writeText(inviteLink);
+    addToast({
+      title: "Invite Link Copied",
+      description: "The invitation link has been copied to your clipboard",
+      color: "success",
+    });
+  } catch (err) {
+    // Fallback for older browsers
+    const textArea = document.createElement("textarea");
+    textArea.value = inviteLink;
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      document.execCommand("copy");
+      addToast({
+        title: "Invite Link Copied",
+        description: "The invitation link has been copied to your clipboard",
+        color: "success",
+      });
+    } catch (fallbackErr) {
+      addToast({
+        title: "Copy Failed",
+        description: "Unable to copy the link. Please copy it manually.",
+        color: "danger",
+      });
+    }
+    document.body.removeChild(textArea);
+  }
+};
+
 // Component for rendering invite table within accordion
 const InviteTable: React.FC<{
   invites: Invite[];
@@ -187,6 +230,7 @@ const InviteTable: React.FC<{
     { key: "status", label: "Status" },
     { key: "createdAt", label: "Invited" },
     { key: "expiresAt", label: "Expires" },
+    { key: "copyLink", label: "Copy Link" },
     { key: "actions", label: showActions ? "Actions" : "" },
   ];
 
@@ -249,23 +293,37 @@ const InviteTable: React.FC<{
               )}
             </TableCell>
             <TableCell>
+              <Button
+                size={isMobile ? "sm" : "sm"}
+                color="primary"
+                variant="light"
+                onClick={() => copyInviteLink(invite.token)}
+                startContent={<ClipboardDocumentIcon className={isMobile ? "w-3 h-3" : "w-4 h-4"} />}
+                className={isMobile ? "min-w-0 px-2" : ""}
+              >
+                {isMobile ? "" : "Copy"}
+              </Button>
+            </TableCell>
+            <TableCell>
               {showActions ? (
                 <div className="flex items-center gap-2">
                   {(invite.status === InviteStatus.CREATED ||
                     invite.status === InviteStatus.SENT ||
                     invite.status === InviteStatus.DELIVERED) && (
-                    <Button
-                      size={isMobile ? "sm" : "sm"}
-                      color="danger"
-                      variant="light"
-                      onClick={() => handleRevokeInvite(invite.token)}
-                      startContent={<XMarkIcon className={isMobile ? "w-3 h-3" : "w-4 h-4"} />}
-                      className={isMobile ? "min-w-0 px-2" : ""}
-                      isLoading={revokingId === invite.token}
-                      isDisabled={revokingId === invite.token}
-                    >
-                      {isMobile ? "" : "Revoke"}
-                    </Button>
+                    <PermissionWrapper permissions={["invites.revoke"]}>
+                      <Button
+                        size={isMobile ? "sm" : "sm"}
+                        color="danger"
+                        variant="light"
+                        onClick={() => handleRevokeInvite(invite.token)}
+                        startContent={<XMarkIcon className={isMobile ? "w-3 h-3" : "w-4 h-4"} />}
+                        className={isMobile ? "min-w-0 px-2" : ""}
+                        isLoading={revokingId === invite.token}
+                        isDisabled={revokingId === invite.token}
+                      >
+                        {isMobile ? "" : "Revoke"}
+                      </Button>
+                    </PermissionWrapper>
                   )}
                 </div>
               ) : null}
@@ -370,7 +428,11 @@ const MyInvitationsTable: React.FC<{
 
 export const TeamPage: React.FC = () => {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
   const { isMobile } = useBreakpoints();
+  const { hasPermission } = usePermissions();
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
   const activeOrgId = useAppSelector(selectActiveOrgId);
   const activeOrgReady = useAppSelector(selectActiveOrgReady);
   const profile = useAppSelector((s) => s.profile);
@@ -381,6 +443,7 @@ export const TeamPage: React.FC = () => {
   const membersError = useAppSelector(selectMembersError);
   const membersPagination = useAppSelector(selectMembersPagination);
   const membersUpdatingId = useAppSelector(selectMembersUpdatingId);
+  const membersDeletingId = useAppSelector(selectMembersDeletingId);
 
   // Invites state
   const invites = useAppSelector(selectInvites);
@@ -440,6 +503,56 @@ export const TeamPage: React.FC = () => {
   const [isInvitationDetailsModalOpen, setIsInvitationDetailsModalOpen] = useState(false);
   const [selectedInvitation, setSelectedInvitation] = useState<Invite | null>(null);
 
+  // Ref to track if we've already fetched my invitations
+  const hasFetchedMyInvitations = useRef(false);
+
+  // Debounced search function to avoid making API calls on every keystroke
+  const debouncedMembersSearch = React.useMemo(
+    () =>
+      debounce((searchValue: string) => {
+        if (activeOrgReady && activeOrgId) {
+          dispatch(
+            fetchMembers({
+              page: 1, // Reset to first page on new search
+              limit: ITEMS_PER_PAGE,
+              search: searchValue,
+              sort: membersSortDescriptor.column as string,
+              dir: membersSortDescriptor.direction === "ascending" ? "asc" : "desc",
+            })
+          );
+          setMembersPage(1); // Reset page state
+        }
+      }, 500),
+    [dispatch, activeOrgReady, activeOrgId, membersSortDescriptor]
+  );
+
+  // Handle URL parameters (tab, invitation token)
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    const token = searchParams.get('token');
+    
+    // Set active tab from URL
+    if (tab && ['members', 'invites'].includes(tab)) {
+      setActiveTab(tab);
+    }
+    
+    // Token handling is no longer needed for teams page since invitations have their own page
+  }, [searchParams]);
+
+  // Reset fetch flag when user or organization changes
+  useEffect(() => {
+    hasFetchedMyInvitations.current = false;
+  }, [activeOrgId]);
+
+  // Handle successful invitation actions (from location state)
+  useEffect(() => {
+    if (location.state?.message) {
+      console.log(location.state.message); // You can replace this with a toast
+      // Clear the state to prevent showing the message again
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
   // Load data when org is ready
   useEffect(() => {
     if (activeOrgReady && activeOrgId) {
@@ -451,31 +564,44 @@ export const TeamPage: React.FC = () => {
           dir: membersSortDescriptor.direction === "ascending" ? "asc" : "desc",
         })
       );
-      dispatch(
-        fetchInvites({
-          page: invitesPage,
-          limit: ITEMS_PER_PAGE,
-          sort: invitesSortDescriptor.column as string,
-          dir: invitesSortDescriptor.direction === "ascending" ? "asc" : "desc",
-        })
-      );
+      
+      // Only fetch invites if user has permission to view them
+      if (hasPermission("invites.view")) {
+        dispatch(
+          fetchInvites({
+            page: invitesPage,
+            limit: ITEMS_PER_PAGE,
+            sort: invitesSortDescriptor.column as string,
+            dir: invitesSortDescriptor.direction === "ascending" ? "asc" : "desc",
+          })
+        );
+      }
+      
       dispatch(fetchCatalog());
     }
   }, [
     dispatch,
     activeOrgReady,
     activeOrgId,
+    hasPermission,
     membersPage,
-    membersSearch,
     membersSortDescriptor,
     invitesPage,
     invitesSortDescriptor,
   ]);
 
-  // Fetch my invitations on component mount
+  // Handle members search with debouncing
   useEffect(() => {
-    dispatch(fetchMyInvitations({}));
-  }, [dispatch]);
+    debouncedMembersSearch(membersSearch);
+  }, [membersSearch, debouncedMembersSearch]);
+
+  // Fetch my invitations on component mount (only if not already loaded)
+  useEffect(() => {
+    if (!myInvitationsLoading && !hasFetchedMyInvitations.current) {
+      hasFetchedMyInvitations.current = true;
+      dispatch(fetchMyInvitations({}));
+    }
+  }, [dispatch, myInvitationsLoading]);
 
   // Handle invite submission
   const handleInviteSubmit = async () => {
@@ -487,16 +613,27 @@ export const TeamPage: React.FC = () => {
       await dispatch(createInvite(inviteForm)).unwrap();
       setInviteForm({ email: "", role: UserRole.VIEWER });
       setIsInviteModalOpen(false);
-      console.log("Invite sent successfully!");
-      // Refresh invites
-      dispatch(
-        fetchInvites({
-          page: invitesPage,
-          limit: ITEMS_PER_PAGE,
-          sort: invitesSortDescriptor.column as string,
-          dir: invitesSortDescriptor.direction === "ascending" ? "asc" : "desc",
-        })
-      );
+      
+      addToast({
+        title: 'Invitation Sent',
+        description: `Invitation has been sent to ${inviteForm.email}`,
+        color: 'success'
+      });
+      
+      // Switch to invited members tab to show the new invite
+      setActiveTab("invites");
+      
+      // Refresh invites only if user has permission
+      if (hasPermission("invites.view")) {
+        dispatch(
+          fetchInvites({
+            page: invitesPage,
+            limit: ITEMS_PER_PAGE,
+            sort: invitesSortDescriptor.column as string,
+            dir: invitesSortDescriptor.direction === "ascending" ? "asc" : "desc",
+          })
+        );
+      }
     } catch (error: any) {
       console.error("Failed to send invite:", error);
 
@@ -534,6 +671,12 @@ export const TeamPage: React.FC = () => {
       }
 
       setInviteError(errorMessage);
+      
+      addToast({
+        title: 'Invitation Failed',
+        description: errorMessage,
+        color: 'danger'
+      });
     } finally {
       setIsSubmittingInvite(false);
     }
@@ -605,7 +748,13 @@ export const TeamPage: React.FC = () => {
   const handleRemoveMember = async (membershipId: string) => {
     try {
       await dispatch(removeMember(membershipId)).unwrap();
-      console.log("Member removed successfully!");
+      
+      addToast({
+        title: 'Member Removed',
+        description: 'Team member has been successfully removed from the organization',
+        color: 'success'
+      });
+      
       // Refresh members
       dispatch(
         fetchMembers({
@@ -613,8 +762,21 @@ export const TeamPage: React.FC = () => {
           limit: ITEMS_PER_PAGE,
         })
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to remove member:", error);
+      
+      let errorMessage = "Failed to remove member. Please try again.";
+      if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      addToast({
+        title: 'Remove Failed',
+        description: errorMessage,
+        color: 'danger'
+      });
     }
   };
 
@@ -623,16 +785,24 @@ export const TeamPage: React.FC = () => {
     setRevokeError(null);
     try {
       await dispatch(revokeInvite(token)).unwrap();
-      console.log("Invite revoked successfully!");
-      // Refresh invites
-      dispatch(
-        fetchInvites({
-          page: invitesPage,
-          limit: ITEMS_PER_PAGE,
-          sort: invitesSortDescriptor.column as string,
-          dir: invitesSortDescriptor.direction === "ascending" ? "asc" : "desc",
-        })
-      );
+      
+      addToast({
+        title: 'Invitation Revoked',
+        description: 'The invitation has been successfully revoked',
+        color: 'success'
+      });
+      
+      // Refresh invites only if user has permission
+      if (hasPermission("invites.view")) {
+        dispatch(
+          fetchInvites({
+            page: invitesPage,
+            limit: ITEMS_PER_PAGE,
+            sort: invitesSortDescriptor.column as string,
+            dir: invitesSortDescriptor.direction === "ascending" ? "asc" : "desc",
+          })
+        );
+      }
     } catch (error: any) {
       console.error("Failed to revoke invite:", error);
 
@@ -670,6 +840,13 @@ export const TeamPage: React.FC = () => {
       }
 
       setRevokeError(errorMessage);
+      
+      addToast({
+        title: 'Revocation Failed',
+        description: errorMessage,
+        color: 'danger'
+      });
+      
       // Clear error after 5 seconds
       setTimeout(() => setRevokeError(null), 5000);
     }
@@ -839,6 +1016,20 @@ export const TeamPage: React.FC = () => {
 
   return (
     <div className={`max-w-7xl mx-auto ${isMobile ? "p-4" : "p-6"}`}>
+      {/* Back Navigation */}
+      <div className="flex items-center gap-2 mb-4">
+        <Button
+          variant="light"
+          size="sm"
+          startContent={<ArrowLeftIcon className="h-4 w-4" />}
+          onPress={() => navigate(-1)}
+        >
+          Back
+        </Button>
+        <ChevronRightIcon className="h-4 w-4 text-default-400" />
+        <span className="text-sm text-default-500">Team Management</span>
+      </div>
+
       <div className={`${isMobile ? "space-y-4" : "flex justify-between items-center"} mb-6`}>
         <div>
           <div className="flex items-center gap-3">
@@ -853,17 +1044,19 @@ export const TeamPage: React.FC = () => {
           </div>
           {!isMobile && <p className="text-gray-600 mt-1">Manage your organization's team members and permissions</p>}
         </div>
-        <Button
+        <PermissionButton
+          permissions={["invites.create"]}
           color="primary"
           startContent={<PlusIcon className="w-4 h-4" />}
-          onClick={() => {
+          onPress={() => {
             setInviteError(null); // Clear any previous errors
             setIsInviteModalOpen(true);
           }}
           className={isMobile ? "w-full" : ""}
+          lockedTooltip="You don't have permission to invite members"
         >
           Invite Member
-        </Button>
+        </PermissionButton>
       </div>
 
       <Card className={isMobile ? "shadow-none border-0" : ""}>
@@ -975,37 +1168,40 @@ export const TeamPage: React.FC = () => {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <Dropdown>
-                              <DropdownTrigger>
-                                <Button isIconOnly size={isMobile ? "sm" : "sm"} variant="light">
-                                  <EllipsisVerticalIcon className={"w-4 h-4"} />
-                                </Button>
-                              </DropdownTrigger>
-                              <DropdownMenu>
-                                <DropdownItem
-                                  key="permissions"
-                                  onClick={() => openPermissionsModal(member)}
-                                  className={isMobile ? "text-xs" : ""}
-                                >
-                                  Edit Permissions
-                                </DropdownItem>
-                                <DropdownItem
-                                  key="role"
-                                  onClick={() => openChangeRoleModal(member)}
-                                  className={isMobile ? "text-xs" : ""}
-                                >
-                                  Change Role
-                                </DropdownItem>
-                                <DropdownItem
-                                  key="remove"
-                                  className={`text-danger ${isMobile ? "text-xs" : ""}`}
-                                  color="danger"
-                                  onClick={() => handleRemoveMember(member._id)}
-                                >
-                                  Remove Member
-                                </DropdownItem>
-                              </DropdownMenu>
-                            </Dropdown>
+                            <PermissionWrapper permissions={["teams.roles", "teams.permissions", "teams.remove.members"]}>
+                              <Dropdown>
+                                <DropdownTrigger>
+                                  <Button isIconOnly size={isMobile ? "sm" : "sm"} variant="light">
+                                    <EllipsisVerticalIcon className={"w-4 h-4"} />
+                                  </Button>
+                                </DropdownTrigger>
+                                <DropdownMenu>
+                                  <DropdownItem
+                                    key="permissions"
+                                    onClick={() => openPermissionsModal(member)}
+                                    className={isMobile ? "text-xs" : ""}
+                                  >
+                                    Edit Permissions
+                                  </DropdownItem>
+                                  <DropdownItem
+                                    key="role"
+                                    onClick={() => openChangeRoleModal(member)}
+                                    className={isMobile ? "text-xs" : ""}
+                                  >
+                                    Change Role
+                                  </DropdownItem>
+                                  <DropdownItem
+                                    key="remove"
+                                    className={`text-danger ${isMobile ? "text-xs" : ""}`}
+                                    color="danger"
+                                    onClick={() => handleRemoveMember(member._id)}
+                                    isDisabled={membersDeletingId === member._id}
+                                  >
+                                    {membersDeletingId === member._id ? "Removing..." : "Remove Member"}
+                                  </DropdownItem>
+                                </DropdownMenu>
+                              </Dropdown>
+                            </PermissionWrapper>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -1016,7 +1212,19 @@ export const TeamPage: React.FC = () => {
             </Tab>
 
             <Tab key="invites" title={`Invited Members (${invitesPagination?.total || 0})`}>
-              <div className="space-y-4">
+              <PermissionWrapper
+                permissions={["invites.view"]}
+                fallback={
+                  <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                    <Icon icon="lucide:shield-x" className="w-16 h-16 text-default-300" />
+                    <div className="text-center">
+                      <h3 className="text-lg font-semibold text-default-700">Access Denied</h3>
+                      <p className="text-default-500 mt-2">You don't have permission to view invitations.</p>
+                    </div>
+                  </div>
+                }
+              >
+                <div className="space-y-4">
                 {revokeError && (
                   <div className="p-4 rounded-lg bg-red-50 border border-red-200 flex items-start gap-3">
                     <div className="flex-shrink-0 mt-0.5">
@@ -1139,86 +1347,7 @@ export const TeamPage: React.FC = () => {
                   </div>
                 )}
               </div>
-            </Tab>
-
-            <Tab
-              key="my-invitations"
-              title={
-                <div className="flex items-center gap-2">
-                  <span>My Invitations</span>
-                  {/* <span>My Invitations ({pendingMyInvitationsCount || 0})</span> */}
-                  {pendingMyInvitationsCount > 0 && (
-                    <Chip size="sm" color="primary" className="min-w-5 h-5">
-                      {pendingMyInvitationsCount} pending
-                    </Chip>
-                  )}
-                </div>
-              }
-            >
-              <div className="space-y-4">
-                {myInvitationsLoading && (!myInvitations || myInvitations.length === 0) ? (
-                  <div className="flex justify-center items-center py-10">
-                    <Spinner size="lg" label="Loading invitations..." />
-                  </div>
-                ) : myInvitations && myInvitations.length > 0 ? (
-                  (() => {
-                    const { pending, others } = categorizeMyInvitations(myInvitations);
-                    return (
-                      <Accordion
-                        variant="splitted"
-                        defaultExpandedKeys={["pending"]}
-                        className={isMobile ? "px-0" : ""}
-                      >
-                        {/* Pending Invitations - Always on top */}
-                        <AccordionItem
-                          key="pending"
-                          aria-label="Pending Invitations"
-                          title={
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">Pending Invitations</span>
-                              <Chip size="sm" color="primary" variant="flat">
-                                {pending.length}
-                              </Chip>
-                            </div>
-                          }
-                          className={isMobile ? "text-sm" : ""}
-                        >
-                          <MyInvitationsTable
-                            invitations={pending}
-                            isMobile={isMobile}
-                            handleInvitationDetails={handleInvitationDetails}
-                            currentUserEmail={profile.data?.user?.email}
-                          />
-                        </AccordionItem>
-
-                        {/* Other Invitations (Declined, Expired, Accepted, etc.) */}
-                        <AccordionItem
-                          key="others"
-                          aria-label="Other Invitations"
-                          title={
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">Processed Invitations</span>
-                              <Chip size="sm" color="default" variant="flat">
-                                {others.length}
-                              </Chip>
-                            </div>
-                          }
-                          className={isMobile ? "text-sm" : ""}
-                        >
-                          <MyInvitationsTable
-                            invitations={others}
-                            isMobile={isMobile}
-                            handleInvitationDetails={handleInvitationDetails}
-                            currentUserEmail={profile.data?.user?.email}
-                          />
-                        </AccordionItem>
-                      </Accordion>
-                    );
-                  })()
-                ) : (
-                  <div className="flex justify-center items-center py-10 text-gray-500">No invitations found</div>
-                )}
-              </div>
+              </PermissionWrapper>
             </Tab>
           </Tabs>
         </CardBody>

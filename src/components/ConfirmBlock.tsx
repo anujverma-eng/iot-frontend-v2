@@ -11,7 +11,7 @@ export function ConfirmBlock({
   onSuccess: (code?: string) => void;
   skipApi?: boolean;
 }) {
-  const { expiresAt, remaining, email, flow } = useAppSelector((s) => s.confirmation);
+  const { expiresAt, remaining, email, flow, pendingEmail } = useAppSelector((s) => s.confirmation);
   const dispatch = useAppDispatch();
 
   const [code, setCode] = React.useState('');
@@ -39,14 +39,20 @@ export function ConfirmBlock({
     }
   };
 
+  // Determine display email and title based on flow
+  const displayEmail = flow === 'email-change' ? pendingEmail : email;
+  const title = flow === 'signup' ? 'Verify your e‑mail' : 
+               flow === 'email-change' ? 'Verify your new email' : 
+               'Enter verification code';
+
   return (
     <div className="flex flex-col gap-4">
       <h2 className="text-xl font-semibold text-foreground">
-        {flow === 'signup' ? 'Verify your e‑mail' : 'Enter verification code'}
+        {title}
       </h2>
 
       <p className="text-default-500 text-sm">
-        We sent a 6-digit code to <strong>{email}</strong>
+        We sent a 6-digit code to <strong>{displayEmail}</strong>
       </p>
 
       <InputOtp

@@ -28,6 +28,27 @@ export interface CreateInviteRequest {
   deny?: string[];
 }
 
+export interface BulkInviteUser {
+  email: string;
+  role: UserRole;
+}
+
+export interface BulkInviteRequest {
+  users: BulkInviteUser[];
+}
+
+export interface BulkInviteResponse {
+  message: string;
+  successful: Array<{
+    email: string;
+    invite: Invite;
+  }>;
+  failed: Array<{
+    email: string;
+    error: string;
+  }>;
+}
+
 export const InvitesService = {
   async list(orgId: string, params: InvitesListParams = {}): Promise<InvitesListResponse> {
     const searchParams = new URLSearchParams();
@@ -58,8 +79,38 @@ export const InvitesService = {
     return unwrapApiResponse(response.data);
   },
 
+  async bulkCreate(orgId: string, bulkInvite: BulkInviteRequest): Promise<BulkInviteResponse> {
+    const response = await http.post<ApiResponse<BulkInviteResponse>>(
+      `/organizations/${orgId}/invites/bulk`,
+      bulkInvite
+    );
+    return unwrapApiResponse(response.data);
+  },
+
   async revoke(orgId: string, inviteId: string): Promise<void> {
     await http.delete(`/organizations/${orgId}/invites/${inviteId}`);
+  },
+
+  // Public invite info (no auth required)
+  async getPublicInvite(token: string): Promise<{
+    email: string;
+    orgName: string;
+    role: string;
+    expiresAt: string;
+    status: string;
+    expired: boolean;
+    invitedBy?: string;
+  }> {
+    const response = await http.get<ApiResponse<{
+      email: string;
+      orgName: string;
+      role: string;
+      expiresAt: string;
+      status: string;
+      expired: boolean;
+      invitedBy?: string;
+    }>>(`/invites/${token}`);
+    return unwrapApiResponse(response.data);
   },
 
   // My invitations (invitations I received)

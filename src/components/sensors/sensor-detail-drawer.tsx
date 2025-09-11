@@ -24,6 +24,8 @@ import { formatDistanceToNow } from "date-fns";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch } from "../../store";
 import { fetchSensorDetails, selectSensorDetail, selectSensorDetailError, selectSensorDetailLoading, unclaimSensor, updateSensorLabel } from "../../store/sensorsSlice";
+import { PermissionWrapper } from "../PermissionWrapper";
+import { PermissionButton } from "../PermissionButton";
 
 interface SensorDetailDrawerProps {
   isOpen: boolean;
@@ -117,14 +119,16 @@ export const SensorDetailDrawer: React.FC<SensorDetailDrawerProps> = ({
                     {!editingName ? (
                       <div className="flex items-center gap-2">
                         <span>{sensor.displayName || sensor.mac}</span>
-                        <Button 
+                        <PermissionButton
+                          permissions={["sensors.update"]}
                           isIconOnly 
                           size="sm" 
                           variant="light" 
                           onPress={() => setEditingName(true)}
+                          lockedTooltip="You don't have permission to edit sensor name"
                         >
                           <Icon icon="lucide:edit-3" height={16} width={16} />
-                        </Button>
+                        </PermissionButton>
                       </div>
                     ) : (
                       <div className="flex items-center gap-2">
@@ -250,14 +254,16 @@ export const SensorDetailDrawer: React.FC<SensorDetailDrawerProps> = ({
                               </p>
                             </div>
                           </div>
-                          <Button 
+                          <PermissionButton
+                            permissions={["sensors.delete"]}
                             color="danger" 
                             variant="flat"
                             onPress={() => setShowDeleteModal(true)}
                             className="self-end"
+                            lockedTooltip="You don't have permission to unclaim sensors"
                           >
                             Un-claim and Delete Data
-                          </Button>
+                          </PermissionButton>
                         </div>
                       </CardBody>
                     </Card>

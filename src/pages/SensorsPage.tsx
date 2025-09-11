@@ -36,6 +36,8 @@ import {
 import { ClaimSensorModal } from "../components/sensors/claim-sensor-modal";
 import { SensorDetailDrawer } from "../components/sensors/sensor-detail-drawer";
 import { fetchGateways, selectGateways } from "../store/gatewaySlice";
+import { PermissionWrapper } from "../components/PermissionWrapper";
+import { PermissionButton } from "../components/PermissionButton";
 
 export const SensorsPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -51,6 +53,8 @@ export const SensorsPage: React.FC = () => {
   const stats = useSelector(selectSensorStats);
   const pagination = useSelector(selectSensorPagination);
   const isLoading = useSelector((state: RootState) => state.sensors.loading);
+  const activeOrgStatus = useSelector((state: RootState) => state.activeOrg?.status);
+  const activeOrgId = useSelector((state: RootState) => state.activeOrg?.orgId);
 
   const fetchData = React.useCallback(async () => {
     await Promise.all([
@@ -69,9 +73,12 @@ export const SensorsPage: React.FC = () => {
   }, [dispatch, pagination.page, searchQuery, sortColumn, sortDirection]);
 
   React.useEffect(() => {
-    fetchData();
-    dispatch(fetchGateways({ page: 1, limit: 1000, search: "" }));
-  }, [fetchData, dispatch]);
+    // Only fetch data when organization context is ready
+    if (activeOrgStatus === 'ready' && activeOrgId) {
+      fetchData();
+      dispatch(fetchGateways({ page: 1, limit: 1000, search: "" }));
+    }
+  }, [fetchData, dispatch, activeOrgStatus, activeOrgId]);
 
   const debouncedSearch = React.useMemo(
     () =>
@@ -167,13 +174,15 @@ export const SensorsPage: React.FC = () => {
     >
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-semibold">Sensors</h1>
-        <Button
+        <PermissionButton
+          permissions={["sensors.add"]}
           color="primary"
           onPress={() => dispatch(setClaimModalOpen(true))}
           startContent={<Icon icon="lucide:plus" />}
+          lockedTooltip="You don't have permission to add sensors"
         >
           Add Sensor
-        </Button>
+        </PermissionButton>
       </div>
 
       {/* Stats cards */}
@@ -320,14 +329,16 @@ export const SensorsPage: React.FC = () => {
                   Clear search
                 </Button>
               ) : (
-                <Button
+                <PermissionButton
+                  permissions={["sensors.add"]}
                   color="primary"
                   size="lg"
                   onPress={() => dispatch(setClaimModalOpen(true))}
                   startContent={<Icon icon="lucide:plus" />}
+                  lockedTooltip="You don't have permission to add sensors"
                 >
                   Add Sensor
-                </Button>
+                </PermissionButton>
               )}
             </div>
           )}

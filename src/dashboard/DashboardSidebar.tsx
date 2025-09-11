@@ -4,6 +4,8 @@ import { clsx, type ClassValue } from "clsx";
 import { motion } from "framer-motion";
 import { Link, useLocation } from "react-router-dom";
 import { twMerge } from "tailwind-merge";
+import { useAppSelector } from "../hooks/useAppDispatch";
+import { selectPendingMyInvitationsCount } from "../store/invitesSlice";
 
 interface SidebarItem {
   name: string;
@@ -47,30 +49,6 @@ const sidebarItems: SidebarItem[] = [
   },
 ];
 
-const appPages = [
-  {
-    name: "Reports",
-    icon: "lucide:file-text",
-    path: "/dashboard/reports",
-  },
-  {
-    name: "Alerts",
-    icon: "lucide:bell",
-    path: "/dashboard/alerts",
-    badge: "5",
-  },
-  {
-    name: "Team",
-    icon: "lucide:users",
-    path: "/dashboard/team",
-  },
-  {
-    name: "Settings",
-    icon: "lucide:settings",
-    path: "/dashboard/settings",
-  },
-];
-
 interface DashboardSidebarProps {
   isOpen: boolean;
   onToggle: () => void;
@@ -80,6 +58,32 @@ interface DashboardSidebarProps {
 export const DashboardSidebar = ({ isOpen, onToggle, className }: DashboardSidebarProps) => {
   const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
   const { pathname } = useLocation();
+  const pendingMyInvitationsCount = useAppSelector(selectPendingMyInvitationsCount);
+
+  // Create dynamic appPages with live invitation count
+  const appPages = [
+    {
+      name: "Reports",
+      icon: "lucide:file-text",
+      path: "/dashboard/reports",
+    },
+    {
+      name: "My Invitations",
+      icon: "lucide:mail",
+      path: "/dashboard/invitations",
+      badge: pendingMyInvitationsCount > 0 ? pendingMyInvitationsCount.toString() : undefined,
+    },
+    {
+      name: "Team",
+      icon: "lucide:users",
+      path: "/dashboard/team",
+    },
+    {
+      name: "Settings",
+      icon: "lucide:settings",
+      path: "/dashboard/settings",
+    },
+  ];
   return (
     <>
       <div

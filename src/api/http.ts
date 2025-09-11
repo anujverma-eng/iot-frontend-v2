@@ -16,7 +16,7 @@ export const setStoreReference = (store: any) => {
 /* ------------------------------------------------------------------ */
 const http: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE,
-  timeout: 20_000,
+  timeout: 60_000,
   headers: { "Content-Type": "application/json" },
 });
 

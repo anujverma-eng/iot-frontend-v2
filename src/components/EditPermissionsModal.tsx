@@ -78,7 +78,7 @@ export const EditPermissionsModal: React.FC<EditPermissionsModalProps> = ({
   // Get permissions for the member's role
   const memberRolePermissions = useAppSelector(selectPermissionsForRole(memberRole));
 
-  // Reset form when modal opens
+  // Reset form when modal opens (only when opening, not when currentPermissions updates)
   useEffect(() => {
     if (isOpen) {
       setCustomPermissions({
@@ -87,7 +87,7 @@ export const EditPermissionsModal: React.FC<EditPermissionsModalProps> = ({
       });
       setLocalError(null);
     }
-  }, [isOpen, currentPermissions]);
+  }, [isOpen]); // Removed currentPermissions dependency to prevent reset during save
 
   const handlePermissionChange = (permissionValue: string, type: 'allow' | 'deny' | 'default') => {
     setCustomPermissions(prev => {

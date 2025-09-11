@@ -23,7 +23,6 @@ export default function PrivateRoute() {
   /* resolve active org after profile is loaded */
   React.useEffect(() => {
     if (auth.status === "auth" && profile.loaded && activeOrg.status === "idle") {
-      console.log('[DEBUG] PrivateRoute: Triggering resolveInitialActiveOrg after profile load');
       dispatch(resolveInitialActiveOrg());
     }
   }, [auth.status, profile.loaded, activeOrg.status, dispatch]);
@@ -38,7 +37,9 @@ export default function PrivateRoute() {
   }
 
   /* onboarding gate */
-  if (profile.loaded && (profile.data?.memberships?.length ?? 0) === 0 && location.pathname !== "/onboarding") {
+  if (profile.loaded && (profile.data?.memberships?.length ?? 0) === 0 && 
+      location.pathname !== "/onboarding" && 
+      location.pathname !== "/invitations") {
     return <Navigate to="/onboarding" replace />;
   }
 

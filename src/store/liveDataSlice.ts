@@ -6,6 +6,8 @@ import { updateSensorLastSeen, selectSensors } from './sensorsSlice';
 import { fetchGateways, updateGatewayPresence as updateGatewayPresenceInGatewaySlice } from './gatewaySlice';
 import { addLiveData } from './telemetrySlice';
 import { offlineDetectionService } from '../services/offlineDetectionService';
+import { selectCurrentUserPermissions } from './profileSlice';
+import { getPermissionValue } from '../constants/permissions';
 
 // Gateway presence message interface
 export interface GatewayPresenceMessage {
@@ -59,7 +61,38 @@ export const initializeLiveConnection = createAsyncThunk(
     const timestamp = Date.now();
 
     try {
+      // Check if user has permission for live sensor data
+      const userPermissions = selectCurrentUserPermissions(state);
+      const requiredPermission = getPermissionValue('SENSORS', 'LIVE');
+      console.log('[initializeLiveConnection] User permissions:', userPermissions);
+      console.log('[initializeLiveConnection] Required permission:', requiredPermission);
+      
+      if (!userPermissions.includes(requiredPermission)) {
+        console.log('[initializeLiveConnection] User does not have sensors.live permission');
+        return { 
+          gatewayIds: [], 
+          connected: false, 
+          timestamp, 
+          error: 'Permission denied: sensors.live permission required' 
+        };
+      }
+
+      // Check organization readiness
+      const activeOrgStatus = state.activeOrg?.status;
+      const activeOrgId = state.activeOrg?.orgId;
+      
+      if (activeOrgStatus !== 'ready' || !activeOrgId) {
+        console.log('[initializeLiveConnection] Organization not ready', { activeOrgStatus, activeOrgId });
+        return { 
+          gatewayIds: [], 
+          connected: false, 
+          timestamp, 
+          error: 'Organization context not ready' 
+        };
+      }
+
       // First fetch all available gateways
+      console.log('[initializeLiveConnection] Fetching gateways...');
 
       const gatewaysResponse = await dispatch(fetchGateways({ 
         page: 1, 
@@ -208,6 +241,7 @@ const liveDataSlice = createSlice({
       }
     },
     setConnectionError: (state, action: PayloadAction<string>) => {
+      console.log('[liveDataSlice] Connection error occurred:', action.payload);
       state.error = action.payload;
       state.isConnecting = false;
       state.isConnected = false;
@@ -223,6 +257,7 @@ const liveDataSlice = createSlice({
 
     },
     disconnectLive: (state) => {
+      console.log('[liveDataSlice] Disconnecting live mode');
       state.isConnected = false;
       state.isConnecting = false;
       state.isLiveMode = false;

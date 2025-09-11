@@ -1,6 +1,6 @@
 // src/components/register-form.tsx
 import { Input, Button, Checkbox, Link, Select, SelectItem, addToast, InputOtp } from "@heroui/react";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useNavigate, useSearchParams } from "react-router-dom";
 import { Icon } from "@iconify/react";
 import React from "react";
 import { z } from "zod";
@@ -42,9 +42,12 @@ type FormValues = z.infer<typeof schema>;
 
 export function RegisterForm() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const dispatch = useAppDispatch();
   const confirm = useAppSelector((s) => s.confirmation.flow === "signup");
   const [step, setStep] = React.useState<"form" | "code">("form");
+
+  const nextUrl = searchParams.get('next');
 
   const {
     control,
@@ -87,7 +90,14 @@ export function RegisterForm() {
     const password = watch("password");
     try {
       await dispatch(login({ email, password })).unwrap();
-      // user will be redirected by <PrivateRoute>
+      
+      // Handle post-auth navigation
+      if (nextUrl) {
+        navigate(decodeURIComponent(nextUrl));
+      } else {
+        // Let AuthBootstrap handle postAuth logic to avoid conflicts
+        // Default navigation will be handled by PrivateRoute
+      }
     } catch (e: any) {
       addToast({ title: "Login failed", description: e.message, color: "danger" });
     }

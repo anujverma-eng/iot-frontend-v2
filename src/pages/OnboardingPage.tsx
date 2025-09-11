@@ -7,15 +7,51 @@ import { FullScreenLoader } from "../components/Loader";
 import { OnboardingModal } from "../components/onboarding-modal";
 import { useAppDispatch, useAppSelector } from "../hooks/useAppDispatch";
 import { Navigate } from "react-router-dom";
+import { fetchMyInvitations, selectMyInvitations, selectMyInvitationsLoading } from "../store/invitesSlice";
+import { InviteStatus } from "../api/types";
 
 export default function OnboardingPage() {
   const dispatch = useAppDispatch();
   const profile = useAppSelector((s) => s.profile);
+  const myInvitations = useAppSelector((s) => s.invites.myInvitations.rows);
+  const myInvitationsLoading = useAppSelector((s) => s.invites.myInvitations.loading);
+  const hasFetchedInvitations = React.useRef(false);
+
+  // Helper functions for invitation filtering
+  const isPending = (status: InviteStatus) => {
+    return [InviteStatus.CREATED, InviteStatus.SENT, InviteStatus.DELIVERED].includes(status);
+  };
+
+  const isExpired = (expiresAt: string) => {
+    return new Date(expiresAt) < new Date();
+  };
+
+  // Filter to only show actionable invitations (pending and not expired)
+  const actionableInvitations = myInvitations.filter(invitation => 
+    isPending(invitation.status) && !isExpired(invitation.expiresAt)
+  );
+
+  // Reset fetch flag when user changes
+  React.useEffect(() => {
+    hasFetchedInvitations.current = false;
+  }, [profile.data?.user?.id]);
+
+  // Check for pending invitations on mount
+  React.useEffect(() => {
+    const membershipsCount = profile.data?.memberships?.length ?? 0;
+    if (profile.loaded && membershipsCount === 0 && !myInvitationsLoading && !hasFetchedInvitations.current) {
+      hasFetchedInvitations.current = true;
+      dispatch(fetchMyInvitations({}));
+    }
+  }, [dispatch, profile.loaded, profile.data?.memberships?.length]);
 
   // Redirect to dashboard if user already has an organization
   if (profile.loaded && (profile.data?.memberships?.length ?? 0) > 0) {
     return <Navigate to="/dashboard/home" replace />;
   }
+
+  // Check for pending invitations
+  const hasPendingInvitations = actionableInvitations && actionableInvitations.length > 0;
   
   const [isOpen, setIsOpen] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -31,6 +67,11 @@ export default function OnboardingPage() {
       setIsLoading(false);
     }
   };
+
+  // Show loading while checking for invitations
+  if (!profile.loaded || (profile.loaded && (profile.data?.memberships?.length ?? 0) === 0 && myInvitationsLoading)) {
+    return <FullScreenLoader show aria-label="Loading..." />;
+  }
 
   return (
     <main className="min-h-screen w-full bg-gradient-to-br from-content1 to-content2 relative overflow-hidden">
@@ -99,15 +140,55 @@ export default function OnboardingPage() {
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-          <Button
-            size="lg"
-            color="primary"
-            className="font-medium text-lg px-8"
-            onPress={() => setIsOpen(true)}
-            startContent={<Icon icon="lucide:plus" className="text-xl" />}
-          >
-            Get Started with MultiGage Cloud
-          </Button>
+          {hasPendingInvitations ? (
+            <div className="space-y-6">
+              <Card className="p-6 max-w-lg mx-auto">
+                <div className="text-center space-y-4">
+                  <Icon icon="lucide:mail" className="text-4xl text-primary mx-auto" />
+                  <h3 className="text-xl font-semibold">You have pending invitations!</h3>
+                  <p className="text-foreground-600">
+                    You've been invited to join {actionableInvitations.length} organization{actionableInvitations.length > 1 ? 's' : ''}. 
+                    Review and accept your invitations to get started.
+                  </p>
+                  <Button
+                    size="lg"
+                    color="primary"
+                    className="w-full"
+                    onPress={() => window.location.assign('/invitations')}
+                    startContent={<Icon icon="lucide:mail-open" className="text-xl" />}
+                  >
+                    Review Invitations ({actionableInvitations.length})
+                  </Button>
+                </div>
+              </Card>
+              
+              <div className="text-center">
+                <p className="text-sm text-foreground-500 mb-3">
+                  Don't want to join? Create your own organization instead.
+                </p>
+                <Button
+                  size="lg"
+                  variant="bordered"
+                  color="primary"
+                  className="font-medium text-lg px-8"
+                  onPress={() => setIsOpen(true)}
+                  startContent={<Icon icon="lucide:plus" className="text-xl" />}
+                >
+                  Create My Organization
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button
+              size="lg"
+              color="primary"
+              className="font-medium text-lg px-8"
+              onPress={() => setIsOpen(true)}
+              startContent={<Icon icon="lucide:plus" className="text-xl" />}
+            >
+              Get Started with MultiGage Cloud
+            </Button>
+          )}
         </motion.div>
       </div>
 

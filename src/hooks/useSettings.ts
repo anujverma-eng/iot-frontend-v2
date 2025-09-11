@@ -1,5 +1,6 @@
 import { useEffect, useCallback } from 'react';
 import { useAppDispatch, useAppSelector } from './useAppDispatch';
+import { usePermissions } from './usePermissions';
 import {
   fetchSettingsFromBackend,
   saveSettingsToBackend,
@@ -32,6 +33,7 @@ import { selectActiveOrgReady } from '../store/activeOrgSlice';
  */
 export const useSettings = () => {
   const dispatch = useAppDispatch();
+  const { hasPermission } = usePermissions();
   
   // Selectors
   const settings = useAppSelector(selectSettings);
@@ -53,6 +55,11 @@ export const useSettings = () => {
         return;
       }
       
+      // Only fetch settings if user has permission
+      if (!hasPermission("settings.view")) {
+        return;
+      }
+      
       // Then try to fetch from backend
       try {
         await dispatch(fetchSettingsFromBackend()).unwrap();
@@ -66,10 +73,10 @@ export const useSettings = () => {
       }
     };
 
-    if (!isLoaded && activeOrgReady) {
+    if (!isLoaded && activeOrgReady && hasPermission("settings.view")) {
       initializeSettings();
     }
-  }, [dispatch, isLoaded, activeOrgReady]);
+  }, [dispatch, isLoaded, activeOrgReady, hasPermission]);
 
   // Sync to backend when settings change (debounced)
   const syncToBackend = useCallback(

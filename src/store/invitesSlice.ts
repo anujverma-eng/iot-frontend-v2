@@ -84,8 +84,11 @@ export const fetchInvites = createAsyncThunk(
       const response = await InvitesService.list(orgId, searchParams);
       return response;
     } catch (error: any) {
-      // Pass the entire error object so components can access error.response.data.message
-      return rejectWithValue(error);
+      // Extract serializable error data to avoid Redux non-serializable warnings
+      return rejectWithValue({
+        message: error.response?.data?.message || error.message || 'Failed to fetch invites',
+        status: error.response?.status || 500
+      });
     }
   }
 );
@@ -105,8 +108,11 @@ export const createInvite = createAsyncThunk(
       const response = await InvitesService.create(orgId, invite);
       return response;
     } catch (error: any) {
-      // Pass the entire error object so components can access error.response.data.message
-      return rejectWithValue(error);
+      // Extract serializable error data to avoid Redux non-serializable warnings
+      return rejectWithValue({
+        message: error.response?.data?.message || error.message || 'Failed to create invite',
+        status: error.response?.status || 500
+      });
     }
   }
 );
@@ -126,8 +132,11 @@ export const revokeInvite = createAsyncThunk(
       await InvitesService.revoke(orgId, tokenId);
       return tokenId;
     } catch (error: any) {
-      // Pass the entire error object so components can access error.response.data.message
-      return rejectWithValue(error);
+      // Extract serializable error data to avoid Redux non-serializable warnings
+      return rejectWithValue({
+        message: error.response?.data?.message || error.message || 'Failed to revoke invite',
+        status: error.response?.status || 500
+      });
     }
   }
 );
@@ -135,13 +144,16 @@ export const revokeInvite = createAsyncThunk(
 // My invitations thunks
 export const fetchMyInvitations = createAsyncThunk(
   'invites/fetchMyInvitations',
-  async (params: { orgId?: string } = {}, { rejectWithValue }) => {
+  async (params: { orgId?: string } = {}, { rejectWithValue, getState }) => {
     try {
       const response = await InvitesService.getMyInvitations(params.orgId);
       return response;
     } catch (error: any) {
-      // Pass the entire error object so components can access error.response.data.message
-      return rejectWithValue(error);
+      // Extract serializable error data to avoid Redux non-serializable warnings
+      return rejectWithValue({
+        message: error.response?.data?.message || error.message || 'Failed to fetch my invitations',
+        status: error.response?.status || 500
+      });
     }
   }
 );
@@ -153,8 +165,11 @@ export const acceptInvite = createAsyncThunk(
       const response = await InvitesService.acceptInvite(token);
       return { token, membership: response };
     } catch (error: any) {
-      // Pass the entire error object so components can access error.response.data.message
-      return rejectWithValue(error);
+      // Extract serializable error data to avoid Redux non-serializable warnings
+      return rejectWithValue({
+        message: error.response?.data?.message || error.message || 'Failed to accept invite',
+        status: error.response?.status || 500
+      });
     }
   }
 );
@@ -166,8 +181,11 @@ export const declineInvite = createAsyncThunk(
       await InvitesService.declineInvite(token);
       return token;
     } catch (error: any) {
-      // Pass the entire error object so components can access error.response.data.message
-      return rejectWithValue(error);
+      // Extract serializable error data to avoid Redux non-serializable warnings
+      return rejectWithValue({
+        message: error.response?.data?.message || error.message || 'Failed to decline invite',
+        status: error.response?.status || 500
+      });
     }
   }
 );

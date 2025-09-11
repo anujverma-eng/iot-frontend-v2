@@ -44,6 +44,8 @@ import {
   fetchGateways,
 } from "../../store/gatewaySlice";
 import { debounce } from "../../utils/debounce";
+import { PermissionWrapper } from "../PermissionWrapper";
+import { usePermissions } from "../../hooks/usePermissions";
 
 interface GatewayDetailModalProps {
   isOpen: boolean;
@@ -53,6 +55,7 @@ interface GatewayDetailModalProps {
 
 export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, onClose, gatewayId }) => {
   const dispatch = useDispatch<AppDispatch>();
+  const { hasPermission } = usePermissions();
   const gateway = useSelector(selectGatewayDetail);
   const sensors = useSelector(selectGatewaySensors);
   const pagination = useSelector(selectGatewayDetailPagination);
@@ -66,6 +69,29 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
   const [isInitialLoad, setIsInitialLoad] = React.useState(true);
   const [isSavingLabel, setIsSavingLabel] = React.useState(false);
   const [isSavingLocation, setIsSavingLocation] = React.useState(false);
+
+  // Check permission first
+  if (!hasPermission("gateways.details")) {
+    return (
+      <Modal isOpen={isOpen} onClose={onClose} size="md">
+        <ModalContent>
+          <ModalHeader>Access Denied</ModalHeader>
+          <ModalBody>
+            <div className="flex flex-col items-center py-8 space-y-4">
+              <Icon icon="lucide:shield-x" className="w-16 h-16 text-danger" />
+              <div className="text-center">
+                <h3 className="text-lg font-semibold">Permission Required</h3>
+                <p className="text-default-500 mt-2">You don't have permission to view gateway details.</p>
+              </div>
+            </div>
+          </ModalBody>
+          <ModalFooter>
+            <Button onPress={onClose}>Close</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+    );
+  }
 
   const displaySensors = sensors;
 
@@ -360,9 +386,11 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                           <span className="text-lg font-semibold truncate">{gateway.label || gateway.mac}</span>
-                          <Button isIconOnly size="sm" variant="light" onPress={() => setEditingLabel(true)}>
-                            <Icon icon="lucide:edit-3" width={16} height={16} />
-                          </Button>
+                          <PermissionWrapper permissions={["gateways.update"]}>
+                            <Button isIconOnly size="sm" variant="light" onPress={() => setEditingLabel(true)}>
+                              <Icon icon="lucide:edit-3" width={16} height={16} />
+                            </Button>
+                          </PermissionWrapper>
                         </div>
                         <div className="flex items-center gap-2">
                           <Tooltip content="Copy Gateway Id">
@@ -420,16 +448,18 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
                             <span className="text-sm font-medium text-primary-700 truncate">
                               {gateway.location || "No location"}
                             </span>
-                            <Button 
-                              isIconOnly 
-                              size="sm" 
-                              variant="light" 
-                              onPress={() => setEditingLocation(true)}
-                              isDisabled={editingLabel || isSavingLabel}
-                              className="ml-1 h-6 w-6 min-w-unit-6 flex-shrink-0"
-                            >
-                              <Icon icon="lucide:edit-3" width={12} height={12} className="text-primary-500" />
-                            </Button>
+                            <PermissionWrapper permissions={["gateways.update"]}>
+                              <Button 
+                                isIconOnly 
+                                size="sm" 
+                                variant="light" 
+                                onPress={() => setEditingLocation(true)}
+                                isDisabled={editingLabel || isSavingLabel}
+                                className="ml-1 h-6 w-6 min-w-unit-6 flex-shrink-0"
+                              >
+                                <Icon icon="lucide:edit-3" width={12} height={12} className="text-primary-500" />
+                              </Button>
+                            </PermissionWrapper>
                           </div>
                         ) : (
                           <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-3 py-2 bg-warning-50 rounded-lg border border-warning-200 w-full sm:w-auto">

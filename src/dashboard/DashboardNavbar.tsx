@@ -25,6 +25,8 @@ import { OrgSelector } from "../components/OrgSelector";
 import { CreateOrganizationModal } from "../components/CreateOrganizationModal";
 import { canUserCreateOrganization } from "../utils/organizationUtils";
 import { useNavigate } from "react-router-dom";
+import { PermissionButton } from "../components/PermissionButton";
+import { getPermissionValue } from "../constants/permissions";
 
 interface DashboardNavbarProps {
   onMenuToggle: () => void;
@@ -47,6 +49,10 @@ export const DashboardNavbar = ({ onMenuToggle, className }: DashboardNavbarProp
       navigate("/dashboard/settings");
     } else if (key === "create_org") {
       onCreateOrgModalOpen();
+    } else if (key === "profile_page") {
+      navigate("/dashboard/profile");
+    } else if (key === "security") {
+      navigate("/dashboard/security");
     }
   };
 
@@ -128,7 +134,8 @@ export const DashboardNavbar = ({ onMenuToggle, className }: DashboardNavbarProp
                 : "Live mode is disabled - Click to enable"
           }
         >
-          <Button
+          <PermissionButton
+            permission={getPermissionValue('SENSORS', 'LIVE')}
             isIconOnly
             size="sm"
             variant="flat"
@@ -136,13 +143,14 @@ export const DashboardNavbar = ({ onMenuToggle, className }: DashboardNavbarProp
             onPress={handleLiveModeToggle}
             isLoading={isConnecting}
             className={cn("transition-all duration-200", isLiveMode && "animate-pulse")}
+            lockedTooltip="You need 'sensors.live' permission to control live mode"
           >
             {isConnecting ? (
               <Icon icon="lucide:loader-2" className="h-4 w-4 animate-spin" />
             ) : (
               <Icon icon={isLiveMode ? "lucide:radio" : "lucide:wifi-off"} className="h-4 w-4" />
             )}
-          </Button>
+          </PermissionButton>
         </Tooltip>
 
         {/* Live mode status chip */}
@@ -219,6 +227,9 @@ export const DashboardNavbar = ({ onMenuToggle, className }: DashboardNavbarProp
             ) : null}
             <DropdownItem key="profile_page" startContent={<Icon icon="lucide:user" />}>
               My Profile
+            </DropdownItem>
+            <DropdownItem key="security" startContent={<Icon icon="lucide:shield" />}>
+              Security
             </DropdownItem>
             <DropdownItem key="settings" startContent={<Icon icon="lucide:settings" />}>
               Settings

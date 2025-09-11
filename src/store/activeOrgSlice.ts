@@ -129,7 +129,7 @@ export const resolveInitialActiveOrg = createAsyncThunk(
 
 export const selectOrgAndFinalize = createAsyncThunk(
   'activeOrg/selectAndFinalize',
-  async (params: string | { orgId: string, rememberChoice?: boolean }, { getState }) => {
+  async (params: string | { orgId: string, rememberChoice?: boolean }, { getState, dispatch }) => {
     // Handle both legacy string parameter and new object parameter
     const orgId = typeof params === 'string' ? params : params.orgId;
     const rememberChoice = typeof params === 'object' ? params.rememberChoice : undefined;
@@ -170,6 +170,10 @@ export const selectOrgAndFinalize = createAsyncThunk(
     const memberships = state.profile.data?.memberships || [];
     const membership = memberships.find((m: any) => m.orgId === orgIdStr);
     const orgName = membership?.orgName || '';
+    
+    // ✅ CRITICAL FIX: Refetch profile to get updated currentOrg with permissions
+    console.log('[DEBUG] Refetching profile to update currentOrg permissions...');
+    await dispatch(fetchProfile()).unwrap();
     
     return { orgId: orgIdStr, orgName };
   }
@@ -233,7 +237,8 @@ const activeOrgSlice = createSlice({
       console.log('[DEBUG] resolveInitialActiveOrg.fulfilled - result:', result);
       
       if (result.type === 'no-memberships') {
-        state.status = 'idle';
+        state.status = 'ready'; // Mark as ready (resolution complete)
+        state.orgId = null;
         state.showOrgPicker = false;
         return;
       }

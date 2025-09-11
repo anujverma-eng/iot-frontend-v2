@@ -23,6 +23,7 @@ import { SensorCard } from "../components/analytics/sensor-card";
 import { SensorList } from "../components/analytics/sensor-list";
 import { SoloView } from "../components/analytics/solo-view";
 import { ClaimSensorModal } from "../components/sensors/claim-sensor-modal";
+import { PermissionButton } from "../components/PermissionButton";
 import { StatsCard } from "../components/stats-card";
 import { ChartContainer } from "../components/visualization/chart-container";
 import { ComparisonChart } from "../components/visualization/comparison-chart";
@@ -182,6 +183,10 @@ export const AnalyticsPage: React.FC = () => {
   const isConnecting = useSelector(selectIsConnecting);
   const liveSensors = useSelector(selectLiveSensors);
   const maxLiveReadings = useSelector(selectMaxLiveReadings);
+
+  // Organization status selectors
+  const activeOrgStatus = useSelector((state: RootState) => state.activeOrg?.status);
+  const activeOrgId = useSelector((state: RootState) => state.activeOrg?.orgId);
 
   const stats = useSelector(selectEnhancedSensorStats); // Use enhanced stats with battery count
   const [pendingFilters, setPendingFilters] = React.useState<FilterState | null>(null);
@@ -409,18 +414,21 @@ export const AnalyticsPage: React.FC = () => {
 
   // Fetch sensors on component mount
   React.useEffect(() => {
-    dispatch(
-      fetchSensors({
-        page: 1,
-        limit: 50,
-        claimed: true,
-        search: "", // Remove search from API - do client-side filtering instead
-        // TODO: add `type` & `status` here when the backend supports them
-      })
-    );
-    dispatch(fetchSensorStats());
-    dispatch(fetchGateways({ page: 1, limit: 1000, search: "" }));
-  }, [dispatch, filters.types, filters.status]); // Remove filters.search from dependency
+    // Only fetch data when organization context is ready
+    if (activeOrgStatus === 'ready' && activeOrgId) {
+      dispatch(
+        fetchSensors({
+          page: 1,
+          limit: 50,
+          claimed: true,
+          search: "", // Remove search from API - do client-side filtering instead
+          // TODO: add `type` & `status` here when the backend supports them
+        })
+      );
+      dispatch(fetchSensorStats());
+      dispatch(fetchGateways({ page: 1, limit: 1000, search: "" }));
+    }
+  }, [dispatch, filters.types, filters.status, activeOrgStatus, activeOrgId]); // Add org status dependencies
 
   // Note: Live mode is now controlled only via navbar and time-range-selector
   // Removed auto-enable logic to prevent conflicts with manual user controls
@@ -1257,16 +1265,18 @@ export const AnalyticsPage: React.FC = () => {
                     {!isShortHeight && <span className="ml-1 text-sm">Test</span>}
                   </Button>
                 )}
-                <Button
+                <PermissionButton
+                  permissions={["sensors.add"]}
                   color="primary"
                   size="sm"
                   onPress={() => dispatch(setClaimModalOpen(true))}
                   isIconOnly={isShortHeight}
                   className={`${isShortHeight ? "w-10 h-10" : "h-12"}`}
+                  lockedTooltip="You don't have permission to add sensors"
                 >
                   <Icon icon="lucide:plus" />
                   {!isShortHeight && <span className="ml-1 text-sm">Add</span>}
-                </Button>
+                </PermissionButton>
               </div>
             </div>
           </div>
@@ -1287,13 +1297,15 @@ export const AnalyticsPage: React.FC = () => {
                     Test
                   </Button>
                 )}
-                <Button
+                <PermissionButton
+                  permissions={["sensors.add"]}
                   color="primary"
                   onPress={() => dispatch(setClaimModalOpen(true))}
                   startContent={<Icon icon="lucide:plus" />}
+                  lockedTooltip="You don't have permission to add sensors"
                 >
                   Add Sensor
-                </Button>
+                </PermissionButton>
               </div>
             </div>
 

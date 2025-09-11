@@ -35,6 +35,9 @@ import {
 } from "../store/gatewaySlice";
 import { selectActiveOrgReady } from "../store/activeOrgSlice";
 import type { Gateway } from "../types/gateway";
+import { PermissionWrapper } from "../components/PermissionWrapper";
+import { PermissionButton } from "../components/PermissionButton";
+import { usePermissions } from "../hooks/usePermissions";
 
 // Helper function to determine gateway online status
 const getGatewayOnlineStatus = (gateway: Gateway) => {
@@ -58,26 +61,27 @@ const getStatusText = (isOnline: boolean) => {
 
 export const GatewaysPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
+  const { hasPermission } = usePermissions();
   const gateways = useSelector(selectGateways);
   const stats = useSelector(selectGatewayStats);
   const pagination = useSelector(selectGatewayPagination);
   const isLoading = useSelector(gatewaysIsBusy);
   const deleteLoadingIds = useSelector(selectDeleteLoadingIds);
-  const activeOrgReady = useSelector(selectActiveOrgReady);
+  const orgReady = useSelector(selectActiveOrgReady);
   const [selectedGateway, setSelectedGateway] = React.useState<string | null>(null);
   const [gatewayToDelete, setGatewayToDelete] = React.useState<Gateway | null>(null);
+  const [lastHeartbeat, setLastHeartbeat] = React.useState<Date | null>(null);
+  const [avgSensorsPerGateway, setAvgSensorsPerGateway] = React.useState(0);
   const [sortColumn, setSortColumn] = React.useState<string | null>(null);
   const [sortDirection, setSortDirection] = React.useState<"asc" | "desc">("asc");
-  const [filteredGateways, setFilteredGateways] = React.useState<Gateway[]>([]);
-  const [lastHeartbeat, setLastHeartbeat] = React.useState<Date | null>(null);
-  const [avgSensorsPerGateway, setAvgSensorsPerGateway] = React.useState<number>(0);
+
   const { isOpen: isDetailOpen, onOpen: onDetailOpen, onClose: onDetailClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
-  const lastUpdateRef = React.useRef<number>(Date.now());
+
   const error = useSelector((state: RootState) => state.gateways.error);
 
   const fetchData = React.useCallback(async () => {
-    if (!activeOrgReady) {
+    if (!orgReady) {
       return;
     }
     
@@ -90,7 +94,7 @@ export const GatewaysPage: React.FC = () => {
     } catch (error) {
 
     }
-  }, [dispatch, pagination.page, activeOrgReady]);
+  }, [dispatch, pagination.page, orgReady]);
 
   React.useEffect(() => {
     fetchData();
@@ -126,38 +130,32 @@ export const GatewaysPage: React.FC = () => {
     }
   }, [gateways]);
 
-  // Add function to apply filters client-side
-  const applyFilters = React.useCallback(
-    (gateways: Gateway[]) => {
-      let filtered = [...gateways];
+  // Add function to apply sorting client-side
+  const sortedGateways = React.useMemo(() => {
+    if (!gateways) return [];
+    
+    let sorted = [...gateways];
 
-      // Apply sorting
-      if (sortColumn) {
-        filtered.sort((a, b) => {
-          let valueA: any = a[sortColumn as keyof Gateway];
-          let valueB: any = b[sortColumn as keyof Gateway];
+    // Apply sorting
+    if (sortColumn) {
+      sorted.sort((a, b) => {
+        let valueA: any = a[sortColumn as keyof Gateway];
+        let valueB: any = b[sortColumn as keyof Gateway];
 
-          // Handle special cases
-          if (sortColumn === "lastSeen") {
-            valueA = valueA ? new Date(valueA as string).getTime() : 0;
-            valueB = valueB ? new Date(valueB as string).getTime() : 0;
-          }
+        // Handle special cases
+        if (sortColumn === "lastSeen") {
+          valueA = valueA ? new Date(valueA as string).getTime() : 0;
+          valueB = valueB ? new Date(valueB as string).getTime() : 0;
+        }
 
-          if (valueA < valueB) return sortDirection === "asc" ? -1 : 1;
-          if (valueA > valueB) return sortDirection === "asc" ? 1 : -1;
-          return 0;
-        });
-      }
+        if (valueA < valueB) return sortDirection === "asc" ? -1 : 1;
+        if (valueA > valueB) return sortDirection === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
 
-      setFilteredGateways(filtered);
-    },
-    [sortColumn, sortDirection]
-  );
-
-  React.useEffect(() => {
-    // Apply filters when gateways array changes
-    applyFilters(gateways);
-  }, [gateways, sortColumn, sortDirection, applyFilters]);
+    return sorted;
+  }, [gateways, sortColumn, sortDirection]);
 
   const handleSort = (column: string) => {
     if (sortColumn === column) {
@@ -169,8 +167,11 @@ export const GatewaysPage: React.FC = () => {
   };
 
   const handleGatewayClick = (gatewayId: string) => {
-    setSelectedGateway(gatewayId);
-    onDetailOpen();
+    // Check permission before opening modal
+    if (hasPermission("gateways.details")) {
+      setSelectedGateway(gatewayId);
+      onDetailOpen();
+    }
   };
 
   const handlePageChange = (page: number) => {
@@ -263,18 +264,20 @@ export const GatewaysPage: React.FC = () => {
         const isDeleting = deleteLoadingIds.includes(gateway._id);
         return (
           <div className="flex items-center gap-2">
-            <Button
+            <PermissionButton
+              permissions={["gateways.delete"]}
               isIconOnly
               size="sm"
               variant="light"
               color="danger"
               onPress={() => handleDeleteClick(gateway)}
               isLoading={isDeleting}
-              disabled={isDeleting}
+              isDisabled={isDeleting}
               className="min-w-unit-8 w-unit-8 h-unit-8"
+              lockedTooltip="You don't have permission to delete gateways"
             >
               {!isDeleting && <Icon icon="lucide:trash-2" className="w-4 h-4" />}
-            </Button>
+            </PermissionButton>
           </div>
         );
       default:
@@ -325,7 +328,7 @@ export const GatewaysPage: React.FC = () => {
             <div className="flex justify-center items-center h-64">
               <Spinner size="lg" />
             </div>
-          ) : filteredGateways.length > 0 ? (
+          ) : sortedGateways.length > 0 ? (
             <div className="space-y-4 overflow-x-auto">
               <Table removeWrapper aria-label="Gateways table" selectionMode="none" isStriped>
                 <TableHeader>
@@ -381,7 +384,7 @@ export const GatewaysPage: React.FC = () => {
                   <TableColumn key="actions" className="text-center">ACTIONS</TableColumn>
                 </TableHeader>
                 <TableBody>
-                  {filteredGateways.map((gateway) => (
+                  {sortedGateways.map((gateway: Gateway) => (
                     <TableRow
                       key={gateway._id}
                       className={gateway.status === "offline" ? "opacity-60" : ""}

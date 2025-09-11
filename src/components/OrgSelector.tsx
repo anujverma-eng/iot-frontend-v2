@@ -10,12 +10,14 @@ import {
   DropdownItem,
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
+import { useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../hooks/useAppDispatch';
 import { selectOrgAndFinalize, selectActiveOrgName, selectActiveOrgStatus, selectActiveOrgId } from '../store/activeOrgSlice';
 import { UserService } from '../api/user.service';
 
 export const OrgSelector: React.FC = () => {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
   const profile = useAppSelector(state => state.profile);
   const activeOrgName = useAppSelector(selectActiveOrgName);
   const activeOrgStatus = useAppSelector(selectActiveOrgStatus);
@@ -48,24 +50,7 @@ export const OrgSelector: React.FC = () => {
     }
   };
 
-  if (memberships.length <= 1) {
-    // For single org users - always show simple chip (no dropdown needed)
-    return (
-      <Chip
-        size="sm"
-        variant="flat"
-        color="primary"
-        startContent={<Icon icon="lucide:building" className="h-3 w-3" />}
-      >
-        {isLoading ? (
-          <Skeleton className="h-3 w-16" />
-        ) : (
-          activeOrgName || 'Organization'
-        )}
-      </Chip>
-    );
-  }
-
+  // Always show dropdown to allow access to "Manage Organizations" even for single org users
   return (
     <Dropdown>
       <DropdownTrigger>
@@ -103,7 +88,7 @@ export const OrgSelector: React.FC = () => {
             return (
               <DropdownItem key="header" isReadOnly className="opacity-100">
                 <p className="text-xs font-medium text-default-500 uppercase tracking-wide">
-                  Switch Organization
+                  {memberships.length > 1 ? 'Switch Organization' : 'Current Organization'}
                 </p>
               </DropdownItem>
             );
@@ -123,8 +108,7 @@ export const OrgSelector: React.FC = () => {
                 key="manage" 
                 startContent={<Icon icon="lucide:settings" className="h-4 w-4" />}
                 onPress={() => {
-                  // Navigate to org management or settings
-                  console.log('Navigate to organization management');
+                  navigate('/dashboard/organization');
                 }}
               >
                 Manage Organizations

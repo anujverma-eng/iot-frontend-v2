@@ -83,6 +83,10 @@ export const SoloView: React.FC = () => {
   const selectedSensorData = useSelector(selectSelectedSensor);
   const gateways = useSelector(selectGateways);
 
+  // Organization status selectors
+  const activeOrgStatus = useSelector((state: RootState) => state.activeOrg?.status);
+  const activeOrgId = useSelector((state: RootState) => state.activeOrg?.orgId);
+
   // Local state
   // Use global search state instead of local searchText
   // const [searchText, setSearchText] = React.useState(""); // REMOVED - using global filters now
@@ -270,9 +274,11 @@ export const SoloView: React.FC = () => {
 
   // Fetch gateways for live mode functionality
   React.useEffect(() => {
-
-    dispatch(fetchGateways({ page: 1, limit: 1000, search: "" }));
-  }, [dispatch]);
+    // Only fetch gateways when organization context is ready
+    if (activeOrgStatus === 'ready' && activeOrgId) {
+      dispatch(fetchGateways({ page: 1, limit: 1000, search: "" }));
+    }
+  }, [dispatch, activeOrgStatus, activeOrgId]);
 
   // Auto-enable live mode when solo-view loads
   React.useEffect(() => {

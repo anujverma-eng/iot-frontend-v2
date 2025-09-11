@@ -10,6 +10,9 @@ import { AppDispatch } from "../../store";
 import { unclaimSensor } from "../../store/sensorsSlice";
 import { getBatteryLevel, getBatteryColor, getBatteryIcon, getBatteryIconComponent, isLowBattery, getBatteryCardClass, formatBatteryDisplay } from "../../utils/battery";
 import { BatteryIconWithCells } from "./BatteryIconWithCells";
+import { PermissionWrapper } from "../PermissionWrapper";
+import { PermissionButton } from "../PermissionButton";
+import { usePermissions } from "../../hooks/usePermissions";
 
 interface SensorCardProps {
   sensor: Sensor;
@@ -35,6 +38,7 @@ export const SensorCard: React.FC<SensorCardProps> = ({
   isDataLoading = false, // Add loading state with default
 }) => {
   const dispatch = useDispatch<AppDispatch>();
+  const { hasPermission } = usePermissions();
   const [starLoading, setStarLoading] = React.useState(false);
   const [deleteLoading, setDeleteLoading] = React.useState(false);
   const [isLocallyChecked, setIsLocallyChecked] = React.useState(isChecked); // Local state for immediate feedback
@@ -230,17 +234,27 @@ export const SensorCard: React.FC<SensorCardProps> = ({
                   <Spinner size="sm" />
                 ) : (
                   <>
-                    <Icon
-                      icon={sensor.favorite ? "mdi:star" : "mdi:star-outline"}
-                      className={`cursor-pointer ${sensor.favorite ? "text-warning" : "text-default-400"}`}
-                      style={sensor.favorite ? { color: "#fbbf24" } : {}}
-                      onClick={handleStarClick}
-                    />
-                    <Icon
-                      icon="lucide:trash"
-                      className="cursor-pointer text-danger"
-                      onClick={handleDeleteClick}
-                    />
+                    <Tooltip 
+                      content={hasPermission("sensors.update") ? "Toggle favorite" : "You don't have permission to update sensors"}
+                      color={hasPermission("sensors.update") ? "default" : "warning"}
+                    >
+                      <Icon
+                        icon={sensor.favorite ? "mdi:star" : "mdi:star-outline"}
+                        className={`${hasPermission("sensors.update") ? "cursor-pointer" : "cursor-not-allowed opacity-50"} ${sensor.favorite ? "text-warning" : "text-default-400"}`}
+                        style={sensor.favorite ? { color: "#fbbf24" } : {}}
+                        onClick={hasPermission("sensors.update") ? handleStarClick : undefined}
+                      />
+                    </Tooltip>
+                    <Tooltip 
+                      content={hasPermission("sensors.delete") ? "Delete sensor" : "You don't have permission to delete sensors"}
+                      color={hasPermission("sensors.delete") ? "default" : "warning"}
+                    >
+                      <Icon
+                        icon="lucide:trash"
+                        className={`${hasPermission("sensors.delete") ? "cursor-pointer text-danger" : "cursor-not-allowed text-default-300 opacity-50"}`}
+                        onClick={hasPermission("sensors.delete") ? handleDeleteClick : undefined}
+                      />
+                    </Tooltip>
                   </>
                 )}
               </div>

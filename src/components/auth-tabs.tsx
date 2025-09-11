@@ -5,13 +5,20 @@ import { LoginForm } from "./login-form";
 import { RegisterForm } from "./register-form";
 import { motion } from "framer-motion";
 import { fadeInUp } from "../animations";
+import { useSearchParams } from "react-router-dom";
 
 export function AuthTabs() {
+  const [searchParams] = useSearchParams();
+  
+  // Check if we should default to signup tab
+  const defaultTab = searchParams.get('tab') === 'signup' ? 'signup' : 'login';
+  
   return (
     <motion.div {...fadeInUp}>
       <Card className="w-full max-w-lg">
         <CardBody className="gap-4">
           <Tabs
+            defaultSelectedKey={defaultTab}
             aria-label="Authentication options"
             color="primary"
             variant="underlined"
