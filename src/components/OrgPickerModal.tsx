@@ -37,7 +37,6 @@ export const OrgPickerModal: React.FC<OrgPickerModalProps> = ({ isOpen, onClose 
     setIsSubmitting(true);
     try {
       // Update user settings based on remember choice
-      console.log("[DEBUG] Remember choice:", rememberChoice);
       await UserService.updateMySettings({
         orgChoiceMode: rememberChoice ? "remember" : "ask-every-time",
       });

@@ -252,7 +252,6 @@ export const DashboardNavbar = ({ onMenuToggle, className }: DashboardNavbarProp
         isOpen={isCreateOrgModalOpen}
         onClose={onCreateOrgModalClose}
         onSuccess={() => {
-          console.log("Organization created successfully from navbar!");
           // You can add toast notification here
         }}
       />

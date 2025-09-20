@@ -49,7 +49,6 @@ export const FALLBACK_PERMISSIONS = {
 // Initialize permissions from API response
 export const initializePermissions = (permissionsData: PermissionsCatalog) => {
   PERMISSIONS = permissionsData.permissions;
-  console.log('[DEBUG] Permissions initialized:', PERMISSIONS);
 };
 
 // Helper function to get permission value safely

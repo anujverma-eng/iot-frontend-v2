@@ -69,6 +69,11 @@ export const SoloView: React.FC = () => {
   const { sensorId } = useParams<SoloViewParams>();
   const dispatch = useDispatch<AppDispatch>();
 
+  // Check URL parameters for inherited state
+  const urlParams = new URLSearchParams(window.location.search);
+  const inheritedMode = urlParams.get("mode"); // "live" or "offline"
+  const hasInheritedMode = inheritedMode === "live" || inheritedMode === "offline";
+
   // Use enhanced responsive breakpoints
   const { isMobile, isSmallScreen, isLandscape, isMobileLandscape, isMobileDevice } = useBreakpoints();
 
@@ -280,28 +285,58 @@ export const SoloView: React.FC = () => {
     }
   }, [dispatch, activeOrgStatus, activeOrgId]);
 
-  // Auto-enable live mode when solo-view loads
+  // Auto-enable live mode when solo-view loads (only if no inherited mode or inherited mode is live)
   React.useEffect(() => {
     let autoEnableTimer: NodeJS.Timeout;
     
     // Wait for gateways to be loaded and component to be initialized
     if (gateways.length > 0 && !isLiveMode && !initialLoading) {
+      // Check if we should respect inherited mode
+      if (hasInheritedMode) {
+        // Clean up URL parameters after inheritance to avoid confusion
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete("mode");
+        window.history.replaceState({}, '', newUrl.toString());
+        
+        // If inherited mode is "live", enable live mode
+        if (inheritedMode === "live") {
+          console.log('[SoloView] Inherited live mode from parent page');
+          autoEnableTimer = setTimeout(async () => {
+            try {
+              const gatewayIds = gateways
+                .map(gateway => gateway._id)
+                .slice(0, 10); // Limit to prevent too many subscriptions
 
-      // Small delay to ensure everything is initialized
-      autoEnableTimer = setTimeout(async () => {
-        try {
-          const gatewayIds = gateways
-            .map(gateway => gateway._id)
-            .slice(0, 10); // Limit to prevent too many subscriptions
-
-          if (gatewayIds.length > 0) {
-            await dispatch(toggleLiveMode({ enable: true })).unwrap();
-
-          }
-        } catch (error) {
-
+              if (gatewayIds.length > 0) {
+                await dispatch(toggleLiveMode({ enable: true })).unwrap();
+                console.log('[SoloView] Live mode enabled based on inherited state');
+              }
+            } catch (error) {
+              console.error('[SoloView] Failed to enable inherited live mode:', error);
+            }
+          }, 500); // Shorter delay since we know the intended state
+        } else {
+          // If inherited mode is "offline", stay in offline mode
+          console.log('[SoloView] Inherited offline mode from parent page - staying offline');
         }
-      }, 1500); // Slightly longer delay for solo-view
+      } else {
+        // Default behavior: auto-enable live mode if no inherited state
+        console.log('[SoloView] No inherited mode - auto-enabling live mode');
+        autoEnableTimer = setTimeout(async () => {
+          try {
+            const gatewayIds = gateways
+              .map(gateway => gateway._id)
+              .slice(0, 10); // Limit to prevent too many subscriptions
+
+            if (gatewayIds.length > 0) {
+              await dispatch(toggleLiveMode({ enable: true })).unwrap();
+              console.log('[SoloView] Live mode auto-enabled');
+            }
+          } catch (error) {
+            console.error('[SoloView] Failed to auto-enable live mode:', error);
+          }
+        }, 1500); // Slightly longer delay for solo-view
+      }
     }
 
     return () => {
@@ -309,7 +344,7 @@ export const SoloView: React.FC = () => {
         clearTimeout(autoEnableTimer);
       }
     };
-  }, [gateways, isLiveMode, initialLoading, dispatch]);
+  }, [gateways, isLiveMode, initialLoading, dispatch, hasInheritedMode, inheritedMode]);
 
   /*****************************************************************************
    * 2️⃣  Ensure we always have a “selected” sensor

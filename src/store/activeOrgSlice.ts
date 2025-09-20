@@ -27,17 +27,8 @@ export const resolveInitialActiveOrg = createAsyncThunk(
   async (_, { getState, dispatch }) => {
     const state = getState() as any;
     
-    console.log('[DEBUG] resolveInitialActiveOrg START');
-    console.log('[DEBUG] Current state profile:', {
-      loaded: state.profile.loaded,
-      loading: state.profile.loading,
-      error: state.profile.error,
-      data: state.profile.data
-    });
-    
     // 1. Ensure profile is loaded
     if (!state.profile.loaded) {
-      console.log('[DEBUG] Profile not loaded, fetching...');
       await dispatch(fetchProfile()).unwrap();
     }
     
@@ -45,16 +36,8 @@ export const resolveInitialActiveOrg = createAsyncThunk(
     const updatedState = getState() as any;
     const memberships = updatedState.profile.data?.memberships || [];
     
-    console.log('[DEBUG] Updated profile state:', {
-      loaded: updatedState.profile.loaded,
-      dataExists: !!updatedState.profile.data,
-      membershipsCount: memberships.length,
-      memberships: memberships
-    });
-    
     // 2. If no memberships, leave idle (onboarding will redirect)
     if (memberships.length === 0) {
-      console.log('[DEBUG] No memberships found');
       return { type: 'no-memberships' as const };
     }
     
@@ -62,9 +45,7 @@ export const resolveInitialActiveOrg = createAsyncThunk(
     let userSettings: UserSettings;
     try {
       userSettings = await UserService.getMySettings();
-      console.log('[DEBUG] User settings loaded:', userSettings);
     } catch (error) {
-      console.log('[DEBUG] No user settings found, creating default');
       // If no settings exist, create default
       userSettings = {
         userId: updatedState.profile.data?.user.id || '',
@@ -78,8 +59,6 @@ export const resolveInitialActiveOrg = createAsyncThunk(
       const orgId = memberships[0].orgId;
       const orgName = memberships[0].orgName;
       
-      console.log('[DEBUG] Single org found:', { orgId, orgName });
-      
       // Check if no default org set (handle both string and object cases)
       const hasDefaultOrg = userSettings.defaultOrgId && (
         typeof userSettings.defaultOrgId === 'string' 
@@ -88,7 +67,6 @@ export const resolveInitialActiveOrg = createAsyncThunk(
       );
       
       if (!hasDefaultOrg) {
-        console.log('[DEBUG] Setting default org in user settings');
         await UserService.updateMySettings({
           defaultOrgId: orgId,
           orgChoiceMode: 'remember'
@@ -103,24 +81,15 @@ export const resolveInitialActiveOrg = createAsyncThunk(
         ? userSettings.defaultOrgId 
         : (userSettings.defaultOrgId as any)?._id || (userSettings.defaultOrgId as any)?.id;
       
-      console.log('[DEBUG] Processing defaultOrgId:', { 
-        raw: userSettings.defaultOrgId, 
-        processed: defaultOrgId,
-        type: typeof userSettings.defaultOrgId 
-      });
-      
       if (defaultOrgId && 
           memberships.some((m: any) => m.orgId === defaultOrgId)) {
         // Valid default org exists - find the org name
         const membership = memberships.find((m: any) => m.orgId === defaultOrgId);
         const orgName = membership?.orgName || '';
         
-        console.log('[DEBUG] Using default org:', { orgId: defaultOrgId, orgName });
-        
         return { type: 'default-org' as const, orgId: defaultOrgId, orgName };
       } else {
         // Need to show picker
-        console.log('[DEBUG] Multiple orgs, needs picker - no valid defaultOrgId found');
         return { type: 'needs-picker' as const };
       }
     }
@@ -136,7 +105,6 @@ export const selectOrgAndFinalize = createAsyncThunk(
     
     // Ensure orgId is a string
     const orgIdStr = typeof orgId === 'string' ? orgId : String(orgId);
-    console.log('[DEBUG] selectOrgAndFinalize called with:', { orgId, orgIdStr, rememberChoice, type: typeof orgId });
     
     // Get current user settings to understand their preference
     let shouldUpdateSettings = false;
@@ -149,9 +117,7 @@ export const selectOrgAndFinalize = createAsyncThunk(
       try {
         const currentSettings = await UserService.getMySettings();
         shouldUpdateSettings = currentSettings.orgChoiceMode === 'remember';
-        console.log('[DEBUG] Using existing orgChoiceMode:', currentSettings.orgChoiceMode);
       } catch (error) {
-        console.log('[DEBUG] Could not get user settings, defaulting to not remember');
         shouldUpdateSettings = false;
       }
     }
@@ -171,8 +137,6 @@ export const selectOrgAndFinalize = createAsyncThunk(
     const membership = memberships.find((m: any) => m.orgId === orgIdStr);
     const orgName = membership?.orgName || '';
     
-    // ✅ CRITICAL FIX: Refetch profile to get updated currentOrg with permissions
-    console.log('[DEBUG] Refetching profile to update currentOrg permissions...');
     await dispatch(fetchProfile()).unwrap();
     
     return { orgId: orgIdStr, orgName };
@@ -184,14 +148,12 @@ export const createOrgAndActivate = createAsyncThunk(
   async (orgName: string, { dispatch }) => {
     // 1. Create the organization
     const newOrg = await dispatch(createOrg(orgName)).unwrap();
-    console.log('[DEBUG] Created new org:', newOrg);
     
     // 2. Refetch profile to get updated memberships with the new org
     await dispatch(fetchProfile()).unwrap();
     
     // 3. Set the newly created org as active (user is owner so no X-Org-Id needed for settings)
     const orgId = typeof newOrg._id === 'string' ? newOrg._id : String(newOrg._id);
-    console.log('[DEBUG] Setting new org as active:', { orgId, type: typeof orgId });
     
     await UserService.updateMySettings({
       defaultOrgId: orgId,
@@ -227,14 +189,12 @@ const activeOrgSlice = createSlice({
   extraReducers: (builder) => {
     /* ── resolveInitialActiveOrg ─────────────────────────────────── */
     builder.addCase(resolveInitialActiveOrg.pending, (state) => {
-      console.log('[DEBUG] resolveInitialActiveOrg.pending - setting resolving state');
       state.status = 'resolving';
       state.error = null;
       state.showOrgPicker = false;
     });
     builder.addCase(resolveInitialActiveOrg.fulfilled, (state, action) => {
       const result = action.payload;
-      console.log('[DEBUG] resolveInitialActiveOrg.fulfilled - result:', result);
       
       if (result.type === 'no-memberships') {
         state.status = 'ready'; // Mark as ready (resolution complete)
@@ -246,7 +206,6 @@ const activeOrgSlice = createSlice({
       if (result.type === 'needs-picker') {
         state.status = 'resolving'; // Stay in resolving until picker selects
         state.showOrgPicker = true; // Show the org picker modal
-        console.log('[DEBUG] Setting showOrgPicker = true for multi-org user');
         return;
       }
       
@@ -257,11 +216,9 @@ const activeOrgSlice = createSlice({
         state.status = 'ready';
         state.error = null;
         state.showOrgPicker = false;
-        console.log('[DEBUG] Org resolved immediately:', { orgId: state.orgId, orgName: state.orgName });
       }
     });
     builder.addCase(resolveInitialActiveOrg.rejected, (state, action) => {
-      console.log('[DEBUG] resolveInitialActiveOrg.rejected:', action.error);
       state.status = 'error';
       state.error = action.error.message || 'Failed to resolve initial org';
       state.showOrgPicker = false;

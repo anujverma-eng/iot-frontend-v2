@@ -657,7 +657,7 @@ export const LineChart: React.FC<LineChartProps> = ({
         </div>
         
         {/* Zoom controls */}
-        <div className="flex items-center gap-2 flex-shrink-0">
+        {/* <div className="flex items-center gap-2 flex-shrink-0">
           {(brushDomain.startIndex !== undefined && brushDomain.endIndex !== undefined) && (
             (() => {
               const selectionRatio = (brushDomain.endIndex - brushDomain.startIndex + 1) / orderedData.length;
@@ -666,7 +666,7 @@ export const LineChart: React.FC<LineChartProps> = ({
               
               return (
                 <Button 
-                  size="sm" 
+                  size="lg" 
                   variant="bordered" 
                   isIconOnly 
                   onPress={handleZoomIn}
@@ -712,7 +712,7 @@ export const LineChart: React.FC<LineChartProps> = ({
               <Icon icon="lucide:download" width={14} className="text-primary-500" />
             </Button>
           )}
-        </div>
+        </div> */}
       </div>
 
       <div className={`flex-1 ${(isMobile && !isLandscape && !isMobileLandscapeShort) ? "min-h-[500px]" : isMobileLandscapeShort ? "min-h-[350px]" : "min-h-[460px]"}`}>

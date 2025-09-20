@@ -75,28 +75,15 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
     setError('');
 
     try {
-      console.log('Step 1: Creating organization:', orgName.trim());
       
       // Create the organization first
       const orgResult = await dispatch(createOrg(orgName.trim())).unwrap();
-
-      console.log('Step 2: Organization created successfully:', orgResult);
-      console.log('Full response structure:', orgResult);
       
       // Extract the actual organization data
       const orgData = (orgResult as any).data || orgResult;
-      console.log('Organization data:', orgData);
-      console.log('Organization ID:', orgData._id);
-      console.log('Invite emails array:', inviteEmails);
-      console.log('Invite emails length:', inviteEmails.length);
-      console.log('Has org ID:', !!orgData._id);
-      console.log('Condition check - emails > 0:', inviteEmails.length > 0);
-      console.log('Condition check - has org ID:', !!orgData._id);
-      console.log('Overall condition:', inviteEmails.length > 0 && orgData._id);
 
       // Send bulk invites if emails were provided
       if (inviteEmails.length > 0 && orgData._id) {
-        console.log('Step 3: Sending bulk invites to:', inviteEmails);
         
         try {
           const bulkInviteData = {
@@ -106,16 +93,9 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             })),
           };
           
-          console.log('Bulk invite request data:', bulkInviteData);
-          console.log('Sending to org ID:', orgData._id);
-          
           const inviteResult = await InvitesService.bulkCreate(orgData._id, bulkInviteData);
           
-          console.log('Step 4: Bulk invite result:', inviteResult);
-          console.log(`Successfully sent ${inviteResult.successful?.length || 0} invitations`);
-          
           if (inviteResult.failed?.length > 0) {
-            console.warn(`Failed to send ${inviteResult.failed.length} invitations:`, inviteResult.failed);
           }
         } catch (inviteError: any) {
           console.error('Step 4 ERROR: Bulk invite failed:', inviteError);
@@ -129,14 +109,11 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
           // Don't fail the entire process if invites fail
         }
       } else {
-        console.log('Step 3: No emails to invite or missing org ID');
       }
 
-      console.log('Step 5: Completing organization creation flow');
       onSuccess();
       onClose();
     } catch (err: any) {
-      console.error('Create organization error:', err);
       
       // Handle different error formats from backend
       let errorMessage = 'Failed to create organization';

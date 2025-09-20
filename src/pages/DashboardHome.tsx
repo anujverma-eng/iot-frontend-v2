@@ -10,6 +10,7 @@ import { AppDispatch, RootState } from "../store";
 import { useOfflineDetectionIntegration } from "../hooks/useOfflineDetectionIntegration";
 import { useLiveDataReadiness } from "../hooks/useLiveDataReadiness";
 import { useLiveModeTransition } from "../hooks/useLiveModeTransition";
+import { useBreakpoints } from "../hooks/use-media-query";
 import { LiveDataLoading } from "../components/visualization/live-data-loading";
 import { fetchGateways, fetchGatewayStats, selectGateways, selectGatewayStats } from "../store/gatewaySlice";
 import DebugActiveOrg from "../components/DebugActiveOrg";
@@ -26,14 +27,18 @@ import {
 } from "../store/sensorsSlice";
 import {
   fetchTelemetry,
-  selectIsLiveMode,
   selectTelemetryData,
+  selectTelemetryLoading,
   selectTimeRange,
   setTimeRange,
-  toggleLiveMode,
   selectMaxLiveReadings,
+  clearTelemetry,
 } from "../store/telemetrySlice";
-import { selectIsConnecting } from "../store/liveDataSlice";
+import { 
+  selectIsLiveMode,
+  selectIsConnecting,
+  toggleLiveMode 
+} from "../store/liveDataSlice";
 import { selectActiveOrgReady } from "../store/activeOrgSlice";
 import { Gateway } from "../types/gateway";
 import { Sensor } from "../types/sensor";
@@ -90,6 +95,9 @@ const getStatusText = (isOnline: boolean) => {
 export const DashboardHome: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
 
+  // Use responsive breakpoints for mobile optimization
+  const { isMobile, isSmallScreen, isShortHeight } = useBreakpoints();
+
   // Get state from Redux
   const gateways = useSelector(selectGateways);
   const sensors = useSelector(selectSensors);
@@ -100,6 +108,7 @@ export const DashboardHome: React.FC = () => {
   const isLiveMode = useSelector(selectIsLiveMode);
   const isConnecting = useSelector(selectIsConnecting);
   const telemetryData = useSelector(selectTelemetryData);
+  const telemetryLoading = useSelector(selectTelemetryLoading);
   const timeRange = useSelector(selectTimeRange);
   const maxLiveReadings = useSelector(selectMaxLiveReadings);
   const activeOrgReady = useSelector(selectActiveOrgReady);
@@ -109,42 +118,86 @@ export const DashboardHome: React.FC = () => {
 
   // Local state
   const [isLoading, setIsLoading] = React.useState(true);
-  const [selectedFavoriteSensor, setSelectedFavoriteSensor] = React.useState<string | null>(null);
+  const [selectedSensor, setSelectedSensor] = React.useState<string | null>(null);
   const [favoriteViewMode, setFavoriteViewMode] = React.useState<"chart" | "table">("chart");
-  const [isLoadingTelemetry, setIsLoadingTelemetry] = React.useState(false);
   const [alerts, setAlerts] = React.useState<Alert[]>([]); // We'll need to implement an alerts API/redux slice later
   const [hasInitialLoadCompleted, setHasInitialLoadCompleted] = React.useState(false);
 
+  // Add refs for tracking requests and sensor data
+  const lastTimeRangeRequestRef = React.useRef<string>("");
+  const requestInProgressRef = React.useRef<boolean>(false);
+  const previousSensorDataRef = React.useRef<any>(null);
+
   // Live data readiness hook for charts
-  const liveDataReadiness = useLiveDataReadiness(selectedFavoriteSensor, isLiveMode);
+  const liveDataReadiness = useLiveDataReadiness(selectedSensor, false); // false = not filtering offline sensors
+
+  // Enhanced loading state that considers live data readiness and request progress
+  // But excludes loading for offline sensors in live mode to show proper offline UI
+  const effectiveIsLoading = React.useMemo(() => {
+    // If we're in live mode and have a selected sensor that's offline, don't show loading
+    if (isLiveMode && selectedSensor) {
+      const sensor = sensors.find(s => s._id === selectedSensor);
+      if (sensor?.isOnline === false) {
+        return false; // Force no loading for offline sensors in live mode
+      }
+    }
+    
+    return telemetryLoading || liveDataReadiness.shouldShowLoading || requestInProgressRef.current;
+  }, [telemetryLoading, liveDataReadiness.shouldShowLoading, requestInProgressRef.current, isLiveMode, selectedSensor, sensors]);
+
+  // DEBUG: Log when telemetry data changes (only when significant changes occur)
+  const prevTelemetryRef = React.useRef<any>(null);
+  React.useEffect(() => {
+    const currentData = telemetryData[selectedSensor || ""];
+    const prevData = prevTelemetryRef.current;
+    
+    // Only log if there's a meaningful change
+    const hasSignificantChange = !prevData || 
+      (currentData?.series?.length !== prevData?.series?.length) ||
+      (telemetryLoading !== prevData?.wasLoading);
+    
+    if (hasSignificantChange) {
+      prevTelemetryRef.current = {
+        series: currentData?.series || [],
+        wasLoading: telemetryLoading
+      };
+    }
+
+    // Reset request in progress flag when telemetry loading completes
+    // This ensures we don't show loading state after getting API response
+    if (!telemetryLoading && requestInProgressRef.current) {
+      requestInProgressRef.current = false;
+    }
+  }, [telemetryData, selectedSensor, telemetryLoading]);
 
   // Add live mode transition detection for automatic data refresh
   useLiveModeTransition(
     // onLiveToOffline - refresh data when switching to offline mode
     () => {
-      if (selectedFavoriteSensor && timeRange) {
+      if (selectedSensor) {
+        // Use current timeRange or default to last 24 hours
+        const currentTimeRange = timeRange || {
+          start: new Date(Date.now() - 24 * 60 * 60 * 1000),
+          end: new Date(),
+        };
+        
         // Force re-fetch data with current time range when switching to offline
-        setIsLoadingTelemetry(true);
         dispatch(fetchTelemetry({
-          sensorIds: [selectedFavoriteSensor],
+          sensorIds: [selectedSensor],
           timeRange: {
-            start: timeRange.start.toISOString(),
-            end: timeRange.end.toISOString(),
+            start: currentTimeRange.start.toISOString(),
+            end: currentTimeRange.end.toISOString(),
           },
-        })).finally(() => {
-          setIsLoadingTelemetry(false);
-        });
+        }) as any);
       }
     },
-    // onOfflineToLive - let live connection handle data when switching to live
+    // onOfflineToLive - no action needed since Redux manages state
     () => {
-      // Live mode will handle its own data fetching via MQTT
-      // No need to fetch API data immediately
+      // No action needed - Redux handles the state transition
     }
   );
 
-  // Add a ref to track the most recent time range request
-  const lastTimeRangeRequestRef = React.useRef<string>("");
+
 
   // Mark initial load as completed immediately - we'll fetch limited data for first load
   React.useEffect(() => {
@@ -161,10 +214,10 @@ export const DashboardHome: React.FC = () => {
 
   // Set default selected favorite sensor when favorites change
   React.useEffect(() => {
-    if (favoriteSensors.length > 0 && !selectedFavoriteSensor) {
-      setSelectedFavoriteSensor(favoriteSensors[0]._id);
+    if (favoriteSensors.length > 0 && !selectedSensor) {
+      setSelectedSensor(favoriteSensors[0]._id);
     }
-  }, [favoriteSensors, selectedFavoriteSensor]);
+  }, [favoriteSensors, selectedSensor]);
 
   React.useEffect(() => {
     const fetchData = async () => {
@@ -211,25 +264,15 @@ export const DashboardHome: React.FC = () => {
 
   // Optimized telemetry fetching with live data readiness
   React.useEffect(() => {
-    if (!selectedFavoriteSensor || !activeOrgReady) {
-      setIsLoadingTelemetry(false);
+    if (!selectedSensor || !activeOrgReady) {
       return;
     }
     
     // Create a request ID based on current parameters
-    const currentRequest = `${selectedFavoriteSensor}-${timeRange?.start}-${timeRange?.end}`;
+    const currentRequest = `${selectedSensor}-${timeRange?.start}-${timeRange?.end}-${isLiveMode}`;
 
-    // Don't make duplicate requests
-    if (lastTimeRangeRequestRef.current === currentRequest) {
-      return;
-    }
-
-    // Always update the request ref to prevent duplicate attempts
-    lastTimeRangeRequestRef.current = currentRequest;
-
-    // Check if we should show loading instead of fetching API data
-    if (liveDataReadiness.shouldShowLoading) {
-      setIsLoadingTelemetry(true);
+    // Don't make duplicate requests or multiple concurrent requests
+    if (lastTimeRangeRequestRef.current === currentRequest || requestInProgressRef.current) {
       return;
     }
 
@@ -238,22 +281,14 @@ export const DashboardHome: React.FC = () => {
       return;
     }
 
-    setIsLoadingTelemetry(true);
+    // Mark request as in progress and update request ref
+    requestInProgressRef.current = true;
+    lastTimeRangeRequestRef.current = currentRequest;
 
     // Determine time range to use based on initial load vs normal operation
-    const isInitialLoad = lastTimeRangeRequestRef.current === currentRequest; // First time for this sensor
     let timeRangeToUse;
 
-    if (isInitialLoad) {
-      // For initial load, fetch last ~3 minutes (approximately 90 readings at 2-second intervals)
-      const now = new Date();
-      const threeMinutesAgo = new Date(now.getTime() - (3 * 60 * 1000)); // 3 minutes ago
-      
-      timeRangeToUse = {
-        start: threeMinutesAgo,
-        end: now
-      };
-    } else if (isLiveMode) {
+    if (isLiveMode) {
       // For live mode, fetch last ~4 minutes to match live data view
       const now = new Date();
       const fourMinutesAgo = new Date(now.getTime() - (4 * 60 * 1000));
@@ -274,52 +309,148 @@ export const DashboardHome: React.FC = () => {
 
     dispatch(
       fetchTelemetry({
-        sensorIds: [selectedFavoriteSensor],
+        sensorIds: [selectedSensor],
         timeRange: {
           start: timeRangeToUse.start.toISOString(),
           end: timeRangeToUse.end.toISOString(),
         },
       }) as any
-    )
-      .then(() => {
-        // Telemetry data fetched successfully
-      })
-      .finally(() => {
-        setIsLoadingTelemetry(false);
-      });
-  }, [dispatch, selectedFavoriteSensor, timeRange, hasInitialLoadCompleted, liveDataReadiness.shouldFetchApiData, liveDataReadiness.shouldShowLoading, isLiveMode, activeOrgReady]);
+    );
+
+    // Note: requestInProgressRef.current will be reset when telemetry loading completes
+    // via the telemetry data change effect above
+  }, [dispatch, selectedSensor, timeRange, liveDataReadiness.shouldFetchApiData, isLiveMode, activeOrgReady]);
 
   // Handle time range change for favorite sensor view
   const handleTimeRangeChange = (newTimeRange: any) => {
+    // ALWAYS clear previous sensor data when changing time range to prevent stale data display
+    // This ensures we don't show data from a different time range
+    if (previousSensorDataRef.current) {
+      previousSensorDataRef.current = null;
+    }
+    
     dispatch(setTimeRange(newTimeRange));
+    
+    // Fetch new data when time range changes in offline mode
+    if (!isLiveMode && selectedSensor) {
+      dispatch(fetchTelemetry({
+        sensorIds: [selectedSensor],
+        timeRange: {
+          start: newTimeRange.start.toISOString(),
+          end: newTimeRange.end.toISOString(),
+        },
+      }) as any);
+    }
   };
 
-  // Get chart data for selected favorite sensor
-  const selectedFavoriteSensorData = React.useMemo(() => {
-    if (!selectedFavoriteSensor) {
-      return null;
-    }
-
-    const data = telemetryData[selectedFavoriteSensor];
-    if (!data || !data.series || data.series.length === 0) {
-      return null;
-    }
-
-    const currentSeries = data.series;
+  // Handle live mode change
+  const handleLiveModeChange = (enable: boolean) => {
+    // Clear previous sensor data when switching modes to prevent stale data display
+    previousSensorDataRef.current = null;
     
-    // Apply dynamic reading limit in live mode based on user's selection
-    // In offline mode, show all data for proper historical analysis
-    const shouldLimitToLatest = isLiveMode; // Only limit in live mode
-    const displaySeries = shouldLimitToLatest && currentSeries.length > maxLiveReadings ? 
-      currentSeries.slice(-maxLiveReadings) : currentSeries;
+    // When switching to live mode, clear all telemetry data to prevent showing historical data
+    // for sensors that might be offline in live mode
+    if (enable) {
+      dispatch(clearTelemetry());
+    }
+    
+    dispatch(toggleLiveMode({ enable }) as any);
+  };
 
-    return {
-      type: data.type,
-      unit: data.unit,
-      series: displaySeries,
-      color: "#006FEE", // Primary color
-    };
-  }, [selectedFavoriteSensor, telemetryData, isLiveMode, maxLiveReadings]);
+  // Ensure time range is always set - fallback to default if not provided
+  React.useEffect(() => {
+    if (!timeRange) {
+      const defaultTimeRange = {
+        start: new Date(Date.now() - 24 * 60 * 60 * 1000),
+        end: new Date(),
+      };
+      dispatch(setTimeRange(defaultTimeRange));
+    }
+  }, [timeRange, dispatch]);
+
+  // Get chart data for selected favorite sensor - preserve previous data during loading
+  const selectedSensorData = React.useMemo(() => {
+    if (!selectedSensor) {
+      previousSensorDataRef.current = null;
+      return null;
+    }
+
+    const data = telemetryData[selectedSensor];
+    const sensor = sensors.find(s => s._id === selectedSensor);
+    const isSensorOffline = sensor?.isOnline === false;
+    
+    // In live mode, if sensor is offline, don't show any chart data - force offline UI
+    if (isLiveMode && isSensorOffline) {
+      return null;
+    }
+    
+    // Check if we have valid current data
+    const hasValidCurrentData = data && data.series && data.series.length > 0;
+    
+    if (hasValidCurrentData) {
+      // We have valid current data - process and store it
+      const currentSeries = data.series;
+      
+      // Apply dynamic reading limit in live mode based on user's selection
+      // In offline mode, show all data for proper historical analysis
+      const shouldLimitToLatest = isLiveMode; // Only limit in live mode
+      const displaySeries = shouldLimitToLatest && currentSeries.length > maxLiveReadings ? 
+        currentSeries.slice(-maxLiveReadings) : currentSeries;
+
+      const result = {
+        type: data.type,
+        unit: data.unit,
+        series: displaySeries,
+        color: "#006FEE", // Primary color
+      };
+
+      // Store this data for future use during empty states (only in offline mode)
+      if (!isLiveMode) {
+        previousSensorDataRef.current = result;
+      }
+      return result;
+    } else {
+      // If we're actively loading, keep previous data to prevent flickering
+      // But if we have a definitive empty response (data exists but series is empty), don't use previous data
+      if (telemetryLoading) {
+        // We're loading - keep previous data if available (only in offline mode)
+        if (previousSensorDataRef.current && !isLiveMode && !isSensorOffline) {
+          return previousSensorDataRef.current;
+        }
+        // If no previous data but we're loading, return null to show loading state
+        return null;
+      }
+      
+      // We're not loading - check if we have a definitive response
+      if (data && data.series !== undefined) {
+        // We have a response but no data for this time range - clear previous data and show no data
+        if (previousSensorDataRef.current) {
+          previousSensorDataRef.current = null;
+        }
+        return null;
+      }
+      
+      // We don't have any response yet - keep previous data if available (only in offline mode)
+      if (previousSensorDataRef.current && !isLiveMode && !isSensorOffline) {
+        return previousSensorDataRef.current;
+      }
+      
+      return null;
+    }
+  }, [selectedSensor, telemetryData, isLiveMode, maxLiveReadings, telemetryLoading, sensors]);
+
+  // DEBUG: Log chart render decision variables (only when decision changes)
+  const prevRenderDecisionRef = React.useRef<string>("");
+  React.useEffect(() => {
+    const hasData = selectedSensor && selectedSensorData;
+    const shouldShowLoading = effectiveIsLoading || isLoading || sensorsLoading || (!selectedSensor && sensors.length > 0);
+    const renderChoice = hasData ? "CHART" : shouldShowLoading ? "LOADING" : "NO_DATA";
+    
+    // Only log when the render decision actually changes
+    if (prevRenderDecisionRef.current !== renderChoice) {
+      prevRenderDecisionRef.current = renderChoice;
+    }
+  }, [selectedSensor, selectedSensorData, effectiveIsLoading, isLoading, sensorsLoading, sensors.length, telemetryLoading, liveDataReadiness.shouldShowLoading, isLiveMode]);
 
   const stats = React.useMemo(
     () => ({
@@ -354,17 +485,29 @@ export const DashboardHome: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto max-w-7xl p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
+    <div className={`container ${
+      isMobile 
+        ? "p-0 space-y-3 m-0" // Mobile: reduced padding and spacing
+        : "p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6" // Desktop: normal spacing
+    }`}>
       <DebugActiveOrg />
       <motion.h1
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6 px-2 sm:px-0"
+        className={`text-2xl sm:text-3xl font-bold ${
+          isMobile 
+            ? "mb-3 px-1" // Mobile: reduced margin and padding
+            : "mb-4 sm:mb-6 px-2 sm:px-0" // Desktop: normal spacing
+        }`}
       >
         Dashboard Overview
       </motion.h1>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 px-2 sm:px-0">
+      <div className={`grid grid-cols-2 lg:grid-cols-4 ${
+        isMobile 
+          ? "gap-2 px-1" // Mobile: reduced gap and padding
+          : "gap-3 sm:gap-4 px-2 sm:px-0" // Desktop: normal spacing
+      }`}>
         <StatsCard title="Total Gateways" value={stats.totalGateways.toString()} icon="lucide:cpu" color="primary" />
         <StatsCard
           title="Active Gateways"
@@ -376,22 +519,31 @@ export const DashboardHome: React.FC = () => {
         <StatsCard title="Active Sensors" value={stats.activeSensors.toString()} icon="lucide:signal" color="warning" />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:gap-6 px-2 sm:px-0">
+      <div className={`grid grid-cols-1 ${
+        isMobile 
+          ? "gap-3 px-1" // Mobile: reduced gap and padding
+          : "gap-4 sm:gap-6 px-2 sm:px-0" // Desktop: normal spacing
+      }`}>
         {/* Sensors Card */}
         <Card>
-          <CardHeader className="flex justify-between items-center">
-            <h2 className="text-xl font-semibold">Recent Sensors</h2>
+          <CardHeader className={`flex justify-between items-center ${
+            isMobile ? "px-3 py-3" : "px-6 py-4" // Mobile: reduced padding
+          }`}>
+            <h2 className={`font-semibold ${
+              isMobile ? "text-lg" : "text-xl" // Mobile: smaller heading
+            }`}>Recent Sensors</h2>
             <Button
               as={Link}
               to="/dashboard/sensors"
               color="primary"
               variant="light"
+              size={isMobile ? "sm" : "md"} // Mobile: smaller button
               endContent={<Icon icon="lucide:chevron-right" />}
             >
               View All
             </Button>
           </CardHeader>
-          <CardBody>
+          <CardBody className={isMobile ? "px-3 py-2" : "px-6 py-4"}> {/* Mobile: reduced padding */}
             <Table removeWrapper aria-label="Recent Sensors">
               <TableHeader>
                 <TableColumn>SENSOR</TableColumn>
@@ -506,63 +658,55 @@ export const DashboardHome: React.FC = () => {
 
       {/* Enhanced Favorite Sensors Section */}
       <Card>
-        <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <CardHeader className={`flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ${
+          isMobile ? "px-3 py-3" : "px-6 py-4" // Mobile: reduced padding
+        }`}>
           <div>
-            <h2 className="text-xl font-semibold">Favorite Sensor</h2>
-            <p className="text-sm text-default-500">
+            <h2 className={`font-semibold ${
+              isMobile ? "text-lg" : "text-xl" // Mobile: smaller heading
+            }`}>Favorite Sensor</h2>
+            <p className={`text-default-500 ${
+              isMobile ? "text-xs" : "text-sm" // Mobile: smaller description
+            }`}>
               Monitor your selected favorite sensor with live data and analytics
             </p>
           </div>
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-default-600">Live Mode:</span>
-              <Button
-                size="sm"
-                variant={isLiveMode ? "solid" : "bordered"}
-                color={isLiveMode ? "success" : "default"}
-                startContent={<Icon icon={isLiveMode ? "lucide:radio" : "lucide:database"} className="w-3 h-3" />}
-                onPress={() => {
-
-                  dispatch(
-                    toggleLiveMode({
-                      enable: !isLiveMode,
-                      gatewayIds: gateways.map((g) => g._id),
-                    }) as any
-                  );
-                }}
-              >
-                {isLiveMode ? "Live" : "Historical"}
-              </Button>
-            </div>
-            {!isLiveMode && (
-              <div className="w-full sm:w-auto">
-                <TimeRangeSelector timeRange={timeRange} onTimeRangeChange={handleTimeRangeChange} isMobile={true} />
-              </div>
-            )}
+            <TimeRangeSelector 
+              timeRange={timeRange} 
+              onTimeRangeChange={handleTimeRangeChange} 
+              isLiveMode={isLiveMode}
+              onLiveModeChange={handleLiveModeChange}
+              liveStatus={isConnecting ? 'connecting' : isLiveMode ? 'connected' : 'disconnected'}
+              showApplyButtons={true}
+              isMobile={true}
+            />
           </div>
         </CardHeader>
-        <CardBody>
+        <CardBody className={isMobile ? "px-1 py-2" : "px-6 py-4"}> {/* Mobile: reduced padding */}
           {favoriteSensors.length > 0 ? (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4 sm:space-y-6">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`${
+              isMobile ? "space-y-3" : "space-y-4 sm:space-y-6" // Mobile: reduced spacing
+            }`}>
               {/* Sensor Selection and View Mode - Mobile Optimized */}
-              <div className="space-y-4">
+              <div className={isMobile ? "space-y-3" : "space-y-4"}> {/* Mobile: reduced spacing */}
                 {/* Mobile: Stack vertically, Desktop: Side by side */}
                 <div className="flex flex-col space-y-4 lg:flex-row lg:space-y-0 lg:gap-4 lg:items-end lg:justify-between">
                   <div className="flex-1 lg:max-w-sm">
                     <Select
                       label="Select Favorite Sensor"
                       placeholder="Choose a sensor to view"
-                      selectedKeys={selectedFavoriteSensor ? [selectedFavoriteSensor] : []}
+                      selectedKeys={selectedSensor ? [selectedSensor] : []}
                       onSelectionChange={(keys) => {
                         const selectedKey = Array.from(keys)[0] as string;
 
-                        setSelectedFavoriteSensor(selectedKey);
+                        setSelectedSensor(selectedKey);
                       }}
                       className="w-full"
                       size="sm"
                       renderValue={() => {
-                        if (selectedFavoriteSensor) {
-                          const sensor = favoriteSensors.find((s) => s._id === selectedFavoriteSensor);
+                        if (selectedSensor) {
+                          const sensor = favoriteSensors.find((s) => s._id === selectedSensor);
                           return sensor ? `${sensor.displayName || sensor.mac} (${sensor.type})` : "Select sensor";
                         }
                         return "Choose a sensor to view";
@@ -594,7 +738,7 @@ export const DashboardHome: React.FC = () => {
 
               {/* Sensor Info Panel */}
               {(() => {
-                const sensor = favoriteSensors.find((s) => s._id === selectedFavoriteSensor);
+                const sensor = favoriteSensors.find((s) => s._id === selectedSensor);
                 if (!sensor) return null;
                 const telemetryDataForSensor = telemetryData[sensor._id] || {};
                 const currentValue =
@@ -605,12 +749,16 @@ export const DashboardHome: React.FC = () => {
                   <motion.div
                     initial={{ scale: 0.95, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    className="space-y-4"
+                    className={isMobile ? "space-y-3" : "space-y-4"} // Mobile: reduced spacing
                   >
                     {/* Mobile-first responsive sensor info */}
-                    <div className="bg-default-50 rounded-lg p-4">
+                    <div className={`bg-default-50 rounded-lg ${
+                      isMobile ? "p-3" : "p-4" // Mobile: reduced padding
+                    }`}>
                       {/* Mobile Layout - Stacked Cards */}
-                      <div className="block lg:hidden space-y-3">
+                      <div className={`block lg:hidden ${
+                        isMobile ? "space-y-2" : "space-y-3" // Mobile: reduced spacing
+                      }`}>
                         {/* Primary Info Row */}
                         <div className="flex justify-between items-center">
                           <div className="flex-1">
@@ -732,121 +880,131 @@ export const DashboardHome: React.FC = () => {
                 {favoriteViewMode === "chart" ? (
                   <div className="w-full">
                     {/* Chart Container - Mobile optimized heights */}
-                    <div className="bg-default-50 rounded-lg border border-default-200 h-[300px] sm:h-[350px] lg:h-[400px] min-h-[300px]">
-                      {(isLoadingTelemetry && !liveDataReadiness.shouldShowLoading) || isLoading || sensorsLoading || (!selectedFavoriteSensor && sensors.length > 0) ? (
-                        <div className="flex items-center justify-center h-full">
-                          <div className="text-center">
-                            <Progress
-                              size="sm"
-                              isIndeterminate
-                              aria-label="Loading chart data..."
-                              className="max-w-md mb-3"
-                            />
-                            <p className="text-default-600 text-sm">Loading chart data...</p>
-                          </div>
-                        </div>
-                      ) : (isLiveMode && liveDataReadiness.shouldShowLoading) ? (
-                        <div className="flex items-center justify-center h-full">
-                          <LiveDataLoading 
-                            sensorName={selectedFavoriteSensor ? (favoriteSensors.find(s => s._id === selectedFavoriteSensor)?.displayName || selectedFavoriteSensor) : undefined}
-                          />
-                        </div>
-                      ) : (
-                        (() => {
-                          // Check if sensor is offline and we're in live mode
-                          const sensor = favoriteSensors.find((s) => s._id === selectedFavoriteSensor);
-                          const isSensorOffline = sensor?.isOnline === false;
-                          const shouldShowOfflineFallback = isLiveMode && isSensorOffline;
+                    <div className={`bg-default-50 rounded-lg border border-default-200 ${
+                      isMobile 
+                        ? "h-[250px] min-h-[250px]" // Mobile: shorter height
+                        : "h-[300px] sm:h-[350px] lg:h-[400px] min-h-[300px]" // Desktop: normal height
+                    }`}>
+                      {(() => {
+                        // First priority: Check if sensor is offline and we're in live mode
+                        const sensor = favoriteSensors.find((s) => s._id === selectedSensor);
+                        const isSensorOffline = sensor?.isOnline === false;
+                        const shouldShowOfflineFallback = isLiveMode && isSensorOffline;
 
-                          if (shouldShowOfflineFallback) {
-                            return (
-                              <div className="flex items-center justify-center h-full">
-                                <div className="text-center max-w-md px-6">
-                                  {/* Animated loading icon */}
-                                  <div className="flex flex-col items-center gap-4 max-w-md">
-                                    <div className="relative">
-                                      <Icon
-                                        icon="lucide:wifi-off"
-                                        className="text-danger-400 animate-pulse"
-                                        width={64}
-                                        height={64}
-                                      />
-                                      <div className="absolute -bottom-2 -right-2 bg-danger-500 rounded-full p-1">
-                                        <Icon
-                                          icon="lucide:loader-2"
-                                          className="text-white animate-spin"
-                                          width={16}
-                                          height={16}
-                                        />
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  <div className="space-y-3">
-                                    <h3 className="text-lg font-semibold text-danger-600">Sensor Offline</h3>
-                                    <p className="text-default-600 text-sm leading-relaxed">
-                                      <span className="font-medium text-primary-600">
-                                        {sensor?.displayName || sensor?.mac}
-                                      </span>{" "}
-                                      is currently offline
-                                    </p>
-                                    <p className="text-default-500 text-xs">
-                                      Live data will resume automatically when sensor comes back online
-                                    </p>
-                                  </div>
-
-                                  <div className="mt-6">
-                                    <Button
-                                      color="primary"
-                                      variant="flat"
-                                      size="sm"
-                                      startContent={<Icon icon="lucide:history" className="w-4 h-4" />}
-                                      onPress={() => {
-                                        dispatch(
-                                          toggleLiveMode({
-                                            enable: false,
-                                            gatewayIds: gateways.map((g) => g._id),
-                                          }) as any
-                                        );
-                                      }}
-                                    >
-                                      View Historical Data
-                                    </Button>
+                        // Show offline fallback BEFORE checking loading states
+                        if (shouldShowOfflineFallback) {
+                          return (
+                            <div className="flex items-center justify-center h-full">
+                              <div className="text-center max-w-md px-6">
+                                {/* Animated loading icon */}
+                                <div className="flex flex-col items-center gap-4 max-w-md">
+                                  <div className="relative">
+                                    <Icon
+                                      icon="lucide:wifi-off"
+                                      className="text-danger-400 animate-pulse"
+                                      width={64}
+                                      height={64}
+                                    />
                                   </div>
                                 </div>
-                              </div>
-                            );
-                          }
 
-                          // Normal chart rendering
-                          return selectedFavoriteSensor &&
-                            selectedFavoriteSensorData ? (
-                            <div className="h-full w-full p-2">
-                              <LineChart
-                                config={selectedFavoriteSensorData}
-                                isLiveMode={isLiveMode}
-                              />
-                            </div>
-                          ) : (
-                            <div className="flex items-center justify-center h-full">
-                              <div className="text-center">
-                                <Icon
-                                  icon="lucide:bar-chart-3"
-                                  className="w-8 h-8 sm:w-12 sm:h-12 text-default-300 mb-3 mx-auto"
-                                />
-                                <p className="text-default-600 text-sm sm:text-base">
-                                  {selectedFavoriteSensor ? "No chart data available" : "Select a sensor to view chart"}
-                                </p>
-                                <p className="text-xs sm:text-sm text-default-500 mt-1">
-                                  {isLiveMode
-                                    ? "Live data will appear here once sensor starts transmitting"
-                                    : "Historical data will load for the selected time range"}
-                                </p>
+                                <div className="space-y-3">
+                                  <h3 className="text-lg font-semibold text-danger-600">Sensor Offline</h3>
+                                  <p className="text-default-600 text-sm leading-relaxed">
+                                    <span className="font-medium text-primary-600">
+                                      {sensor?.displayName || sensor?.mac}
+                                    </span>{" "}
+                                    is currently offline
+                                  </p>
+                                  <p className="text-default-500 text-xs">
+                                    Live data will resume automatically when sensor comes back online
+                                  </p>
+                                </div>
+
+                                <div className="mt-6">
+                                  <Button
+                                    color="primary"
+                                    variant="flat"
+                                    size="sm"
+                                    startContent={<Icon icon="lucide:history" className="w-4 h-4" />}
+                                    onPress={() => {
+                                      dispatch(
+                                        toggleLiveMode({
+                                          enable: false
+                                        }) as any
+                                      );
+                                    }}
+                                  >
+                                    View Historical Data
+                                  </Button>
+                                </div>
                               </div>
                             </div>
                           );
-                        })()
-                      )}
+                        }
+
+                        // Second priority: Show chart if we have data
+                        if (selectedSensor && selectedSensorData) {
+                          return (
+                            <div className={`h-full w-full ${
+                              isMobile ? "p-1" : "p-2" // Mobile: reduced padding
+                            }`}>
+                              <LineChart
+                                config={selectedSensorData}
+                                isLiveMode={isLiveMode}
+                              />
+                            </div>
+                          );
+                        }
+
+                        // Third priority: Show loading states
+                        if (effectiveIsLoading || isLoading || sensorsLoading || (!selectedSensor && sensors.length > 0)) {
+                          return (
+                            <div className="flex items-center justify-center h-full">
+                              <div className="text-center">
+                                <Progress
+                                  size="sm"
+                                  isIndeterminate
+                                  aria-label="Loading chart data..."
+                                  className="max-w-md mb-3"
+                                />
+                                <p className="text-default-600 text-sm">Loading chart data...</p>
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        // Fourth priority: Show live data loading
+                        if (isLiveMode && liveDataReadiness.shouldShowLoading) {
+                          return (
+                            <div className="flex items-center justify-center h-full">
+                              <LiveDataLoading 
+                                sensorName={selectedSensor ? (favoriteSensors.find(s => s._id === selectedSensor)?.displayName || selectedSensor) : undefined}
+                              />
+                            </div>
+                          );
+                        }
+
+                        // Last priority: Show no data state
+                        return (
+                          <div className="flex items-center justify-center h-full">
+                            <div className="text-center">
+                              <Icon
+                                icon="lucide:bar-chart-3"
+                                className="w-8 h-8 sm:w-12 sm:h-12 text-default-300 mb-3 mx-auto"
+                              />
+                              <p className="text-default-600 text-sm sm:text-base">
+                                {selectedSensor ? "No chart data available" : "Select a sensor to view chart"}
+                              </p>
+                              <p className="text-xs sm:text-sm text-default-500 mt-1">
+                                {isLiveMode
+                                  ? "Live data will appear here once sensor starts transmitting"
+                                  : "Historical data will load for the selected time range"}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 ) : (
@@ -862,25 +1020,15 @@ export const DashboardHome: React.FC = () => {
                           </TableColumn>
                         </TableHeader>
                         <TableBody>
-                          {isLoadingTelemetry || isLoading || sensorsLoading || (!selectedFavoriteSensor && sensors.length > 0) ? (
-                            <TableRow>
-                              <TableCell colSpan={2} className="text-center py-8">
-                                <Progress
-                                  size="sm"
-                                  isIndeterminate
-                                  aria-label="Loading table data..."
-                                  className="max-w-md mb-3 mx-auto"
-                                />
-                                <p className="text-default-600 text-sm">Loading table data...</p>
-                              </TableCell>
-                            </TableRow>
-                          ) : selectedFavoriteSensor && selectedFavoriteSensorData && selectedFavoriteSensorData.series.length > 0 ? (
-                            selectedFavoriteSensorData.series
+                          {selectedSensor && selectedSensorData && selectedSensorData.series.length > 0 ? (
+                            selectedSensorData.series
                               .slice(-10)
                               .reverse()
-                              .map((point, idx) => (
+                              .map((point: any, idx: number) => (
                                 <TableRow key={idx} className="hover:bg-default-50">
-                                  <TableCell className="text-xs sm:text-sm font-mono px-2 sm:px-4 py-2">
+                                  <TableCell className={`text-xs sm:text-sm font-mono ${
+                                    isMobile ? "px-1 py-1" : "px-2 sm:px-4 py-2" // Mobile: reduced padding
+                                  }`}>
                                     <div className="max-w-[140px] sm:max-w-none">
                                       <div className="hidden sm:block">
                                         {new Date(point.timestamp).toLocaleString()}
@@ -893,18 +1041,32 @@ export const DashboardHome: React.FC = () => {
                                       </div>
                                     </div>
                                   </TableCell>
-                                  <TableCell className="text-xs sm:text-sm font-bold px-2 sm:px-4 py-2 text-right">
+                                  <TableCell className={`text-xs sm:text-sm font-bold text-right ${
+                                    isMobile ? "px-1 py-1" : "px-2 sm:px-4 py-2" // Mobile: reduced padding
+                                  }`}>
                                     <span className="text-primary">{point.value}</span>
                                     <span className="text-default-500 ml-1">
-                                      {telemetryData[selectedFavoriteSensor].unit}
+                                      {telemetryData[selectedSensor].unit}
                                     </span>
                                   </TableCell>
                                 </TableRow>
                               ))
+                          ) : effectiveIsLoading || isLoading || sensorsLoading || (!selectedSensor && sensors.length > 0) ? (
+                            <TableRow>
+                              <TableCell colSpan={2} className="text-center py-8">
+                                <Progress
+                                  size="sm"
+                                  isIndeterminate
+                                  aria-label="Loading table data..."
+                                  className="max-w-md mb-3 mx-auto"
+                                />
+                                <p className="text-default-600 text-sm">Loading table data...</p>
+                              </TableCell>
+                            </TableRow>
                           ) : (
                             (() => {
                               // Check if sensor is offline and we're in live mode for table view
-                              const sensor = favoriteSensors.find((s) => s._id === selectedFavoriteSensor);
+                              const sensor = favoriteSensors.find((s) => s._id === selectedSensor);
                               const isSensorOffline = sensor?.isOnline === false;
                               const shouldShowOfflineFallback = isLiveMode && isSensorOffline;
 
@@ -938,8 +1100,7 @@ export const DashboardHome: React.FC = () => {
                                             onPress={() => {
                                               dispatch(
                                                 toggleLiveMode({
-                                                  enable: false,
-                                                  gatewayIds: gateways.map((g) => g._id),
+                                                  enable: false
                                                 }) as any
                                               );
                                             }}
@@ -959,7 +1120,7 @@ export const DashboardHome: React.FC = () => {
                                   <TableCell colSpan={2} className="text-center py-8">
                                     <Icon icon="lucide:database" className="w-8 h-8 text-default-300 mb-2 mx-auto" />
                                     <p className="text-default-600 text-sm sm:text-base">
-                                      {selectedFavoriteSensor
+                                      {selectedSensor
                                         ? "No table data available"
                                         : "Select a sensor to view data"}
                                     </p>
@@ -995,14 +1156,26 @@ export const DashboardHome: React.FC = () => {
 
       {/* Favorite Dashboard Section */}
       <Card>
-        <CardHeader>
-          <h2 className="text-xl font-semibold">Favorite Dashboard</h2>
+        <CardHeader className={isMobile ? "px-3 py-3" : "px-6 py-4"}> {/* Mobile: reduced padding */}
+          <h2 className={`font-semibold ${
+            isMobile ? "text-lg" : "text-xl" // Mobile: smaller heading
+          }`}>Favorite Dashboard</h2>
         </CardHeader>
-        <CardBody>
-          <div className="flex flex-col items-center justify-center py-12">
-            <Icon icon="lucide:layout-dashboard" className="w-16 h-16 text-default-300 mb-4" />
-            <p className="text-default-600 mb-4">No favorite dashboard available</p>
-            <Button color="primary" startContent={<Icon icon="lucide:plus" />}>
+        <CardBody className={isMobile ? "px-3 py-2" : "px-6 py-4"}> {/* Mobile: reduced padding */}
+          <div className={`flex flex-col items-center justify-center ${
+            isMobile ? "py-8" : "py-12" // Mobile: reduced padding
+          }`}>
+            <Icon icon="lucide:layout-dashboard" className={`text-default-300 mb-4 ${
+              isMobile ? "w-12 h-12" : "w-16 h-16" // Mobile: smaller icon
+            }`} />
+            <p className={`text-default-600 mb-4 ${
+              isMobile ? "text-sm" : "text-base" // Mobile: smaller text
+            }`}>No favorite dashboard available</p>
+            <Button 
+              color="primary" 
+              size={isMobile ? "sm" : "md"} // Mobile: smaller button
+              startContent={<Icon icon="lucide:plus" />}
+            >
               Add Favorite Dashboard
             </Button>
           </div>

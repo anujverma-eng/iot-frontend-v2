@@ -63,13 +63,6 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   // Debug logging
   React.useEffect(() => {
     const membershipsCount = profile.data?.memberships?.length || 0;
-    console.log('[DEBUG] Dashboard Layout State:', {
-      showOrgPicker,
-      profileLoaded: profile.loaded,
-      shouldShowOrgPicker,
-      activeOrgStatus,
-      membershipsCount
-    });
   }, [showOrgPicker, profile.loaded, shouldShowOrgPicker, activeOrgStatus, profile.data?.memberships?.length]);
   // const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
   const isDesktop = window.matchMedia("(min-width: 1024px)").matches;

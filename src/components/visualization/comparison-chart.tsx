@@ -206,7 +206,7 @@ export const ComparisonChart: React.FC<ComparisonChartProps> = ({
             </p>
           </div>
           
-          <div className="flex items-center gap-2">
+          {/* <div className="flex items-center gap-2">
             {onDownloadCSV && (
               <Button
                 size="sm"
@@ -218,7 +218,7 @@ export const ComparisonChart: React.FC<ComparisonChartProps> = ({
                 <Icon icon="lucide:download" width={16} className="text-primary-500" />
               </Button>
             )}
-          </div>
+          </div> */}
         </div>
 
         {/* Active sensors display */}

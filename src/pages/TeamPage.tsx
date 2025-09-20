@@ -547,7 +547,6 @@ export const TeamPage: React.FC = () => {
   // Handle successful invitation actions (from location state)
   useEffect(() => {
     if (location.state?.message) {
-      console.log(location.state.message); // You can replace this with a toast
       // Clear the state to prevent showing the message again
       window.history.replaceState({}, document.title);
     }
@@ -699,7 +698,6 @@ export const TeamPage: React.FC = () => {
       ).unwrap();
       setIsChangeRoleModalOpen(false);
       setSelectedMember(null);
-      console.log("Role updated successfully!");
       // Refresh members
       dispatch(
         fetchMembers({
@@ -728,7 +726,6 @@ export const TeamPage: React.FC = () => {
       ).unwrap();
       setIsPermissionsModalOpen(false);
       setSelectedMember(null);
-      console.log("Permissions updated successfully!");
       // Refresh members
       dispatch(
         fetchMembers({
@@ -857,7 +854,6 @@ export const TeamPage: React.FC = () => {
     setAcceptDeclineError(null);
     try {
       await dispatch(acceptInvite(token)).unwrap();
-      console.log("Invitation accepted successfully!");
       // Refresh my invitations and user profile to get the new membership
       await Promise.all([dispatch(fetchMyInvitations({})), dispatch(fetchProfile())]);
       setIsInvitationDetailsModalOpen(false);
@@ -870,7 +866,6 @@ export const TeamPage: React.FC = () => {
 
       if (error?.response?.data?.message) {
         const backendError = error.response.data.message;
-        console.log("ERRR:", error.response);
         if (typeof backendError === "object" && backendError.code && backendError.message) {
           // Handle structured error response
           switch (backendError.code) {
@@ -911,7 +906,6 @@ export const TeamPage: React.FC = () => {
     setAcceptDeclineError(null);
     try {
       await dispatch(declineInvite(token)).unwrap();
-      console.log("Invitation declined successfully!");
       // Refresh my invitations
       dispatch(fetchMyInvitations({}));
       setIsInvitationDetailsModalOpen(false);

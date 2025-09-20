@@ -207,7 +207,6 @@ export const UserService = {
             };
             
             sessionStorage.setItem('emailChangeState', JSON.stringify(emailChangeState));
-            console.log('Email verification code sent to:', newEmail);
             resolve();
           });
         });
@@ -389,12 +388,6 @@ export const UserService = {
           // Clear sessionStorage regardless of outcome
           sessionStorage.removeItem('emailChangeState');
           
-          if (err) {
-            console.warn('Could not revert email, but clearing state:', err);
-          } else {
-            console.log('Email change cancelled successfully');
-          }
-          
           resolve();
         });
       });
@@ -446,7 +439,6 @@ export const UserService = {
           onSuccess: () => {
             // Clear the email change state
             sessionStorage.removeItem('emailChangeState');
-            console.log('Email successfully verified and updated');
             resolve();
           },
           onFailure: (err: any) => {

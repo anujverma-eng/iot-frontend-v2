@@ -980,9 +980,10 @@ export const AnalyticsPage: React.FC = () => {
 
   const handleOpenInNewTab = () => {
     if (selectedSensor) {
-      // Open in new tab with solo=true parameter
+      // Open in new tab with solo=true parameter and inherit current live mode state
       const url = new URL(`/dashboard/sensors/${selectedSensor}`, window.location.origin);
       url.searchParams.set("solo", "true");
+      url.searchParams.set("mode", isLiveMode ? "live" : "offline");
       window.open(url.toString(), "_blank");
     }
   };

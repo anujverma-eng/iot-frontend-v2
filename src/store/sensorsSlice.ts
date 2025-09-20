@@ -546,7 +546,7 @@ export const selectEnhancedSensorStats = createSelector(
     if (!stats) return null;
     
     // Calculate counts from actual sensor data
-    const lowBatterySensors = sensors.filter(sensor => isLowBattery(sensor.battery)).length;
+    const lowBatterySensors = sensors.filter(sensor => isLowBattery(sensor.battery) && sensor.isOnline).length;
     
     // Count online sensors based on isOnline field only
     const liveSensors = sensors.filter(sensor => 

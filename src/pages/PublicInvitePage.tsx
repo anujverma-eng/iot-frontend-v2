@@ -81,24 +81,14 @@ export const PublicInvitePage: React.FC = () => {
   
   // Make decision once we have all the data we need
   useEffect(() => {
-    console.log('DEBUG: Decision logic triggered', { 
-      profileLoaded: profile.loaded, 
-      hasData: !!profile.data, 
-      isLoggedIn, 
-      hasInviteInfo: !!inviteInfo,
-      shouldRedirect,
-      loading
-    });
     
     // Don't make decision until we have invitation info
     if (!inviteInfo) {
-      console.log('DEBUG: Waiting for invite info...');
       return;
     }
 
     // If we already made a decision, don't change it
     if (shouldRedirect !== null) {
-      console.log('DEBUG: Decision already made:', shouldRedirect);
       return;
     }
 
@@ -109,17 +99,14 @@ export const PublicInvitePage: React.FC = () => {
       const memberships = profile.data?.memberships || [];
       const hasExistingOrgs = memberships.length > 0;
       
-      console.log('DEBUG: Logged in user detected with', memberships.length, 'orgs');
       
       if (hasExistingOrgs && !intent && !actionLoading && !actionSuccess) {
         // User has existing organizations and no specific intent - redirect immediately
-        console.log('DEBUG: Redirecting logged-in user with existing orgs');
         setShouldRedirect(true);
         navigate(`/dashboard/invitations?token=${token}`, { replace: true });
         return;
       } else {
         // Logged in but either new user or has intent - show public page
-        console.log('DEBUG: Showing public page for logged-in user (new user or has intent)');
         setShouldRedirect(false);
         setLoading(false);
         return;
@@ -128,7 +115,6 @@ export const PublicInvitePage: React.FC = () => {
     
     // Case 2: Profile is loaded but user is not logged in
     if (profile.loaded && !isLoggedIn) {
-      console.log('DEBUG: Profile loaded, user not logged in - showing public page');
       setShouldRedirect(false);
       setLoading(false);
       return;
@@ -136,10 +122,8 @@ export const PublicInvitePage: React.FC = () => {
     
     // Case 3: Profile is still loading - wait a bit more, but set a timeout
     if (!profile.loaded) {
-      console.log('DEBUG: Profile still loading, waiting...');
       // Set a timeout to prevent infinite loading for logged-out users
       const timeoutId = setTimeout(() => {
-        console.log('DEBUG: Profile load timeout, assuming logged out user');
         if (shouldRedirect === null) {
           setShouldRedirect(false);
           setLoading(false);
@@ -332,7 +316,6 @@ export const PublicInvitePage: React.FC = () => {
       
       // Extract the actual organization data
       const orgData = (orgResult as any).data || orgResult;
-      console.log('Organization created:', orgData);
       
       // Send bulk invites if emails were provided
       if (emails.length > 0 && orgData._id) {
@@ -345,7 +328,6 @@ export const PublicInvitePage: React.FC = () => {
           };
           
           await InvitesService.bulkCreate(orgData._id, bulkInviteData);
-          console.log(`Successfully sent ${emails.length} invitations`);
         } catch (inviteError) {
           console.warn('Organization created but some invites failed:', inviteError);
           // Don't fail the entire process if invites fail
