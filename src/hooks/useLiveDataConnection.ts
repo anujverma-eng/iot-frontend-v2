@@ -28,22 +28,30 @@ export const useLiveDataConnection = () => {
 
   useEffect(() => {
 
+    // Check URL parameters to see if we should skip auto-connect
+    const urlParams = new URLSearchParams(window.location.search);
+    const isSoloMode = urlParams.get("solo") === "true";
+    const inheritedMode = urlParams.get("mode");
+    const shouldSkipAutoConnect = isSoloMode && inheritedMode === "offline";
+    
+    if (shouldSkipAutoConnect) {
+      hasAttemptedAutoConnect.current = true; // Mark as attempted to prevent future auto-connects
+      return;
+    }
+
     // Only auto-connect once when organization context is ready and we haven't attempted yet
     if (activeOrgStatus === 'ready' && activeOrgId && !hasAttemptedAutoConnect.current) {
       // Simple auto-connect on app start  
       const timer = setTimeout(() => {
-
         if (!isLiveMode && !isConnecting && !hasAttemptedAutoConnect.current) {
           hasAttemptedAutoConnect.current = true; // Mark as attempted
           dispatch(initializeLiveConnection());
-        } else {
         }
       }, 2000); // Give app time to load
       
       return () => {
         clearTimeout(timer);
       };
-    } else {
     }
   }, [dispatch, activeOrgStatus, activeOrgId]); // Remove isLiveMode and isConnecting from dependencies
 

@@ -1,13 +1,13 @@
 // src/store/liveDataSlice.ts
-import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { RootState } from './index';
-import { startLive, stopLive, getConnectionStatus, LiveCallbacks } from '../lib/liveMqtt';
-import { updateSensorLastSeen, selectSensors } from './sensorsSlice';
-import { fetchGateways, updateGatewayPresence as updateGatewayPresenceInGatewaySlice } from './gatewaySlice';
-import { addLiveData } from './telemetrySlice';
-import { offlineDetectionService } from '../services/offlineDetectionService';
-import { selectCurrentUserPermissions } from './profileSlice';
-import { getPermissionValue } from '../constants/permissions';
+import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
+import { RootState } from "./index";
+import { startLive, stopLive, getConnectionStatus, LiveCallbacks } from "../lib/liveMqtt";
+import { updateSensorLastSeen, selectSensors } from "./sensorsSlice";
+import { fetchGateways, updateGatewayPresence as updateGatewayPresenceInGatewaySlice } from "./gatewaySlice";
+import { addLiveData } from "./telemetrySlice";
+import { offlineDetectionService } from "../services/offlineDetectionService";
+import { selectCurrentUserPermissions } from "./profileSlice";
+import { getPermissionValue } from "../constants/permissions";
 
 // Gateway presence message interface
 export interface GatewayPresenceMessage {
@@ -41,21 +41,21 @@ const initialState: LiveDataState = {
 
 // Thunk to handle gateway going offline
 export const handleGatewayOfflineEvent = createAsyncThunk(
-  'liveData/handleGatewayOffline',
+  "liveData/handleGatewayOffline",
   async (gatewayId: string, { getState }) => {
     const state = getState() as RootState;
     const sensors = selectSensors(state);
 
     // Pass current sensors to the offline detection service
     offlineDetectionService.handleGatewayOffline(gatewayId, sensors);
-    
+
     return gatewayId;
   }
 );
 
 // Initialize live data connection with all available gateways
 export const initializeLiveConnection = createAsyncThunk(
-  'liveData/initializeConnection',
+  "liveData/initializeConnection",
   async (_, { dispatch, getState }) => {
     const state = getState() as RootState;
     const timestamp = Date.now();
@@ -63,88 +63,89 @@ export const initializeLiveConnection = createAsyncThunk(
     try {
       // Check if user has permission for live sensor data
       const userPermissions = selectCurrentUserPermissions(state);
-      const requiredPermission = getPermissionValue('SENSORS', 'LIVE');
-      console.log('[initializeLiveConnection] User permissions:', userPermissions);
-      console.log('[initializeLiveConnection] Required permission:', requiredPermission);
-      
-      if (!userPermissions.includes(requiredPermission)) {
-        console.log('[initializeLiveConnection] User does not have sensors.live permission');
-        return { 
-          gatewayIds: [], 
-          connected: false, 
-          timestamp, 
-          error: 'Permission denied: sensors.live permission required' 
+      const requiredPermission = getPermissionValue("SENSORS", "LIVE");
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const isSoloMode = urlParams.get("solo") === "true";
+      const inheritedMode = urlParams.get("mode");
+      const shouldSkipAutoConnect = isSoloMode && inheritedMode === "offline";
+
+      if (!userPermissions.includes(requiredPermission) || shouldSkipAutoConnect) {
+        return {
+          gatewayIds: [],
+          connected: false,
+          timestamp,
+          error: "Permission denied: sensors.live permission required",
         };
       }
 
       // Check organization readiness
       const activeOrgStatus = state.activeOrg?.status;
       const activeOrgId = state.activeOrg?.orgId;
-      
-      if (activeOrgStatus !== 'ready' || !activeOrgId) {
-        console.log('[initializeLiveConnection] Organization not ready', { activeOrgStatus, activeOrgId });
-        return { 
-          gatewayIds: [], 
-          connected: false, 
-          timestamp, 
-          error: 'Organization context not ready' 
+
+      if (activeOrgStatus !== "ready" || !activeOrgId) {
+        return {
+          gatewayIds: [],
+          connected: false,
+          timestamp,
+          error: "Organization context not ready",
         };
       }
 
       // First fetch all available gateways
-      console.log('[initializeLiveConnection] Fetching gateways...');
+      console.log("[initializeLiveConnection] Fetching gateways...");
 
-      const gatewaysResponse = await dispatch(fetchGateways({ 
-        page: 1, 
-        limit: 100, // Get all gateways
-        search: '' 
-      })).unwrap();
+      const gatewaysResponse = await dispatch(
+        fetchGateways({
+          page: 1,
+          limit: 100, // Get all gateways
+          search: "",
+        })
+      ).unwrap();
 
       if (!gatewaysResponse || !gatewaysResponse.data || !Array.isArray(gatewaysResponse.data)) {
-
-        return { gatewayIds: [], connected: false, timestamp, error: 'Invalid gateways response' };
+        return { gatewayIds: [], connected: false, timestamp, error: "Invalid gateways response" };
       }
-      
+
       const gatewayIds = gatewaysResponse.data.map((gateway: any) => gateway._id);
 
       if (gatewayIds.length === 0) {
-
         return { gatewayIds: [], connected: false, timestamp };
       }
 
       // Initialize offline detection service with known gateways
       offlineDetectionService.initializeGatewayTracking(gatewayIds);
-      
+
       // Add throttling for live data updates to improve performance
       let lastUpdateTime = 0;
       const throttleDelay = 0; // Update every 100ms maximum (10 updates per second)
-      
+
       // Start live connection with all gateway IDs
       const callbacks: LiveCallbacks = {
         onData: (data) => {
-
           // Throttle updates to prevent overwhelming the UI
           const now = Date.now();
           if (now - lastUpdateTime < throttleDelay) {
-
             return;
           }
           lastUpdateTime = now;
-          
+
           // IMPORTANT: Dispatch the sensor data to telemetry slice for visualization
           dispatch(addLiveData(data));
-          
+
           // Update sensor last seen (existing throttling applies)
-          data.sensors.forEach(reading => {
+          data.sensors.forEach((reading) => {
             const nowStr = new Date().toISOString();
             const now = new Date(nowStr);
-            
-            dispatch(updateSensorLastSeen({ 
-              mac: reading.mac, 
-              lastSeen: nowStr,
-              battery: reading.battery, // Include battery data from socket
-              lastValue: reading.value // Include the actual sensor reading value
-            }));
+
+            dispatch(
+              updateSensorLastSeen({
+                mac: reading.mac,
+                lastSeen: nowStr,
+                battery: reading.battery, // Include battery data from socket
+                lastValue: reading.value, // Include the actual sensor reading value
+              })
+            );
 
             // Notify offline detection service of sensor activity
             offlineDetectionService.updateSensorLastSeen(reading.mac, now);
@@ -154,25 +155,29 @@ export const initializeLiveConnection = createAsyncThunk(
           console.log(`[MQTT] Presence message received on topic: ${topic}`, message);
 
           // Handle gateway presence updates
-          if (typeof message === 'object' && message.gatewayId && typeof message.isConnected === 'boolean') {
-            console.log(`[MQTT] Gateway ${message.gatewayId} presence: ${message.isConnected ? 'ONLINE' : 'OFFLINE'} at ${message.ts}`);
+          if (typeof message === "object" && message.gatewayId && typeof message.isConnected === "boolean") {
+            console.log(
+              `[MQTT] Gateway ${message.gatewayId} presence: ${message.isConnected ? "ONLINE" : "OFFLINE"} at ${message.ts}`
+            );
             const presenceData = {
               gatewayId: message.gatewayId,
               isConnected: message.isConnected,
-              timestamp: message.ts || new Date().toISOString()
+              timestamp: message.ts || new Date().toISOString(),
             };
-            
+
             // Update both liveData slice and gateway slice
             dispatch(updateGatewayPresence(presenceData));
-            dispatch(updateGatewayPresenceInGatewaySlice({
-              gatewayId: message.gatewayId,
-              isConnected: message.isConnected
-            }));
+            dispatch(
+              updateGatewayPresenceInGatewaySlice({
+                gatewayId: message.gatewayId,
+                isConnected: message.isConnected,
+              })
+            );
 
             // Notify offline detection service of gateway status change
             offlineDetectionService.updateGatewayStatus(
-              message.gatewayId, 
-              message.isConnected, 
+              message.gatewayId,
+              message.isConnected,
               new Date(presenceData.timestamp)
             );
 
@@ -185,26 +190,21 @@ export const initializeLiveConnection = createAsyncThunk(
           }
         },
         onError: (error) => {
-
-          dispatch(setConnectionError(error.message || 'Connection error'));
+          dispatch(setConnectionError(error.message || "Connection error"));
         },
         onConnectionChange: (status) => {
-
           dispatch(setConnectionStatus(status));
-        }
+        },
       };
 
       try {
         const startLiveResult = await startLive(gatewayIds, callbacks);
-
       } catch (startLiveError) {
-
         throw startLiveError;
       }
 
       return { gatewayIds, connected: true, timestamp };
     } catch (error: any) {
-
       // Reset connecting state on error
       return { gatewayIds: [], connected: false, timestamp, error: error.message };
     }
@@ -213,51 +213,52 @@ export const initializeLiveConnection = createAsyncThunk(
 
 // Manually toggle live mode (for user control)
 export const toggleLiveMode = createAsyncThunk(
-  'liveData/toggleLiveMode',
+  "liveData/toggleLiveMode",
   async ({ enable }: { enable: boolean }, { dispatch, getState }) => {
     const state = getState() as RootState;
-    
+
     if (enable && !state.liveData.isConnected) {
       await dispatch(initializeLiveConnection());
     } else if (!enable && state.liveData.isConnected) {
       stopLive();
       dispatch(disconnectLive());
     }
-    
+
     return enable;
   }
 );
 
 const liveDataSlice = createSlice({
-  name: 'liveData',
+  name: "liveData",
   initialState,
   reducers: {
-    setConnectionStatus: (state, action: PayloadAction<'connecting' | 'connected' | 'disconnected' | 'error'>) => {
-      state.isConnecting = action.payload === 'connecting';
-      state.isConnected = action.payload === 'connected';
-      state.isLiveMode = action.payload === 'connected';
-      if (action.payload === 'connected') {
+    setConnectionStatus: (state, action: PayloadAction<"connecting" | "connected" | "disconnected" | "error">) => {
+      state.isConnecting = action.payload === "connecting";
+      state.isConnected = action.payload === "connected";
+      state.isLiveMode = action.payload === "connected";
+      if (action.payload === "connected") {
         state.error = null;
       }
     },
     setConnectionError: (state, action: PayloadAction<string>) => {
-      console.log('[liveDataSlice] Connection error occurred:', action.payload);
+      console.log("[liveDataSlice] Connection error occurred:", action.payload);
       state.error = action.payload;
       state.isConnecting = false;
       state.isConnected = false;
       state.isLiveMode = false;
     },
-    updateGatewayPresence: (state, action: PayloadAction<{
-      gatewayId: string;
-      isConnected: boolean;
-      timestamp: string;
-    }>) => {
+    updateGatewayPresence: (
+      state,
+      action: PayloadAction<{
+        gatewayId: string;
+        isConnected: boolean;
+        timestamp: string;
+      }>
+    ) => {
       const { gatewayId, isConnected } = action.payload;
       state.gatewayPresence[gatewayId] = isConnected;
-
     },
     disconnectLive: (state) => {
-      console.log('[liveDataSlice] Disconnecting live mode');
       state.isConnected = false;
       state.isConnecting = false;
       state.isLiveMode = false;
@@ -269,18 +270,16 @@ const liveDataSlice = createSlice({
     },
     clearError: (state) => {
       state.error = null;
-    }
+    },
   },
   extraReducers: (builder) => {
     builder
       .addCase(initializeLiveConnection.pending, (state) => {
-
         state.isConnecting = true;
         state.error = null;
         state.lastConnectionAttempt = Date.now();
       })
       .addCase(initializeLiveConnection.fulfilled, (state, action) => {
-
         state.isConnecting = false;
         state.connectedGateways = action.payload.gatewayIds;
         state.isConnected = action.payload.connected;
@@ -288,11 +287,10 @@ const liveDataSlice = createSlice({
         state.error = null;
       })
       .addCase(initializeLiveConnection.rejected, (state, action) => {
-
         state.isConnecting = false;
         state.isConnected = false;
         state.isLiveMode = false;
-        state.error = action.error.message || 'Failed to connect to live data';
+        state.error = action.error.message || "Failed to connect to live data";
       })
       .addCase(toggleLiveMode.pending, (state) => {
         state.isConnecting = true;
@@ -303,7 +301,7 @@ const liveDataSlice = createSlice({
       })
       .addCase(toggleLiveMode.rejected, (state, action) => {
         state.isConnecting = false;
-        state.error = action.error.message || 'Failed to toggle live mode';
+        state.error = action.error.message || "Failed to toggle live mode";
       });
   },
 });
@@ -314,7 +312,7 @@ export const {
   updateGatewayPresence,
   disconnectLive,
   setAutoConnect,
-  clearError
+  clearError,
 } = liveDataSlice.actions;
 
 // Selectors

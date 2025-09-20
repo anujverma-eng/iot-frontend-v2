@@ -57,6 +57,7 @@ import { TimeRangeSelector } from "./time-range-selector";
 import { useBreakpoints } from "../../hooks/use-media-query";
 import { useLiveModeTransition } from "../../hooks/useLiveModeTransition";
 import { useLiveDataReadiness } from "../../hooks/useLiveDataReadiness";
+import { useOfflineDetectionIntegration } from "../../hooks/useOfflineDetectionIntegration";
 
 // Fix the interface to satisfy the Record<string, string | undefined> constraint
 interface SoloViewParams {
@@ -76,6 +77,9 @@ export const SoloView: React.FC = () => {
 
   // Use enhanced responsive breakpoints
   const { isMobile, isSmallScreen, isLandscape, isMobileLandscape, isMobileDevice } = useBreakpoints();
+
+  // Initialize offline detection integration
+  useOfflineDetectionIntegration();
 
   // Get state from Redux
   const filters = useSelector(selectFilters);
@@ -145,6 +149,7 @@ export const SoloView: React.FC = () => {
   try {
     liveDataReadiness = useLiveDataReadiness(sensorId || null, isOfflineSensorFilter);
   } catch (error) {
+    console.error('[SoloView] Error in useLiveDataReadiness:', error);
     // Fallback values
     liveDataReadiness = {
       shouldWaitForLiveData: false,
@@ -156,6 +161,23 @@ export const SoloView: React.FC = () => {
 
   // Enhanced loading state that considers live data readiness
   const effectiveIsLoading = isLoadingData || liveDataReadiness.shouldShowLoading;
+
+  // Add enhanced loading state similar to analytics page
+  const [isInitiallyLoading, setIsInitiallyLoading] = React.useState(true);
+  
+  // Add state to track auto-enable attempt completion
+  const [hasAttemptedAutoEnable, setHasAttemptedAutoEnable] = React.useState(false);
+
+  // Set initial loading to false after a short delay (similar to analytics page)
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsInitiallyLoading(false);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Enhanced loading state that includes initial loading
+  const enhancedEffectiveIsLoading = effectiveIsLoading || isInitiallyLoading;
 
   // Cleanup on unmount - cancel any pending data requests only
   // Live mode cleanup is handled centrally, no need for component-specific cleanup
@@ -259,7 +281,14 @@ export const SoloView: React.FC = () => {
   }, [mappedSensors, sensorId]);
 
   // Add state for initial loading
-  const [initialLoading, _setInitialLoading] = React.useState(true);
+  const [initialLoading, setInitialLoading] = React.useState(true);
+
+  // Set initialLoading to false when sensors are loaded
+  React.useEffect(() => {
+    if (sensorsLoaded && initialLoading) {
+      setInitialLoading(false);
+    }
+  }, [sensorsLoaded, initialLoading]);
 
   // Fetch sensors on component mount - ONLY ONCE
   React.useEffect(() => {
@@ -293,10 +322,6 @@ export const SoloView: React.FC = () => {
     if (gateways.length > 0 && !isLiveMode && !initialLoading) {
       // Check if we should respect inherited mode
       if (hasInheritedMode) {
-        // Clean up URL parameters after inheritance to avoid confusion
-        const newUrl = new URL(window.location.href);
-        newUrl.searchParams.delete("mode");
-        window.history.replaceState({}, '', newUrl.toString());
         
         // If inherited mode is "live", enable live mode
         if (inheritedMode === "live") {
@@ -313,11 +338,15 @@ export const SoloView: React.FC = () => {
               }
             } catch (error) {
               console.error('[SoloView] Failed to enable inherited live mode:', error);
+            } finally {
+              // Mark auto-enable attempt as completed regardless of success/failure
+              setHasAttemptedAutoEnable(true);
             }
           }, 500); // Shorter delay since we know the intended state
         } else {
           // If inherited mode is "offline", stay in offline mode
           console.log('[SoloView] Inherited offline mode from parent page - staying offline');
+          setHasAttemptedAutoEnable(true);
         }
       } else {
         // Default behavior: auto-enable live mode if no inherited state
@@ -334,6 +363,9 @@ export const SoloView: React.FC = () => {
             }
           } catch (error) {
             console.error('[SoloView] Failed to auto-enable live mode:', error);
+          } finally {
+            // Mark auto-enable attempt as completed regardless of success/failure
+            setHasAttemptedAutoEnable(true);
           }
         }, 1500); // Slightly longer delay for solo-view
       }
@@ -381,17 +413,34 @@ export const SoloView: React.FC = () => {
   React.useEffect(() => {
 
     if (initialLoading) return; // wait until list call finished
-    if (sensorId && !initialLoading) {
-      // Use optimized data fetch for better performance and live mode support
-      fetchOptimizedData({
-        sensorIds: [sensorId],
-        timeRange: {
-          start: filters.timeRange.start.toISOString(),
-          end: filters.timeRange.end.toISOString(),
-        },
-      });
+    
+    // Wait for auto-enable attempt to complete before fetching data
+    if (!hasAttemptedAutoEnable) {
+      return;
     }
-  }, [sensorId, filters.timeRange.start, filters.timeRange.end, initialLoading, fetchOptimizedData]);
+    
+    // Add a small delay after auto-enable to let the live connection attempt start
+    // This prevents fetching historical data immediately after enabling live mode
+    const fetchTimer = setTimeout(() => {
+      // Check if we should fetch API data based on live data readiness (same as analytics page)
+      if (!liveDataReadiness.shouldFetchApiData) {
+        return;
+      }
+      
+      if (sensorId && !initialLoading) {
+        // Use optimized data fetch for better performance and live mode support
+        fetchOptimizedData({
+          sensorIds: [sensorId],
+          timeRange: {
+            start: filters.timeRange.start.toISOString(),
+            end: filters.timeRange.end.toISOString(),
+          },
+        });
+      }
+    }, 500); // Small delay to let live connection attempt start
+    
+    return () => clearTimeout(fetchTimer);
+  }, [sensorId, filters.timeRange.start, filters.timeRange.end, initialLoading, fetchOptimizedData, liveDataReadiness.shouldFetchApiData, hasAttemptedAutoEnable]);
 
   // Prepare chart config for selected sensor
   const chartConfig: ChartConfig | null = React.useMemo(() => {
@@ -1057,7 +1106,7 @@ export const SoloView: React.FC = () => {
                       </div>
                     ) : chartConfig ? (
                       <LineChart config={chartConfig} isLiveMode={isLiveMode} />
-                    ) : effectiveIsLoading ? (
+                    ) : enhancedEffectiveIsLoading ? (
                       <div className="h-full flex flex-col items-center justify-center text-center">
                         <div className="flex flex-col items-center gap-4 max-w-md">
                           {isLiveMode && liveDataReadiness.shouldWaitForLiveData ? (
@@ -1132,7 +1181,7 @@ export const SoloView: React.FC = () => {
                   ) : (
                     <div className="h-full flex flex-col items-center justify-center p-8 text-center">
                       <div className="flex flex-col items-center gap-4 max-w-md">
-                        {effectiveIsLoading ? (
+                        {enhancedEffectiveIsLoading ? (
                           <>
                             <Spinner size="lg" color="primary" />
                             <div className="space-y-2">
@@ -1206,7 +1255,7 @@ export const SoloView: React.FC = () => {
                             ) : (
                               <div className="h-full flex flex-col items-center justify-center text-center">
                                 <div className="flex flex-col items-center gap-4 max-w-md">
-                                  {effectiveIsLoading ? (
+                                  {enhancedEffectiveIsLoading ? (
                                     <>
                                       <Spinner size="lg" color="primary" />
                                       <div className="space-y-2">
@@ -1248,7 +1297,7 @@ export const SoloView: React.FC = () => {
                             ) : (
                               <div className="h-full flex flex-col items-center justify-center text-center">
                                 <div className="flex flex-col items-center gap-4 max-w-md">
-                                  {effectiveIsLoading ? (
+                                  {enhancedEffectiveIsLoading ? (
                                     <>
                                       <Spinner size="lg" color="primary" />
                                       <div className="space-y-2">
@@ -1290,7 +1339,7 @@ export const SoloView: React.FC = () => {
                             ) : (
                               <div className="h-full flex flex-col items-center justify-center text-center">
                                 <div className="flex flex-col items-center gap-4 max-w-md">
-                                  {effectiveIsLoading ? (
+                                  {enhancedEffectiveIsLoading ? (
                                     <>
                                       <Spinner size="lg" color="primary" />
                                       <div className="space-y-2">
@@ -1332,7 +1381,7 @@ export const SoloView: React.FC = () => {
                             ) : (
                               <div className="h-full flex flex-col items-center justify-center text-center">
                                 <div className="flex flex-col items-center gap-4 max-w-md">
-                                  {effectiveIsLoading ? (
+                                  {enhancedEffectiveIsLoading ? (
                                     <>
                                       <Spinner size="lg" color="primary" />
                                       <div className="space-y-2">
@@ -1405,7 +1454,7 @@ export const SoloView: React.FC = () => {
                         <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
                           {chartConfig ? (
                             <DistributionChart config={chartConfig} showChart isLiveMode={isLiveMode} />
-                          ) : effectiveIsLoading ? (
+                          ) : enhancedEffectiveIsLoading ? (
                             <div className="h-full flex flex-col items-center justify-center">
                               <Spinner size="md" color="primary" />
                               <p className="text-xs text-default-500 mt-2">Loading...</p>
@@ -1426,7 +1475,7 @@ export const SoloView: React.FC = () => {
                         <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
                           {chartConfig ? (
                             <TrendAnalysisChart config={chartConfig} showChart isLiveMode={isLiveMode} />
-                          ) : effectiveIsLoading ? (
+                          ) : enhancedEffectiveIsLoading ? (
                             <div className="h-full flex flex-col items-center justify-center">
                               <Spinner size="md" color="secondary" />
                               <p className="text-xs text-default-500 mt-2">Loading...</p>
@@ -1447,7 +1496,7 @@ export const SoloView: React.FC = () => {
                         <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
                           {chartConfig ? (
                             <AnomalyDetectionChart config={chartConfig} showChart isLiveMode={isLiveMode} />
-                          ) : effectiveIsLoading ? (
+                          ) : enhancedEffectiveIsLoading ? (
                             <div className="h-full flex flex-col items-center justify-center">
                               <Spinner size="md" color="danger" />
                               <p className="text-xs text-default-500 mt-2">Loading...</p>
@@ -1468,7 +1517,7 @@ export const SoloView: React.FC = () => {
                         <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
                           {chartConfig ? (
                             <CorrelationAnalysisChart config={chartConfig} showChart isLiveMode={isLiveMode} />
-                          ) : effectiveIsLoading ? (
+                          ) : enhancedEffectiveIsLoading ? (
                             <div className="h-full flex flex-col items-center justify-center">
                               <Spinner size="md" color="success" />
                               <p className="text-xs text-default-500 mt-2">Loading...</p>
