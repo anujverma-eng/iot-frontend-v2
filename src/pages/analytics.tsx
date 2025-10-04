@@ -72,6 +72,11 @@ import { useCompareSelection } from "../hooks/useCompareSelection";
 import { ChartConfig, FilterState, MultiSeriesConfig, SensorStatus, SensorType } from "../types/sensor";
 import { sortSensorsByBattery } from "../utils/battery"; // Import battery sorting utility
 
+// ⚠️ TEMPORARY DEBUG IMPORTS - REMOVE WHEN DEBUG UI IS NO LONGER NEEDED
+import { ChartPerformanceDebugUI } from "../components/debug/ChartPerformanceDebugUI";
+import { useChartDebugUI } from "../hooks/useChartDebugUI";
+import { useTelemetryLOD } from "../hooks/useTelemetryLOD";
+
 type RangeValue<T> = { start: T | null; end: T | null };
 
 const toCal = (d: Date): CalendarDate => new CalendarDate(d.getFullYear(), d.getMonth() + 1, d.getDate());
@@ -190,6 +195,11 @@ export const AnalyticsPage: React.FC = () => {
 
   const stats = useSelector(selectEnhancedSensorStats); // Use enhanced stats with battery count
   const [pendingFilters, setPendingFilters] = React.useState<FilterState | null>(null);
+
+  // ⚠️ TEMPORARY DEBUG UI HOOKS - REMOVE WHEN NO LONGER NEEDED
+  const [actualChartData, setActualChartData] = React.useState<Array<{ timestamp: number; value: number; }>>([]);
+  const debugUI = useChartDebugUI();
+  const lodSystem = useTelemetryLOD();
 
   // DEBUG: Log when sensors or stats change (reduced frequency)
   React.useEffect(() => {
@@ -1183,10 +1193,21 @@ export const AnalyticsPage: React.FC = () => {
       className={`w-full bg-background ${
         isMobileLandscapeShort || isMobile
           ? "min-h-screen overflow-auto" // Allow scrolling
-          : "h-screen overflow-hidden" // Normal desktop behavior
+          : "h-screen overflow-auto" // Normal desktop behavior
       }`}
     >
       {/* Mobile-first responsive structure */}
+      {chartConfig && (
+        <div className="w-full">
+          <ChartPerformanceDebugUI
+            config={chartConfig}
+            actualDisplayedData={actualChartData}
+            lodSystem={lodSystem}
+            isVisible={debugUI.isDebugVisible}
+            onToggle={debugUI.toggleDebugUI}
+          />
+        </div>
+      )}
 
       {/* Header Section - Mobile First Design */}
       <div className={`shrink-0 border-b border-divider bg-content1`}>

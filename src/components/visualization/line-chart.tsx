@@ -18,6 +18,29 @@ import { formatNumericValue } from "../../utils/numberUtils";
 import { ChartConfig, MultiSeriesConfig } from "../../types/sensor";
 import { selectMaxLiveReadings } from "../../store/telemetrySlice";
 import { useBreakpoints } from "../../hooks/use-media-query";
+import { useTelemetryLOD } from "../../hooks/useTelemetryLOD";
+import { 
+  isFeatureEnabled, 
+  shouldActivateFeature, 
+  PerformanceMonitor 
+} from "../../constants/feature-flags";
+import { 
+  PERFORMANCE_THRESHOLDS, 
+  WORKER_CONFIG,
+  calculateOptimalPointsForChart,
+  calculateDecimationStep,
+  getDecimationInfo
+} from "../../constants/performance-config";
+import { 
+  TIME_CONSTANTS, 
+  TIME_FORMATTING, 
+  convertToMinutes, 
+  convertToHours, 
+  convertToDays,
+  getZoomPrecisionLevel,
+  isZoomHighPrecision,
+  isZoomMediumPrecision
+} from "../../constants/time-constants";
 
 interface LineChartProps {
   config: ChartConfig | MultiSeriesConfig;
@@ -35,6 +58,9 @@ export const LineChart: React.FC<LineChartProps> = ({
   onZoomChange,
   isLiveMode = false, // Default to false for backward compatibility
 }) => {
+
+  // LOD System for high-performance rendering (always initialize to avoid hook order issues)
+  const lodSystem = useTelemetryLOD();
 
   // Add clear check for empty data
   const hasData = isMultiSeries ? config.series?.some((s: any) => s.data?.length > 0) : config.series?.length > 0;
@@ -96,18 +122,89 @@ export const LineChart: React.FC<LineChartProps> = ({
   }
 
   // Now ALL hooks can be declared safely after early returns
-  // Optimize data for performance - limit data points for smooth rendering
+  // Enhanced data optimization with aggressive sampling for massive datasets
   const optimizeDataForRendering = React.useCallback((data: any[]) => {
-    // For large datasets, sample data points intelligently
-    if (data.length > 1000) {
-      const step = Math.ceil(data.length / 800); // Keep roughly 800 points for smooth rendering
+    if (!data || data.length === 0) return data;
+    
+    const isMobile = window.innerWidth < 768;
+    const dataSize = data.length;
+    
+    // NEW: Smart sampling based on chart capabilities - use MORE points when possible
+    if (dataSize > PERFORMANCE_THRESHOLDS.BIG_DATA_MODE) {
+      // Calculate target based on screen size and device capabilities
+      const screenWidth = window.innerWidth;
+      let targetPoints;
+      
+      if (isMobile) {
+        targetPoints = Math.min(800, screenWidth * 0.5); // 0.5 points per pixel on mobile
+      } else if (screenWidth >= 2560) {
+        targetPoints = 2000; // 4K+ displays can handle more points
+      } else if (screenWidth >= 1920) {
+        targetPoints = 1500; // Full HD displays
+      } else {
+        targetPoints = 1000; // Smaller displays
+      }
+      
+      const step = Math.ceil(dataSize / targetPoints);
+      console.log(`🚀 Chart: Smart aggressive sampling ${dataSize.toLocaleString()} → ${targetPoints} points (step: ${step}) [Screen: ${screenWidth}px]`);
+      
+      // Use stride sampling but ensure first and last points are included
+      const sampled = [];
+      sampled.push(data[0]); // Always include first point
+      
+      for (let i = step; i < dataSize - 1; i += step) {
+        sampled.push(data[i]);
+      }
+      
+      sampled.push(data[dataSize - 1]); // Always include last point
+      return sampled;
+    }
+    
+    // NEW: Smart decimation based on chart physical capabilities
+    if (dataSize > PERFORMANCE_THRESHOLDS.CHART_BASIC_SAMPLING) {
+      const screenWidth = window.innerWidth;
+      const chartWidth = isMobile ? 
+        Math.min(WORKER_CONFIG.MOBILE_CHART_WIDTH, screenWidth * 0.9) : // Mobile: 90% of screen
+        Math.min(WORKER_CONFIG.DESKTOP_CHART_WIDTH, screenWidth * 0.6); // Desktop: 60% of screen
+      
+      // Calculate optimal points for this chart size
+      const optimalPoints = calculateOptimalPointsForChart(dataSize, chartWidth);
+      const decimationInfo = getDecimationInfo(dataSize, chartWidth);
+      
+      console.log(`🎯 Smart Chart Decimation: ${dataSize.toLocaleString()} → ${optimalPoints.toLocaleString()} points`);
+      console.log(`📊 Chart Analysis: ${chartWidth}px width, ${decimationInfo.pointsPerPixel.toFixed(2)} pts/pixel, step: ${decimationInfo.decimationStep}`);
+      
+      if (decimationInfo.shouldDecimate) {
+        const step = decimationInfo.decimationStep;
+        
+        // Always include first and last points + use stride sampling
+        const sampledData = [];
+        sampledData.push(data[0]); // Always include first point
+        
+        for (let i = step; i < dataSize - 1; i += step) {
+          sampledData.push(data[i]);
+        }
+        
+        sampledData.push(data[dataSize - 1]); // Always include last point
+        
+        console.log(`✅ Decimation complete: ${sampledData.length.toLocaleString()} points (${(dataSize/sampledData.length).toFixed(1)}:1 ratio)`);
+        return sampledData;
+      } else {
+        console.log(`✅ No decimation needed: Dataset fits chart optimally`);
+        return data;
+      }
+    }
+    
+    // Mobile-specific optimization for smaller datasets
+    if (dataSize > 500 && isMobile) {
+      const mobileChartWidth = Math.min(WORKER_CONFIG.MOBILE_CHART_WIDTH, window.innerWidth * 0.9);
+      const optimalPoints = Math.min(dataSize, mobileChartWidth * WORKER_CONFIG.OPTIMAL_POINTS_PER_PIXEL);
+      const step = Math.ceil(dataSize / optimalPoints);
+      
+      console.log(`📱 Mobile optimization: ${dataSize} → ${optimalPoints} points (step: ${step})`);
       return data.filter((_, index) => index % step === 0);
     }
-    if (data.length > 500 && window.innerWidth < 768) {
-      // On mobile, be more aggressive with sampling
-      const step = Math.ceil(data.length / 250);
-      return data.filter((_, index) => index % step === 0);
-    }
+    
     return data;
   }, []);
 
@@ -117,8 +214,8 @@ export const LineChart: React.FC<LineChartProps> = ({
   const [isZoomedIn, setIsZoomedIn] = React.useState(false);
   const [isInitialBrushSetup, setIsInitialBrushSetup] = React.useState(true);
 
-  // Enhanced date formatting functions
-  const formatTooltipDate = (timestamp: number) => {
+  // Enhanced date formatting functions with performance optimization
+  const formatTooltipDate = React.useCallback((timestamp: number) => {
     const date = new Date(timestamp);
     return date.toLocaleString('en-US', {
       weekday: 'short',
@@ -130,7 +227,30 @@ export const LineChart: React.FC<LineChartProps> = ({
       second: '2-digit',
       hour12: false
     });
-  };
+  }, []);
+
+  // Throttled tooltip interactions for big data mode
+  const shouldThrottleTooltip = React.useMemo(() => {
+    return shouldActivateFeature('BIG_DATA_MODE', config.series?.length || 0);
+  }, [config.series?.length]);
+
+  const throttledTooltipProps = React.useMemo(() => {
+    if (!shouldThrottleTooltip) {
+      // Standard tooltip for smaller datasets
+      return {
+        animationDuration: 150,
+        allowEscapeViewBox: { x: false, y: false }
+      };
+    }
+
+    // Throttled tooltip for big data mode
+    return {
+      animationDuration: 0, // Disable animation for performance
+      allowEscapeViewBox: { x: false, y: false },
+      // Reduced update frequency for smoother interaction
+      isAnimationActive: false
+    };
+  }, [shouldThrottleTooltip]);
 
   const formatBrushDate = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -242,7 +362,14 @@ export const LineChart: React.FC<LineChartProps> = ({
       const multiConfig = config as MultiSeriesConfig;
       if (multiConfig.series.length === 0 || multiConfig.series[0].data.length === 0) return [];
 
-      // Create a map of timestamps to values for each series
+      // Calculate total points for performance monitoring
+      const totalPoints = multiConfig.series.reduce((sum, s) => sum + (s.data?.length || 0), 0);
+      
+      if (totalPoints > PERFORMANCE_THRESHOLDS.LOD_DECIMATION) {
+        console.log(`🚀 Line Chart: Processing ${totalPoints.toLocaleString()} multi-series points across ${multiConfig.series.length} sensors`);
+      }
+
+      // Optimized timestamp mapping for multi-series data
       const timestampMap: Record<number, Record<string, number>> = {};
 
       multiConfig.series.forEach((series) => {
@@ -254,10 +381,11 @@ export const LineChart: React.FC<LineChartProps> = ({
         });
       });
 
-      // Convert the map to an array of objects
-      rawData = Object.entries(timestampMap).map(([timestamp, values]) => ({
-        timestamp: Number(timestamp),
-        ...values,
+      // Convert the map to an array of objects efficiently
+      const timestamps = Object.keys(timestampMap).map(Number).sort((a, b) => a - b);
+      rawData = timestamps.map(timestamp => ({
+        timestamp,
+        ...timestampMap[timestamp],
       }));
     } else {
       const singleConfig = config as ChartConfig;
@@ -271,18 +399,146 @@ export const LineChart: React.FC<LineChartProps> = ({
     return optimizeDataForRendering(rawData);
   }, [config, isMultiSeries, optimizeDataForRendering]);
 
+  // Window state for zoom-based decimation
+  const [windowTs, setWindowTs] = React.useState<[number, number] | null>(null);
+  const [isProcessingDecimation, setIsProcessingDecimation] = React.useState(false);
+  
+  // Enhanced data with Worker decimation for massive datasets
+  const enhancedChartData = React.useMemo(() => {
+    const totalPoints = chartData.length;
+    const shouldUseLOD = totalPoints > 5000;
+    
+    if (shouldUseLOD && lodSystem.isWorkerReady) {
+      console.log(`🚀 LOD System ready for ${totalPoints.toLocaleString()} data points - Worker decimation available`);
+    } else if (shouldUseLOD && !lodSystem.isWorkerReady) {
+      console.log(`⏳ LOD system initializing for ${totalPoints.toLocaleString()} data points...`);
+    }
+    
+    // For now, return the optimized data (Worker integration below)
+    return chartData;
+  }, [chartData, lodSystem.isWorkerReady]);
+  
+  // Worker-based decimation for massive datasets
+  const [workerDecimatedData, setWorkerDecimatedData] = React.useState<any[] | null>(null);
+  
+  React.useEffect(() => {
+    const processWithWorker = async () => {
+      const totalPoints = chartData.length;
+      const shouldUseWorker = totalPoints > PERFORMANCE_THRESHOLDS.LOD_DECIMATION && lodSystem.isWorkerReady;
+      
+      if (!shouldUseWorker) {
+        setWorkerDecimatedData(null);
+        return;
+      }
+      
+      try {
+        setIsProcessingDecimation(true);
+        
+        // Prepare data for Worker
+        const timestamps = new Float64Array(chartData.map(p => p.timestamp));
+        const values = new Float32Array(chartData.map(p => p.value));
+        
+        // Send to Worker
+        await lodSystem.appendData('chart-series', chartData);
+        
+        // Enhanced precision based on zoom window
+        let startTs, endTs, widthPx;
+        
+        if (windowTs) {
+          // Zoomed view - PROGRESSIVE PRECISION: More zoom = More detail
+          [startTs, endTs] = windowTs;
+          const windowDurationMs = endTs - startTs;
+          const precisionLevel = getZoomPrecisionLevel(windowDurationMs);
+          
+          if (isZoomHighPrecision(windowDurationMs)) {
+            // ULTRA HIGH PRECISION: Use maximum possible resolution
+            widthPx = WORKER_CONFIG.MAX_PIXEL_WIDTH; // 8K resolution - show EVERY point
+            console.log(`🚀 ULTRA-HIGH precision processing: ${convertToMinutes(windowDurationMs).toFixed(1)}min window → ${widthPx}px resolution (NO decimation)`);
+          } else if (isZoomMediumPrecision(windowDurationMs)) {
+            // HIGH PRECISION: Show maximum points chart can handle
+            widthPx = Math.min(WORKER_CONFIG.MAX_PIXEL_WIDTH, (window.innerWidth || 1920) * 4); // 4x screen width
+            console.log(`� HIGH precision processing: ${convertToHours(windowDurationMs).toFixed(1)}h window → ${widthPx}px resolution (4 pts/pixel)`);
+          } else if (windowDurationMs < TIME_CONSTANTS.ZOOM_LOW_PRECISION_THRESHOLD) {
+            // MEDIUM PRECISION: Balanced approach  
+            widthPx = Math.min(4000, (window.innerWidth || 1920) * 2); // 2x screen width
+            console.log(`� MEDIUM precision processing: ${convertToDays(windowDurationMs).toFixed(1)}d window → ${widthPx}px resolution (2 pts/pixel)`);
+          } else {
+            // LOW PRECISION: Performance focused
+            widthPx = Math.max(1200, window.innerWidth || 1920); // At least HD+
+            console.log(`� LOW precision processing: ${convertToDays(windowDurationMs).toFixed(1)}d window → ${widthPx}px resolution (1 pt/pixel)`);
+          }
+        } else {
+          // Full dataset view - use responsive width
+          startTs = Math.min(...timestamps);
+          endTs = Math.max(...timestamps);
+          widthPx = Math.max(1200, (window.innerWidth || 1920)); // Responsive but minimum HD+
+          console.log(`🌐 Full dataset processing: ${totalPoints.toLocaleString()} points → ${widthPx}px resolution (overview mode)`);
+        }
+        
+        const decimated = await lodSystem.getDecimated({
+          seriesIds: ['chart-series'],
+          startTs,
+          endTs,
+          widthPx
+        });
+        
+        const decimatedPoints = decimated['chart-series'] || [];
+        const formattedData = decimatedPoints.map(p => ({ timestamp: p.t, value: p.v }));
+        
+        console.log(`📊 Worker decimated ${totalPoints.toLocaleString()} → ${formattedData.length.toLocaleString()} points`);
+        setWorkerDecimatedData(formattedData);
+        
+      } catch (error) {
+        console.error('Worker decimation failed:', error);
+        setWorkerDecimatedData(null);
+      } finally {
+        setIsProcessingDecimation(false);
+      }
+    };
+    
+    processWithWorker();
+  }, [chartData, windowTs, lodSystem.isWorkerReady, lodSystem.appendData, lodSystem.getDecimated]);
+
+  // Final data selection: Worker decimation > basic optimization
+  const finalChartData = React.useMemo(() => {
+    PerformanceMonitor.startTimer('chart-data-final-selection');
+    
+    let result;
+    // Use Worker-decimated data if available and processing is complete
+    if (workerDecimatedData && !isProcessingDecimation) {
+      console.log(`✅ Using Worker-decimated data: ${workerDecimatedData.length.toLocaleString()} points`);
+      result = workerDecimatedData;
+    } else {
+      // Fall back to basic optimization
+      result = enhancedChartData;
+    }
+    
+    // Performance monitoring and logging for massive datasets
+    const processingTime = PerformanceMonitor.endTimer('chart-data-final-selection');
+    
+    if (isFeatureEnabled('PERFORMANCE_MONITORING') && result && result.length > PERFORMANCE_THRESHOLDS.LOD_DECIMATION) {
+      console.log(`🚀 LineChart high-performance mode: ${result.length.toLocaleString()} points processed in ${processingTime.toFixed(2)}ms`);
+      
+      if (shouldActivateFeature('BIG_DATA_MODE', config.series?.length || 0)) {
+        console.log(`📊 Big Data Mode active for ${(config.series?.length || 0).toLocaleString()} total points`);
+      }
+    }
+    
+    return result;
+  }, [workerDecimatedData, enhancedChartData, isProcessingDecimation, config.series?.length]);
+  
   // Add moving average calculation
   const chartDataWithMA = React.useMemo(() => {
 
-    if (!chartData || chartData.length === 0) return chartData;
+    if (!finalChartData || finalChartData.length === 0) return finalChartData;
 
     if (isMultiSeries || !(config as ChartConfig).showMovingAverage) {
-      return chartData;
+      return finalChartData;
     }
 
     // Define a type that includes movingAverage
     type MovingAverageDataPoint = { timestamp: number; value: number; movingAverage?: number };
-    const typedChartData = chartData as Array<{ timestamp: number; value: number }>;
+    const typedChartData = finalChartData as Array<{ timestamp: number; value: number }>;
     const result: MovingAverageDataPoint[] = typedChartData.map((point) => ({ ...point }));
 
     for (let i = 0; i < result.length; i++) {
@@ -298,11 +554,41 @@ export const LineChart: React.FC<LineChartProps> = ({
     }
 
     return result;
-  }, [chartData, config, isMultiSeries]);
+  }, [finalChartData, config, isMultiSeries]);
 
   const orderedData = React.useMemo(
     () => {
-      const sortedData = [...chartDataWithMA].sort((a, b) => a.timestamp - b.timestamp);
+      PerformanceMonitor.startTimer('chart-data-sorting');
+      
+      let sortedData;
+      
+      // Optimization: Skip sorting if data is already ordered (common case for time series)
+      if (shouldActivateFeature('BIG_DATA_MODE', chartDataWithMA.length)) {
+        // Check if data is already sorted for performance
+        let isAlreadySorted = true;
+        for (let i = 1; i < chartDataWithMA.length && i < PERFORMANCE_THRESHOLDS.BASIC_OPTIMIZATION; i++) { // Sample first chunk for gap detection
+          if (chartDataWithMA[i].timestamp < chartDataWithMA[i - 1].timestamp) {
+            isAlreadySorted = false;
+            break;
+          }
+        }
+        
+        if (isAlreadySorted) {
+          console.log(`⚡ Skipping sort - data already ordered (${chartDataWithMA.length.toLocaleString()} points)`);
+          sortedData = chartDataWithMA;
+        } else {
+          // Use native sort which is typically optimized (Timsort/Introsort)
+          sortedData = [...chartDataWithMA].sort((a, b) => a.timestamp - b.timestamp);
+        }
+      } else {
+        // Standard sorting for smaller datasets
+        sortedData = [...chartDataWithMA].sort((a, b) => a.timestamp - b.timestamp);
+      }
+      
+      const sortTime = PerformanceMonitor.endTimer('chart-data-sorting');
+      if (isFeatureEnabled('PERFORMANCE_MONITORING') && chartDataWithMA.length > PERFORMANCE_THRESHOLDS.ENHANCED_PROCESSING) {
+        console.log(`📊 Data sorting: ${chartDataWithMA.length.toLocaleString()} points in ${sortTime.toFixed(2)}ms`);
+      }
 
       return sortedData;
     },
@@ -331,7 +617,7 @@ export const LineChart: React.FC<LineChartProps> = ({
     }
   }, [orderedData.length, brushDomain.startIndex]);
 
-  // Handle brush change for visual selection only (no API calls)
+  // Handle brush change with window-based optimization
   const handleBrushChange = React.useCallback((brushData: any) => {
     if (!brushData || !orderedData.length) return;
     
@@ -340,12 +626,59 @@ export const LineChart: React.FC<LineChartProps> = ({
     // Update brush domain immediately for visual feedback
     setBrushDomain({ startIndex, endIndex });
     
+    // Calculate time window for precision data loading
+    if (startIndex !== undefined && endIndex !== undefined) {
+      const startTs = orderedData[Math.max(0, startIndex)].timestamp;
+      const endTs = orderedData[Math.min(endIndex, orderedData.length - 1)].timestamp;
+      const windowDurationMs = endTs - startTs;
+      const windowDurationMinutes = windowDurationMs / (1000 * 60);
+      const selectedPoints = endIndex - startIndex + 1;
+      
+      // Set window for Worker optimization
+      setWindowTs([startTs, endTs]);
+      
+      // NEW: Intelligent zoom precision - More zoom = More detail
+      const precisionLevel = getZoomPrecisionLevel(windowDurationMs);
+      
+      if (isZoomHighPrecision(windowDurationMs)) {
+        // ULTRA HIGH PRECISION: Show EVERY single point (no decimation)
+        console.log(`🔍 Ultra-high precision zoom: ${windowDurationMinutes.toFixed(1)} minutes (${selectedPoints.toLocaleString()} points) - FULL RESOLUTION - Every point visible!`);
+      } else if (isZoomMediumPrecision(windowDurationMs)) {
+        // HIGH PRECISION: Show maximum points chart can handle
+        console.log(`📊 High precision zoom: ${(windowDurationMinutes / 60).toFixed(1)} hours (${selectedPoints.toLocaleString()} points) - MAXIMUM DETAIL - 4x pixel density`);
+      } else if (windowDurationMs < TIME_CONSTANTS.ZOOM_LOW_PRECISION_THRESHOLD) {
+        // MEDIUM PRECISION: Balanced detail
+        console.log(`📈 Medium precision zoom: ${(windowDurationMs / (24 * 60 * 60 * 1000)).toFixed(1)} days (${selectedPoints.toLocaleString()} points) - BALANCED DETAIL - 2x pixel density`);
+      } else {
+        // LOW PRECISION: Overview mode
+        console.log(`� Overview zoom: ${(windowDurationMs / (24 * 60 * 60 * 1000)).toFixed(1)} days (${selectedPoints.toLocaleString()} points) - OVERVIEW MODE`);
+      }
+      
+      // Force chart re-render with new window
+      setIsZoomedIn(true);
+      if (onZoomChange) {
+        onZoomChange(true);
+      }
+    }
+    
     // Skip callback during initial setup
     if (isInitialBrushSetup) {
       setIsInitialBrushSetup(false);
       return;
     }
-  }, [orderedData, isInitialBrushSetup]);
+  }, [orderedData, isInitialBrushSetup, onZoomChange]);
+
+  // Reset zoom to show full dataset
+  const handleResetZoom = React.useCallback(() => {
+    setWindowTs(null);
+    setBrushDomain({});
+    setIsZoomedIn(false);
+    setZoomDomain(null);
+    if (onZoomChange) {
+      onZoomChange(false);
+    }
+    console.log('🔄 Zoom reset - showing full dataset');
+  }, [onZoomChange]);
 
   // Enhanced zoom functionality that provides meaningful value
   const handleZoomIn = React.useCallback(() => {
@@ -452,13 +785,15 @@ export const LineChart: React.FC<LineChartProps> = ({
     return { span: spanMs, type: 'monthly' };
   }, [orderedData]);
 
-  // Enhanced X-axis formatting based on time span with live mode optimization
+  // Enhanced X-axis formatting with improved time display
   const formatXAxis = (timestamp: number) => {
     const d = new Date(timestamp);
     
+    // Check if we're zoomed in (brush selection active)
+    const isZoomedIn = windowTs !== null;
+    
     // Special formatting for live mode - prioritize seconds/minutes for real-time updates
     if (isLiveMode) {
-      // For live mode, always show time with seconds for real-time feel
       const now = new Date();
       const diffMs = now.getTime() - timestamp;
       const diffMinutes = diffMs / (1000 * 60);
@@ -480,63 +815,46 @@ export const LineChart: React.FC<LineChartProps> = ({
         });
       } else {
         // Older data: show date + time
-        return d.toLocaleDateString('en-US', { 
-          month: 'short', 
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false 
-        });
+        return `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}`;
       }
     }
     
-    // Original formatting for non-live mode
+    // Enhanced formatting for non-live mode with better time visibility
+    if (isZoomedIn || timeSpanInfo.type === 'minutes') {
+      // When zoomed in or short timespan, always show detailed time
+      return d.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false 
+      });
+    }
+    
     switch (timeSpanInfo.type) {
-      case 'minutes':
-        return d.toLocaleTimeString('en-US', { 
-          hour: '2-digit', 
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false 
-        });
       case 'hours':
-        return d.toLocaleTimeString('en-US', { 
-          hour: '2-digit', 
-          minute: '2-digit',
-          hour12: false 
-        });
       case 'hourly':
+        // Show time for hourly data
         return d.toLocaleTimeString('en-US', { 
           hour: '2-digit', 
           minute: '2-digit',
           hour12: false 
         });
       case 'daily':
-        return d.toLocaleDateString('en-US', { 
-          month: 'short', 
-          day: 'numeric',
-          hour: '2-digit',
-          hour12: false 
-        });
+        // Show date + hour for daily data
+        return `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${d.getHours().toString().padStart(2, '0')}:00`;
       case 'weekly':
-        return d.toLocaleDateString('en-US', { 
-          month: 'short', 
-          day: 'numeric' 
-        });
+        // Show date + time for weekly data
+        return `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}`;
       case 'monthly':
+        // Show date for monthly data
         return d.toLocaleDateString('en-US', { 
           month: 'short', 
           day: 'numeric',
           year: '2-digit' 
         });
       default:
-        return d.toLocaleString('en-US', { 
-          month: 'short', 
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false 
-        });
+        // Default: always include time information
+        return `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}`;
     }
   };
 
@@ -691,8 +1009,8 @@ export const LineChart: React.FC<LineChartProps> = ({
               size="sm" 
               variant="bordered" 
               isIconOnly 
-              onPress={handleZoomReset}
-              title="Reset to full view (keeps selection)"
+              onPress={handleResetZoom}
+              title="Reset to full view"
               className="text-orange-600 border-orange-200 hover:bg-orange-50"
             >
               <Icon icon="lucide:maximize" width={14} />
@@ -763,6 +1081,7 @@ export const LineChart: React.FC<LineChartProps> = ({
               }}
             />
             <Tooltip
+              {...throttledTooltipProps}
               formatter={(value: number, name: string) => {
                 if (name === "movingAverage") {
                   return [`${formatNumericValue(value, 4)} ${config.unit} (MA)`, "Moving Avg"];
