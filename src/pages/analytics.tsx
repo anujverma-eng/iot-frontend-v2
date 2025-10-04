@@ -1136,14 +1136,44 @@ export const AnalyticsPage: React.FC = () => {
   ]);
 
   // Find the currently selected sensor object
+  // IMPORTANT: When sensor comes from URL, search in ALL sensors, not just filtered ones
+  // This prevents the sensor from disappearing when filters change (live/offline switch)
   const currentSensor = React.useMemo(() => {
+    if (!selectedSensor) return null;
+    
+    // If sensor ID comes from URL (sensorId param), search in all sensors first
+    if (sensorId && sensorId === selectedSensor) {
+      const sensorFromAllList = mappedSensors.find((s) => s.id === selectedSensor);
+      if (sensorFromAllList) {
+        // Found in all sensors list - return it even if it doesn't match current filters
+        return sensorFromAllList;
+      }
+    }
+    
+    // Otherwise, search in filtered sensors (normal behavior)
     return filteredSensors.find((s) => s.id === selectedSensor);
-  }, [filteredSensors, selectedSensor]);
+  }, [filteredSensors, selectedSensor, sensorId, mappedSensors]);
 
   // Find selected sensors for comparison
   const selectedSensorsForCompare = React.useMemo(() => {
     return filteredSensors.filter((s) => selectedSensorIds.includes(s.id));
   }, [filteredSensors, selectedSensorIds]);
+
+  // Handle case where current sensor gets filtered out due to status filter changes
+  // This happens when switching from live to offline mode while on a specific sensor page
+  React.useEffect(() => {
+    if (sensorId && selectedSensor === sensorId && currentSensor) {
+      // We have a sensor from URL and it exists, but check if it matches current filters
+      const isCurrentSensorInFilteredList = filteredSensors.some(s => s.id === selectedSensor);
+      
+      if (!isCurrentSensorInFilteredList) {
+        // Current sensor doesn't match the filter (e.g., online sensor but offline filter)
+        // Log this for debugging
+        console.log(`📍 Sensor ${selectedSensor} from URL doesn't match current filter (${filters.status}), but keeping it visible`);
+        // Note: We don't redirect or clear - we let currentSensor memo handle showing it
+      }
+    }
+  }, [sensorId, selectedSensor, currentSensor, filteredSensors, filters.status]);
 
   if (loading || isPageLoading) {
     return (
@@ -1665,10 +1695,13 @@ export const AnalyticsPage: React.FC = () => {
                         const isInitialLoadingState =
                           loading || (sensors.length > 0 && !currentSensor && !hasInitialLoadCompleted);
 
-                        if (isInitialLoadingState) {
+                        // Also check if we're waiting for sensor data to load from URL
+                        const isWaitingForUrlSensor = sensorId && !selectedSensor && sensors.length > 0;
+
+                        if (isInitialLoadingState || isWaitingForUrlSensor) {
                           return <Spinner size={isMobile ? "md" : "lg"} />;
                         } else {
-                          // return <Spinner size={isMobile ? "md" : "lg"} />;
+                          // Only show fallback if there's truly no sensor selected and no URL sensor pending
                           return <p className="text-default-500 text-sm">Select a sensor to view data</p>;
                         }
                       })()}

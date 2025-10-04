@@ -58,6 +58,7 @@ import { useBreakpoints } from "../../hooks/use-media-query";
 import { useLiveModeTransition } from "../../hooks/useLiveModeTransition";
 import { useLiveDataReadiness } from "../../hooks/useLiveDataReadiness";
 import { useOfflineDetectionIntegration } from "../../hooks/useOfflineDetectionIntegration";
+import { useOptimizedChartData, createOptimizedChartConfig } from "../../hooks/useOptimizedChartData";
 
 // Fix the interface to satisfy the Record<string, string | undefined> constraint
 interface SoloViewParams {
@@ -178,6 +179,29 @@ export const SoloView: React.FC = () => {
 
   // Enhanced loading state that includes initial loading
   const enhancedEffectiveIsLoading = effectiveIsLoading || isInitiallyLoading;
+
+  // Create base chart config for optimization
+  const baseChartConfig: ChartConfig | null = React.useMemo(() => {
+    if (!sensorId || !telemetryData[sensorId]) return null;
+
+    const sensorData = telemetryData[sensorId];
+    const currentSeries = sensorData.series;
+    
+    // Apply dynamic reading limit in live mode based on user's selection
+    const shouldLimitToLatest = isLiveMode;
+    const displaySeries = shouldLimitToLatest && currentSeries.length > maxLiveReadings ? 
+      currentSeries.slice(-maxLiveReadings) : currentSeries;
+
+    return {
+      type: sensorData.type,
+      unit: sensorData.unit,
+      series: displaySeries,
+      color: chartColors[0],
+    };
+  }, [sensorId, telemetryData, isLiveMode, maxLiveReadings]);
+
+  // Use centralized chart data optimization (same as LineChart)
+  const optimizedChartData = useOptimizedChartData(baseChartConfig);
 
   // Cleanup on unmount - cancel any pending data requests only
   // Live mode cleanup is handled centrally, no need for component-specific cleanup
@@ -442,26 +466,12 @@ export const SoloView: React.FC = () => {
     return () => clearTimeout(fetchTimer);
   }, [sensorId, filters.timeRange.start, filters.timeRange.end, initialLoading, fetchOptimizedData, liveDataReadiness.shouldFetchApiData, hasAttemptedAutoEnable]);
 
-  // Prepare chart config for selected sensor
+  // Create optimized chart config using centralized optimization
   const chartConfig: ChartConfig | null = React.useMemo(() => {
-    if (!sensorId || !telemetryData[sensorId]) return null;
+    if (!baseChartConfig || !optimizedChartData.hasData) return null;
 
-    const sensorData = telemetryData[sensorId];
-    const currentSeries = sensorData.series;
-    
-    // Apply dynamic reading limit in live mode based on user's selection
-    // In offline mode, show all data for proper historical analysis
-    const shouldLimitToLatest = isLiveMode; // Only limit in live mode
-    const displaySeries = shouldLimitToLatest && currentSeries.length > maxLiveReadings ? 
-      currentSeries.slice(-maxLiveReadings) : currentSeries;
-
-    return {
-      type: sensorData.type,
-      unit: sensorData.unit,
-      series: displaySeries,
-      color: chartColors[0],
-    };
-  }, [sensorId, telemetryData, isLiveMode, maxLiveReadings]);
+    return createOptimizedChartConfig(baseChartConfig, optimizedChartData);
+  }, [baseChartConfig, optimizedChartData]);
 
   // Check if sensor is offline - only show offline state when we have sensor data and it's actually offline
   // AND we're not waiting for live data (give live connection a chance to update the status)
