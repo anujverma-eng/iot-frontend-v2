@@ -64,8 +64,7 @@ export const SensorList: React.FC<SensorListProps> = ({
   };
   
   return (
-    // <div className="flex flex-col h-full">
-    <div className="flex flex-col h-[calc(100%-80px)]">
+    <div className="flex flex-col">
       <div className="p-4 border-b border-divider">
         <Input
           placeholder="Search by MAC or display name"
@@ -76,7 +75,7 @@ export const SensorList: React.FC<SensorListProps> = ({
         />
       </div>
       
-      <div className="flex-1 overflow-y-auto">
+      <div className="h-96 overflow-y-auto">{/* Fixed height to show ~3 sensor cards */}
         {!sensors || sensors.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full p-4 text-center">
             <Icon icon="lucide:wifi-off" className="text-default-300 mb-2" width={32} height={32} />

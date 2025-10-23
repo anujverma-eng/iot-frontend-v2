@@ -15,7 +15,7 @@ import {
   updateSensorDisplayName
 } from '../store/sensorsSlice';
 import {
-  fetchTelemetry,
+  fetchOptimizedTelemetry,
   selectTelemetryData,
   selectTelemetryLoading,
   selectTimeRange,
@@ -48,15 +48,18 @@ export const useSensors = () => {
     }));
   }, [dispatch, filters.search, filters.types, filters.status]);
   
-  // Fetch telemetry data when selected sensor or time range changes
+  // Fetch optimized telemetry data when selected sensor or time range changes
   React.useEffect(() => {
     if (selectedSensorIds.length > 0) {
-      dispatch(fetchTelemetry({
+      const isMobile = window.innerWidth < 768;
+      dispatch(fetchOptimizedTelemetry({
         sensorIds: selectedSensorIds,
         timeRange: {
           start: timeRange.start.toISOString(),
           end: timeRange.end.toISOString()
-        }
+        },
+        targetPoints: isMobile ? 200 : 400,
+        deviceType: isMobile ? 'mobile' : 'desktop'
       }));
     }
   }, [dispatch, selectedSensorIds, timeRange]);

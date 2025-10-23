@@ -210,7 +210,6 @@ export class PerformanceMonitor {
     for (const [label, measurements] of this.metrics.entries()) {
       const avg = measurements.reduce((sum, time) => sum + time, 0) / measurements.length;
       const latest = measurements[measurements.length - 1];
-      console.log(`${label}: ${latest?.toFixed(2)}ms (avg: ${avg.toFixed(2)}ms, samples: ${measurements.length})`);
     }
     console.groupEnd();
   }

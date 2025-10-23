@@ -146,7 +146,6 @@ export const LineChart: React.FC<LineChartProps> = ({
       }
       
       const step = Math.ceil(dataSize / targetPoints);
-      console.log(`🚀 Chart: Smart aggressive sampling ${dataSize.toLocaleString()} → ${targetPoints} points (step: ${step}) [Screen: ${screenWidth}px]`);
       
       // Use stride sampling but ensure first and last points are included
       const sampled = [];
@@ -171,8 +170,6 @@ export const LineChart: React.FC<LineChartProps> = ({
       const optimalPoints = calculateOptimalPointsForChart(dataSize, chartWidth);
       const decimationInfo = getDecimationInfo(dataSize, chartWidth);
       
-      console.log(`🎯 Smart Chart Decimation: ${dataSize.toLocaleString()} → ${optimalPoints.toLocaleString()} points`);
-      console.log(`📊 Chart Analysis: ${chartWidth}px width, ${decimationInfo.pointsPerPixel.toFixed(2)} pts/pixel, step: ${decimationInfo.decimationStep}`);
       
       if (decimationInfo.shouldDecimate) {
         const step = decimationInfo.decimationStep;
@@ -187,10 +184,8 @@ export const LineChart: React.FC<LineChartProps> = ({
         
         sampledData.push(data[dataSize - 1]); // Always include last point
         
-        console.log(`✅ Decimation complete: ${sampledData.length.toLocaleString()} points (${(dataSize/sampledData.length).toFixed(1)}:1 ratio)`);
         return sampledData;
       } else {
-        console.log(`✅ No decimation needed: Dataset fits chart optimally`);
         return data;
       }
     }
@@ -201,7 +196,6 @@ export const LineChart: React.FC<LineChartProps> = ({
       const optimalPoints = Math.min(dataSize, mobileChartWidth * WORKER_CONFIG.OPTIMAL_POINTS_PER_PIXEL);
       const step = Math.ceil(dataSize / optimalPoints);
       
-      console.log(`📱 Mobile optimization: ${dataSize} → ${optimalPoints} points (step: ${step})`);
       return data.filter((_, index) => index % step === 0);
     }
     
@@ -366,7 +360,6 @@ export const LineChart: React.FC<LineChartProps> = ({
       const totalPoints = multiConfig.series.reduce((sum, s) => sum + (s.data?.length || 0), 0);
       
       if (totalPoints > PERFORMANCE_THRESHOLDS.LOD_DECIMATION) {
-        console.log(`🚀 Line Chart: Processing ${totalPoints.toLocaleString()} multi-series points across ${multiConfig.series.length} sensors`);
       }
 
       // Optimized timestamp mapping for multi-series data
@@ -409,9 +402,7 @@ export const LineChart: React.FC<LineChartProps> = ({
     const shouldUseLOD = totalPoints > 5000;
     
     if (shouldUseLOD && lodSystem.isWorkerReady) {
-      console.log(`🚀 LOD System ready for ${totalPoints.toLocaleString()} data points - Worker decimation available`);
     } else if (shouldUseLOD && !lodSystem.isWorkerReady) {
-      console.log(`⏳ LOD system initializing for ${totalPoints.toLocaleString()} data points...`);
     }
     
     // For now, return the optimized data (Worker integration below)
@@ -453,26 +444,21 @@ export const LineChart: React.FC<LineChartProps> = ({
           if (isZoomHighPrecision(windowDurationMs)) {
             // ULTRA HIGH PRECISION: Use maximum possible resolution
             widthPx = WORKER_CONFIG.MAX_PIXEL_WIDTH; // 8K resolution - show EVERY point
-            console.log(`🚀 ULTRA-HIGH precision processing: ${convertToMinutes(windowDurationMs).toFixed(1)}min window → ${widthPx}px resolution (NO decimation)`);
           } else if (isZoomMediumPrecision(windowDurationMs)) {
             // HIGH PRECISION: Show maximum points chart can handle
             widthPx = Math.min(WORKER_CONFIG.MAX_PIXEL_WIDTH, (window.innerWidth || 1920) * 4); // 4x screen width
-            console.log(`� HIGH precision processing: ${convertToHours(windowDurationMs).toFixed(1)}h window → ${widthPx}px resolution (4 pts/pixel)`);
           } else if (windowDurationMs < TIME_CONSTANTS.ZOOM_LOW_PRECISION_THRESHOLD) {
             // MEDIUM PRECISION: Balanced approach  
             widthPx = Math.min(4000, (window.innerWidth || 1920) * 2); // 2x screen width
-            console.log(`� MEDIUM precision processing: ${convertToDays(windowDurationMs).toFixed(1)}d window → ${widthPx}px resolution (2 pts/pixel)`);
           } else {
             // LOW PRECISION: Performance focused
             widthPx = Math.max(1200, window.innerWidth || 1920); // At least HD+
-            console.log(`� LOW precision processing: ${convertToDays(windowDurationMs).toFixed(1)}d window → ${widthPx}px resolution (1 pt/pixel)`);
           }
         } else {
           // Full dataset view - use responsive width
           startTs = Math.min(...timestamps);
           endTs = Math.max(...timestamps);
           widthPx = Math.max(1200, (window.innerWidth || 1920)); // Responsive but minimum HD+
-          console.log(`🌐 Full dataset processing: ${totalPoints.toLocaleString()} points → ${widthPx}px resolution (overview mode)`);
         }
         
         const decimated = await lodSystem.getDecimated({
@@ -485,11 +471,9 @@ export const LineChart: React.FC<LineChartProps> = ({
         const decimatedPoints = decimated['chart-series'] || [];
         const formattedData = decimatedPoints.map(p => ({ timestamp: p.t, value: p.v }));
         
-        console.log(`📊 Worker decimated ${totalPoints.toLocaleString()} → ${formattedData.length.toLocaleString()} points`);
         setWorkerDecimatedData(formattedData);
         
       } catch (error) {
-        console.error('Worker decimation failed:', error);
         setWorkerDecimatedData(null);
       } finally {
         setIsProcessingDecimation(false);
@@ -506,7 +490,6 @@ export const LineChart: React.FC<LineChartProps> = ({
     let result;
     // Use Worker-decimated data if available and processing is complete
     if (workerDecimatedData && !isProcessingDecimation) {
-      console.log(`✅ Using Worker-decimated data: ${workerDecimatedData.length.toLocaleString()} points`);
       result = workerDecimatedData;
     } else {
       // Fall back to basic optimization
@@ -517,10 +500,8 @@ export const LineChart: React.FC<LineChartProps> = ({
     const processingTime = PerformanceMonitor.endTimer('chart-data-final-selection');
     
     if (isFeatureEnabled('PERFORMANCE_MONITORING') && result && result.length > PERFORMANCE_THRESHOLDS.LOD_DECIMATION) {
-      console.log(`🚀 LineChart high-performance mode: ${result.length.toLocaleString()} points processed in ${processingTime.toFixed(2)}ms`);
       
       if (shouldActivateFeature('BIG_DATA_MODE', config.series?.length || 0)) {
-        console.log(`📊 Big Data Mode active for ${(config.series?.length || 0).toLocaleString()} total points`);
       }
     }
     
@@ -574,7 +555,6 @@ export const LineChart: React.FC<LineChartProps> = ({
         }
         
         if (isAlreadySorted) {
-          console.log(`⚡ Skipping sort - data already ordered (${chartDataWithMA.length.toLocaleString()} points)`);
           sortedData = chartDataWithMA;
         } else {
           // Use native sort which is typically optimized (Timsort/Introsort)
@@ -587,7 +567,6 @@ export const LineChart: React.FC<LineChartProps> = ({
       
       const sortTime = PerformanceMonitor.endTimer('chart-data-sorting');
       if (isFeatureEnabled('PERFORMANCE_MONITORING') && chartDataWithMA.length > PERFORMANCE_THRESHOLDS.ENHANCED_PROCESSING) {
-        console.log(`📊 Data sorting: ${chartDataWithMA.length.toLocaleString()} points in ${sortTime.toFixed(2)}ms`);
       }
 
       return sortedData;
@@ -608,7 +587,20 @@ export const LineChart: React.FC<LineChartProps> = ({
 
   // Initialize brush domain when data changes (but don't trigger brush change callback)
   React.useEffect(() => {
-    if (orderedData.length > 0 && brushDomain.startIndex === undefined) {
+    if (orderedData.length > 2 && brushDomain.startIndex === undefined) { // Require minimum 3 data points
+      // Validate that we have valid timestamps in the data
+      const hasValidTimestamps = orderedData.every(d => 
+        d.timestamp && 
+        typeof d.timestamp === 'number' && 
+        !isNaN(d.timestamp) && 
+        isFinite(d.timestamp) && 
+        d.timestamp > 0
+      );
+      
+      if (!hasValidTimestamps) {
+        return;
+      }
+      
       setBrushDomain({
         startIndex: 0,
         endIndex: orderedData.length - 1
@@ -622,6 +614,26 @@ export const LineChart: React.FC<LineChartProps> = ({
     if (!brushData || !orderedData.length) return;
     
     const { startIndex, endIndex } = brushData;
+    
+    // Comprehensive validation to prevent NaN errors
+    if (typeof startIndex !== 'number' || typeof endIndex !== 'number' || 
+        isNaN(startIndex) || isNaN(endIndex) || 
+        !isFinite(startIndex) || !isFinite(endIndex) ||
+        startIndex < 0 || endIndex < 0 ||
+        startIndex >= orderedData.length || endIndex >= orderedData.length ||
+        endIndex <= startIndex) {
+      return;
+    }
+    
+    // Validate that the data points at these indices are valid
+    const startPoint = orderedData[startIndex];
+    const endPoint = orderedData[endIndex];
+    
+    if (!startPoint || !endPoint || 
+        !startPoint.timestamp || !endPoint.timestamp ||
+        isNaN(startPoint.timestamp) || isNaN(endPoint.timestamp)) {
+      return;
+    }
     
     // Update brush domain immediately for visual feedback
     setBrushDomain({ startIndex, endIndex });
@@ -642,16 +654,12 @@ export const LineChart: React.FC<LineChartProps> = ({
       
       if (isZoomHighPrecision(windowDurationMs)) {
         // ULTRA HIGH PRECISION: Show EVERY single point (no decimation)
-        console.log(`🔍 Ultra-high precision zoom: ${windowDurationMinutes.toFixed(1)} minutes (${selectedPoints.toLocaleString()} points) - FULL RESOLUTION - Every point visible!`);
       } else if (isZoomMediumPrecision(windowDurationMs)) {
         // HIGH PRECISION: Show maximum points chart can handle
-        console.log(`📊 High precision zoom: ${(windowDurationMinutes / 60).toFixed(1)} hours (${selectedPoints.toLocaleString()} points) - MAXIMUM DETAIL - 4x pixel density`);
       } else if (windowDurationMs < TIME_CONSTANTS.ZOOM_LOW_PRECISION_THRESHOLD) {
         // MEDIUM PRECISION: Balanced detail
-        console.log(`📈 Medium precision zoom: ${(windowDurationMs / (24 * 60 * 60 * 1000)).toFixed(1)} days (${selectedPoints.toLocaleString()} points) - BALANCED DETAIL - 2x pixel density`);
       } else {
         // LOW PRECISION: Overview mode
-        console.log(`� Overview zoom: ${(windowDurationMs / (24 * 60 * 60 * 1000)).toFixed(1)} days (${selectedPoints.toLocaleString()} points) - OVERVIEW MODE`);
       }
       
       // Force chart re-render with new window
@@ -677,7 +685,6 @@ export const LineChart: React.FC<LineChartProps> = ({
     if (onZoomChange) {
       onZoomChange(false);
     }
-    console.log('🔄 Zoom reset - showing full dataset');
   }, [onZoomChange]);
 
   // Enhanced zoom functionality that provides meaningful value
@@ -1195,20 +1202,79 @@ export const LineChart: React.FC<LineChartProps> = ({
 
             {/* --- THE CRITICAL FIX --- */}
             {/* Only render the Brush when NOT in live mode */}
-            {!isLiveMode && hasData && (
-              <Brush
-                dataKey="timestamp"
-                height={36}
-                stroke="#f59e0b"
-                fill="#f3f4f6"
-                travellerWidth={10}
-                gap={1}
-                tickFormatter={formatXAxis}
-                startIndex={brushDomain.startIndex}
-                endIndex={brushDomain.endIndex}
-                onChange={handleBrushChange}
-              />
-            )}
+            {!isLiveMode && hasData && (() => {
+              // Comprehensive brush safety checks
+              const hasValidData = orderedData.length > 2; // Require at least 3 points
+              const hasValidIndices = brushDomain.startIndex !== undefined && 
+                brushDomain.endIndex !== undefined &&
+                typeof brushDomain.startIndex === 'number' &&
+                typeof brushDomain.endIndex === 'number' &&
+                !isNaN(brushDomain.startIndex) &&
+                !isNaN(brushDomain.endIndex) &&
+                isFinite(brushDomain.startIndex) &&
+                isFinite(brushDomain.endIndex) &&
+                brushDomain.startIndex >= 0 &&
+                brushDomain.endIndex >= 0;
+              
+              const hasValidTimestamps = orderedData.length > 0 && 
+                orderedData.every(d => typeof d.timestamp === 'number' && 
+                  !isNaN(d.timestamp) && 
+                  isFinite(d.timestamp) && 
+                  d.timestamp > 0);
+              
+              const shouldRenderBrush = hasValidData && hasValidIndices && hasValidTimestamps;
+
+              if (!shouldRenderBrush) {
+                return null;
+              }
+
+              const safeStartIndex = Math.max(0, Math.min(brushDomain.startIndex!, orderedData.length - 1));
+              const safeEndIndex = Math.max(safeStartIndex, Math.min(brushDomain.endIndex!, orderedData.length - 1));
+              
+              // Additional safety check - ensure indices are valid numbers and have minimum span
+              if (isNaN(safeStartIndex) || isNaN(safeEndIndex) || safeEndIndex <= safeStartIndex) {
+                return null;
+              }
+
+              // Create safe tick formatter that never returns NaN
+              const safeBrushTickFormatter = (value: any) => {
+                try {
+                  if (value === null || value === undefined || 
+                      typeof value !== 'number' || 
+                      !isFinite(value) || isNaN(value) || value <= 0) {
+                    return '';
+                  }
+                  return formatXAxis(value);
+                } catch (error) {
+                  return '';
+                }
+              };
+
+              // Validate the actual data points that will be used by brush
+              const startDataPoint = orderedData[safeStartIndex];
+              const endDataPoint = orderedData[safeEndIndex];
+              
+              if (!startDataPoint || !endDataPoint || 
+                  !startDataPoint.timestamp || !endDataPoint.timestamp ||
+                  isNaN(startDataPoint.timestamp) || isNaN(endDataPoint.timestamp)) {
+                return null;
+              }
+
+              return (
+                <Brush
+                  dataKey="timestamp"
+                  height={36}
+                  stroke="#f59e0b"
+                  fill="#f3f4f6"
+                  travellerWidth={10}
+                  gap={1}
+                  tickFormatter={safeBrushTickFormatter}
+                  startIndex={safeStartIndex}
+                  endIndex={safeEndIndex}
+                  onChange={handleBrushChange}
+                />
+              );
+            })()}
             {/* --- END FIX --- */}
           </RechartsLineChart>
         </ResponsiveContainer>

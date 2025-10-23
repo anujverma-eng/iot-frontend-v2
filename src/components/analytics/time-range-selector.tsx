@@ -1,7 +1,7 @@
 // components/analytics/time-range-selector.tsx
-import { Button, DateRangePicker, Divider, Popover, PopoverContent, PopoverTrigger, Spinner, Alert } from "@heroui/react";
+import { Button, DateRangePicker, Divider, Popover, PopoverContent, PopoverTrigger, Spinner, Alert, TimeInput } from "@heroui/react";
 import { Icon } from "@iconify/react";
-import { CalendarDate, DateValue, getLocalTimeZone } from "@internationalized/date";
+import { CalendarDate, DateValue, getLocalTimeZone, CalendarDateTime, Time } from "@internationalized/date";
 import React from "react";
 import { timeRangePresets } from "../../data/analytics";
 import { useAppDispatch, useAppSelector } from "../../hooks/useAppDispatch";
@@ -11,10 +11,13 @@ import {
   selectIsConnecting,
   toggleLiveMode as toggleLiveModeAction
 } from "../../store/liveDataSlice"; // Use centralized live data slice
+import { debugTimeRangeSelector } from "../../utils/debug-time";
 
 type RangeValue<T> = { start: T | null; end: T | null };
 
 const toCal = (d: Date) => new CalendarDate(d.getFullYear(), d.getMonth() + 1, d.getDate());
+const toCalDateTime = (d: Date) => new CalendarDateTime(d.getFullYear(), d.getMonth() + 1, d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds());
+const toTime = (d: Date) => new Time(d.getHours(), d.getMinutes(), d.getSeconds());
 
 type LiveStatus = 'disconnected' | 'connecting' | 'connected' | 'error' | 'slow_network';
 
@@ -28,6 +31,7 @@ export const TimeRangeSelector: React.FC<{
   liveStatus?: LiveStatus;
   onRetryConnection?: () => void;
   gatewayIds?: string[]; // Add gateway IDs for live mode
+  hideLiveMode?: boolean; // Add prop to hide live mode toggle (e.g., in compare mode)
 }> = ({ 
   timeRange, 
   onTimeRangeChange, 
@@ -37,7 +41,8 @@ export const TimeRangeSelector: React.FC<{
   onLiveModeChange,
   liveStatus: externalLiveStatus,
   onRetryConnection,
-  gatewayIds = []
+  gatewayIds = [],
+  hideLiveMode = false, // Default to false to maintain existing behavior
 }) => {
   const dispatch = useAppDispatch();
   const reduxIsLiveMode = useAppSelector(selectIsLiveMode);
@@ -55,6 +60,10 @@ export const TimeRangeSelector: React.FC<{
   const [open, setOpen] = React.useState(false);
   const [pendingTimeRange, setPendingTimeRange] = React.useState(timeRange);
   const [pendingLiveMode, setPendingLiveMode] = React.useState(isLiveMode);
+  
+  // State for time components
+  const [pendingStartTime, setPendingStartTime] = React.useState(() => toTime(timeRange.start));
+  const [pendingEndTime, setPendingEndTime] = React.useState(() => toTime(timeRange.end));
   
   // Helper function to compare time ranges with tolerance
   const isSameTimeRange = (range1: { start: Date; end: Date }, range2: { start: Date; end: Date }) => {
@@ -103,6 +112,10 @@ export const TimeRangeSelector: React.FC<{
     setRangeIdx(idx === -1 ? timeRangePresets.length - 1 : idx);
     setPendingTimeRange(timeRange);
     setPendingLiveMode(isLiveMode);
+    
+    // Update time components to match the new time range
+    setPendingStartTime(toTime(timeRange.start));
+    setPendingEndTime(toTime(timeRange.end));
   }, [timeRange, isLiveMode]);
 
   const toggleLiveMode = async () => {
@@ -147,8 +160,29 @@ export const TimeRangeSelector: React.FC<{
 
     setRangeIdx(i);
     setPendingLiveMode(false);
+    
+    // For custom preset (last one), start with a reasonable 1-hour default if not already in custom mode
+    if (i === timeRangePresets.length - 1) {
+      // If we're not already in custom mode, set a reasonable default
+      if (rangeIdx !== timeRangePresets.length - 1) {
+        const now = new Date();
+        const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+        const newRange = { start: oneHourAgo, end: now };
+        setPendingTimeRange(newRange);
+        setPendingStartTime(toTime(oneHourAgo));
+        setPendingEndTime(toTime(now));
+      }
+      // If already in custom mode, keep existing values
+      return;
+    }
+    
+    // For non-custom presets, apply the preset values
     const newRange = timeRangePresets[i].getValue();
     setPendingTimeRange(newRange);
+    
+    // Update time components to match the preset
+    setPendingStartTime(toTime(newRange.start));
+    setPendingEndTime(toTime(newRange.end));
     
     // Apply immediately only if NOT using apply buttons
     if (!showApplyButtons) {
@@ -161,12 +195,87 @@ export const TimeRangeSelector: React.FC<{
     }
   };
 
+  const combineDateTime = () => {
+    // Create clean dates using only the date parts (no time contamination)
+    const startDate = new Date(pendingTimeRange.start.getFullYear(), pendingTimeRange.start.getMonth(), pendingTimeRange.start.getDate());
+    const endDate = new Date(pendingTimeRange.end.getFullYear(), pendingTimeRange.end.getMonth(), pendingTimeRange.end.getDate());
+    
+    // Set the time components
+    startDate.setHours(pendingStartTime.hour, pendingStartTime.minute, pendingStartTime.second, 0);
+    endDate.setHours(pendingEndTime.hour, pendingEndTime.minute, pendingEndTime.second, 0);
+    
+    return { start: startDate, end: endDate };
+  };
+
   const handleCustomDateChange = (value: RangeValue<DateValue> | null) => {
     if (value?.start && value?.end) {
+      // Create clean dates from the date picker values
       const startDate = new Date(value.start.year, value.start.month - 1, value.start.day);
-      const endDate = new Date(value.end.year, value.end.month - 1, value.end.day, 23, 59, 59);
+      const endDate = new Date(value.end.year, value.end.month - 1, value.end.day);
+      
+      // Preserve the time components from pending times
+      startDate.setHours(pendingStartTime.hour, pendingStartTime.minute, pendingStartTime.second, 0);
+      endDate.setHours(pendingEndTime.hour, pendingEndTime.minute, pendingEndTime.second, 0);
       
       const newRange = { start: startDate, end: endDate };
+      setRangeIdx(timeRangePresets.length - 1); // Set to custom
+      setPendingTimeRange(newRange);
+      setPendingLiveMode(false);
+      
+      // Apply immediately only if NOT using apply buttons
+      if (!showApplyButtons) {
+        onLiveModeChange?.(false);
+        onTimeRangeChange(newRange);
+        setOpen(false);
+      }
+    }
+  };
+
+  const handleStartTimeChange = (time: Time | null) => {
+    if (time) {
+      setPendingStartTime(time);
+      
+      // Create clean dates using only the date parts (no time contamination)
+      const startDate = new Date(pendingTimeRange.start.getFullYear(), pendingTimeRange.start.getMonth(), pendingTimeRange.start.getDate());
+      const endDate = new Date(pendingTimeRange.end.getFullYear(), pendingTimeRange.end.getMonth(), pendingTimeRange.end.getDate());
+      
+      // Set the new start time
+      startDate.setHours(time.hour, time.minute, time.second, 0);
+      // Keep existing end time
+      endDate.setHours(pendingEndTime.hour, pendingEndTime.minute, pendingEndTime.second, 0);
+      
+      const newRange = { start: startDate, end: endDate };
+      debugTimeRangeSelector('Start Time Change', newRange, time, pendingEndTime);
+      
+      setRangeIdx(timeRangePresets.length - 1); // Set to custom
+      setPendingTimeRange(newRange);
+      setPendingLiveMode(false);
+      
+      // Apply immediately only if NOT using apply buttons
+      if (!showApplyButtons) {
+        onLiveModeChange?.(false);
+        onTimeRangeChange(newRange);
+        setOpen(false);
+      }
+    }
+  };
+
+  const handleEndTimeChange = (time: Time | null) => {
+    if (time) {
+      setPendingEndTime(time);
+      
+      // Create clean dates using only the date parts (no time contamination)
+      const startDate = new Date(pendingTimeRange.start.getFullYear(), pendingTimeRange.start.getMonth(), pendingTimeRange.start.getDate());
+      const endDate = new Date(pendingTimeRange.end.getFullYear(), pendingTimeRange.end.getMonth(), pendingTimeRange.end.getDate());
+      
+      // Keep existing start time
+      startDate.setHours(pendingStartTime.hour, pendingStartTime.minute, pendingStartTime.second, 0);
+      // Set the new end time
+      endDate.setHours(time.hour, time.minute, time.second, 0);
+      
+      const newRange = { start: startDate, end: endDate };
+      debugTimeRangeSelector('End Time Change', newRange, pendingStartTime, time);
+      
       setRangeIdx(timeRangePresets.length - 1); // Set to custom
       setPendingTimeRange(newRange);
       setPendingLiveMode(false);
@@ -203,7 +312,14 @@ export const TimeRangeSelector: React.FC<{
 
         }
       }
-      onTimeRangeChange(pendingTimeRange);
+      
+      // Use combined date/time for custom range, or original range for presets
+      const finalRange = rangeIdx === timeRangePresets.length - 1 
+        ? combineDateTime() 
+        : pendingTimeRange;
+      
+      debugTimeRangeSelector('Apply Final Range', finalRange, pendingStartTime, pendingEndTime);
+      onTimeRangeChange(finalRange);
     }
     setOpen(false);
   };
@@ -397,80 +513,82 @@ export const TimeRangeSelector: React.FC<{
               )}
             </div>
 
-            {/* Live Mode Toggle */}
-            <div className="space-y-3">
-              <Button
-                size="md"
-                variant={pendingLiveMode ? "solid" : "bordered"}
-                color={pendingLiveMode ? "success" : "default"}
-                startContent={
-                  pendingLiveMode ? (
-                    liveStatus === 'connecting' ? (
-                      <Spinner size="sm" color="current" />
-                    ) : liveStatus === 'connected' ? (
-                      <Icon icon="lucide:radio" width={16} className="animate-pulse" />
-                    ) : liveStatus === 'error' ? (
-                      <Icon icon="lucide:wifi-off" width={16} />
-                    ) : (
-                      <Icon icon="lucide:signal" width={16} />
-                    )
-                  ) : (
-                    <Icon icon="lucide:radio" width={16} />
-                  )
-                }
-                onPress={toggleLiveMode}
-                className="w-full justify-start"
-              >
-                <div className="flex flex-col items-start">
-                  <span className="font-medium">Live Real-time Data</span>
-                  <span className="text-xs opacity-70">
-                    {pendingLiveMode ? (
-                      liveStatus === 'connecting' ? "Connecting to live feed..." :
-                      liveStatus === 'connected' ? "Receiving live updates" :
-                      liveStatus === 'error' ? "Failed to connect" :
-                      liveStatus === 'slow_network' ? "Poor connection quality" :
-                      "Live mode active"
-                    ) : "Enable real-time updates"}
-                  </span>
-                </div>
-              </Button>
-
-              {/* Network Status Alert */}
-              {isLiveMode && (liveStatus === 'error' || liveStatus === 'slow_network') && (
-                <Alert
-                  color={liveStatus === 'error' ? "danger" : "warning"}
-                  variant="flat"
+            {/* Live Mode Toggle - Hidden in compare mode */}
+            {!hideLiveMode && (
+              <div className="space-y-3">
+                <Button
+                  size="md"
+                  variant={pendingLiveMode ? "solid" : "bordered"}
+                  color={pendingLiveMode ? "success" : "default"}
                   startContent={
-                    <Icon 
-                      icon={liveStatus === 'error' ? "lucide:wifi-off" : "lucide:signal-low"} 
-                      width={16} 
-                    />
+                    pendingLiveMode ? (
+                      liveStatus === 'connecting' ? (
+                        <Spinner size="sm" color="current" />
+                      ) : liveStatus === 'connected' ? (
+                        <Icon icon="lucide:radio" width={16} className="animate-pulse" />
+                      ) : liveStatus === 'error' ? (
+                        <Icon icon="lucide:wifi-off" width={16} />
+                      ) : (
+                        <Icon icon="lucide:signal" width={16} />
+                      )
+                    ) : (
+                      <Icon icon="lucide:radio" width={16} />
+                    )
                   }
-                  endContent={
-                    <Button
-                      size="sm"
-                      variant="flat"
-                      color={liveStatus === 'error' ? "danger" : "warning"}
-                      onPress={onRetryConnection}
-                    >
-                      {liveStatus === 'error' ? 'Retry' : 'Switch to Normal'}
-                    </Button>
-                  }
+                  onPress={toggleLiveMode}
+                  className="w-full justify-start"
                 >
-                  <div className="text-sm">
-                    <div className="font-medium">
-                      {liveStatus === 'error' ? 'Connection Failed' : 'Slow Network'}
-                    </div>
-                    <div className="text-xs opacity-80">
-                      {liveStatus === 'error' 
-                        ? 'Unable to establish real-time connection'
-                        : 'Poor network may affect live updates'
-                      }
-                    </div>
+                  <div className="flex flex-col items-start">
+                    <span className="font-medium">Live Real-time Data</span>
+                    <span className="text-xs opacity-70">
+                      {pendingLiveMode ? (
+                        liveStatus === 'connecting' ? "Connecting to live feed..." :
+                        liveStatus === 'connected' ? "Receiving live updates" :
+                        liveStatus === 'error' ? "Failed to connect" :
+                        liveStatus === 'slow_network' ? "Poor connection quality" :
+                        "Live mode active"
+                      ) : "Enable real-time updates"}
+                    </span>
                   </div>
-                </Alert>
-              )}
-            </div>
+                </Button>
+
+                {/* Network Status Alert */}
+                {isLiveMode && (liveStatus === 'error' || liveStatus === 'slow_network') && (
+                  <Alert
+                    color={liveStatus === 'error' ? "danger" : "warning"}
+                    variant="flat"
+                    startContent={
+                      <Icon 
+                        icon={liveStatus === 'error' ? "lucide:wifi-off" : "lucide:signal-low"} 
+                        width={16} 
+                      />
+                    }
+                    endContent={
+                      <Button
+                        size="sm"
+                        variant="flat"
+                        color={liveStatus === 'error' ? "danger" : "warning"}
+                        onPress={onRetryConnection}
+                      >
+                        {liveStatus === 'error' ? 'Retry' : 'Switch to Normal'}
+                      </Button>
+                    }
+                  >
+                    <div className="text-sm">
+                      <div className="font-medium">
+                        {liveStatus === 'error' ? 'Connection Failed' : 'Slow Network'}
+                      </div>
+                      <div className="text-xs opacity-80">
+                        {liveStatus === 'error' 
+                          ? 'Unable to establish real-time connection'
+                          : 'Poor network may affect live updates'
+                        }
+                      </div>
+                    </div>
+                  </Alert>
+                )}
+              </div>
+            )}
 
             {/* Historical Data Options - only show when not in live mode */}
             {!pendingLiveMode && (
@@ -497,16 +615,47 @@ export const TimeRangeSelector: React.FC<{
 
                   {/* CUSTOM DATE PICKER - only show for Custom preset */}
                   {rangeIdx === timeRangePresets.length - 1 && (
-                    <div className="mt-4">
-                      <DateRangePicker
-                        aria-label="Custom range"
-                        showMonthAndYearPickers
-                        value={{
-                          start: toCal(pendingTimeRange.start),
-                          end: toCal(pendingTimeRange.end),
-                        }}
-                        onChange={handleCustomDateChange}
-                      />
+                    <div className="mt-4 space-y-4">
+                      <div>
+                        <label className="text-xs font-medium text-default-600 mb-2 block">
+                          Date Range
+                        </label>
+                        <DateRangePicker
+                          aria-label="Custom range"
+                          showMonthAndYearPickers
+                          value={{
+                            start: toCal(pendingTimeRange.start),
+                            end: toCal(pendingTimeRange.end),
+                          }}
+                          onChange={handleCustomDateChange}
+                        />
+                      </div>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs font-medium text-default-600 mb-2 block">
+                            Start Time
+                          </label>
+                          <TimeInput
+                            aria-label="Start time"
+                            value={pendingStartTime}
+                            onChange={handleStartTimeChange}
+                            size="sm"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="text-xs font-medium text-default-600 mb-2 block">
+                            End Time
+                          </label>
+                          <TimeInput
+                            aria-label="End time"
+                            value={pendingEndTime}
+                            onChange={handleEndTimeChange}
+                            size="sm"
+                          />
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>

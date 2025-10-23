@@ -55,27 +55,29 @@ import {
   toggleSensorStar,
   updateSensorDisplayName,
 } from "../store/sensorsSlice";
+
+import { validateTimeRange, TimeRangeValidationResult } from "../utils/timeRangeValidator";
+// import { TimeRangeAlert } from "../components/analytics/TimeRangeAlert"; // Removed - backend handles optimization
 import {
-  fetchTelemetry,
+  fetchOptimizedTelemetry,
   selectTelemetryData,
   selectTelemetryLoading,
   setTimeRange,
   selectLiveSensors,
   selectMaxLiveReadings,
+  selectIsCompareMode,
+  setCompareMode,
 } from "../store/telemetrySlice";
+import { createOptimizedTelemetryRequest } from "../utils/optimizationUtils";
 import { selectIsLiveMode, selectIsConnecting, toggleLiveMode } from "../store/liveDataSlice";
 import { useDebouncedSensorSelection } from "../hooks/useDebouncedSensorSelection";
-import { useOptimizedDataFetch } from "../hooks/useOptimizedDataFetch";
 import { useLiveDataReadiness } from "../hooks/useLiveDataReadiness";
 import { useLiveModeTransition } from "../hooks/useLiveModeTransition";
 import { useCompareSelection } from "../hooks/useCompareSelection";
 import { ChartConfig, FilterState, MultiSeriesConfig, SensorStatus, SensorType } from "../types/sensor";
 import { sortSensorsByBattery } from "../utils/battery"; // Import battery sorting utility
-
-// ⚠️ TEMPORARY DEBUG IMPORTS - REMOVE WHEN DEBUG UI IS NO LONGER NEEDED
-import { ChartPerformanceDebugUI } from "../components/debug/ChartPerformanceDebugUI";
-import { useChartDebugUI } from "../hooks/useChartDebugUI";
-import { useTelemetryLOD } from "../hooks/useTelemetryLOD";
+import ExportConfirmationModal from "../components/ExportConfirmationModal";
+import TelemetryService, { EstimateExportResponse } from "../api/telemetry.service";
 
 type RangeValue<T> = { start: T | null; end: T | null };
 
@@ -179,6 +181,8 @@ export const AnalyticsPage: React.FC = () => {
   const isLoadingData = useSelector(selectTelemetryLoading);
   const sensors = useSelector(selectSensors);
   const loading = useSelector(selectSensorsLoading);
+
+
   const selectedSensorData = useSelector(selectSelectedSensor);
   const pagination = useSelector(selectSensorPagination);
   const gateways = useSelector(selectGateways);
@@ -188,6 +192,7 @@ export const AnalyticsPage: React.FC = () => {
   const isConnecting = useSelector(selectIsConnecting);
   const liveSensors = useSelector(selectLiveSensors);
   const maxLiveReadings = useSelector(selectMaxLiveReadings);
+  const isCompareMode = useSelector(selectIsCompareMode);
 
   // Organization status selectors
   const activeOrgStatus = useSelector((state: RootState) => state.activeOrg?.status);
@@ -198,10 +203,6 @@ export const AnalyticsPage: React.FC = () => {
 
   // ⚠️ TEMPORARY DEBUG UI HOOKS - REMOVE WHEN NO LONGER NEEDED
   const [actualChartData, setActualChartData] = React.useState<Array<{ timestamp: number; value: number; }>>([]);
-  const debugUI = useChartDebugUI();
-  const lodSystem = useTelemetryLOD();
-
-  // DEBUG: Log when sensors or stats change (reduced frequency)
   React.useEffect(() => {
     if (Math.random() < 0.02) {
       // Log only 2% of the time
@@ -225,28 +226,40 @@ export const AnalyticsPage: React.FC = () => {
 
       // Then trigger telemetry data fetch with the new time range
       if (selectedSensor) {
-        dispatch(
-          fetchTelemetry({
-            sensorIds: [selectedSensor],
-            timeRange: {
-              start: toISO(pendingFilters.timeRange.start),
-              end: toISO(pendingFilters.timeRange.end),
-            },
-          })
-        );
+        const request = createOptimizedTelemetryRequest({
+          sensorIds: [selectedSensor],
+          timeRange: {
+            start: pendingFilters.timeRange.start.toISOString(),
+            end: pendingFilters.timeRange.end.toISOString()
+          },
+          context: {
+            page: isSoloMode ? 'solo-view' : 'analytics',
+            chartType: isSoloMode ? 'line-chart' : 'line-chart',
+            isComparison: false // Single sensor mode
+          },
+          liveMode: isLiveMode ? { enabled: true, maxReadings: maxLiveReadings } : undefined
+        });
+        
+        dispatch(fetchOptimizedTelemetry(request));
       }
 
       // Also fetch data for comparison sensors if in compare mode
       if (selectedSensorIds.length > 0) {
-        dispatch(
-          fetchTelemetry({
-            sensorIds: selectedSensorIds,
-            timeRange: {
-              start: toISO(pendingFilters.timeRange.start),
-              end: toISO(pendingFilters.timeRange.end),
-            },
-          })
-        );
+        const request = createOptimizedTelemetryRequest({
+          sensorIds: selectedSensorIds,
+          timeRange: {
+            start: pendingFilters.timeRange.start.toISOString(),
+            end: pendingFilters.timeRange.end.toISOString()
+          },
+          context: {
+            page: 'analytics',
+            chartType: 'comparison',
+            isComparison: true // Comparison mode
+          },
+          liveMode: isLiveMode ? { enabled: true, maxReadings: maxLiveReadings } : undefined
+        });
+        
+        dispatch(fetchOptimizedTelemetry(request));
       }
 
       // Clear pending filters and close drawer
@@ -255,33 +268,46 @@ export const AnalyticsPage: React.FC = () => {
     }
   };
 
-  // Use optimized data fetching hook
-  const { fetchData: fetchOptimizedData, cancelPendingRequests } = useOptimizedDataFetch();
-
   // Add live mode transition detection for automatic data refresh
   useLiveModeTransition(
     // onLiveToOffline - refresh data when switching to offline mode
     () => {
       if (selectedSensor) {
         // Force re-fetch data with current time range when switching to offline
-        fetchOptimizedData({
+        const request = createOptimizedTelemetryRequest({
           sensorIds: [selectedSensor],
           timeRange: {
-            start: toISO(filters.timeRange.start),
-            end: toISO(filters.timeRange.end),
+            start: filters.timeRange.start.toISOString(),
+            end: filters.timeRange.end.toISOString()
           },
-        }, true); // Force immediate execution
+          context: {
+            page: isSoloMode ? 'solo-view' : 'analytics',
+            chartType: isSoloMode ? 'line-chart' : 'line-chart',
+            isComparison: false // Single sensor mode
+          },
+          liveMode: isLiveMode ? { enabled: true, maxReadings: maxLiveReadings } : undefined
+        });
+        
+        dispatch(fetchOptimizedTelemetry(request));
       }
       
       // Also refresh comparison data if active
       if (selectedSensorIds.length > 0) {
-        fetchOptimizedData({
+        const request = createOptimizedTelemetryRequest({
           sensorIds: selectedSensorIds,
           timeRange: {
-            start: toISO(filters.timeRange.start),
-            end: toISO(filters.timeRange.end),
+            start: filters.timeRange.start.toISOString(),
+            end: filters.timeRange.end.toISOString()
           },
-        }, true);
+          context: {
+            page: 'analytics',
+            chartType: 'comparison',
+            isComparison: true // Comparison mode
+          },
+          liveMode: isLiveMode ? { enabled: true, maxReadings: maxLiveReadings } : undefined
+        });
+        
+        dispatch(fetchOptimizedTelemetry(request));
       }
     },
     // onOfflineToLive - let live connection handle data when switching to live
@@ -308,8 +334,11 @@ export const AnalyticsPage: React.FC = () => {
   // Add state for selected sensor
   const [selectedSensor, setSelectedSensor] = React.useState<string | null>(null);
 
-  // Add state for compare mode
-  const [isCompareMode, setIsCompareMode] = React.useState(false);
+
+
+  // Time range validation state - removed since backend handles optimization
+  // const [timeRangeValidation, setTimeRangeValidation] = React.useState<TimeRangeValidationResult | null>(null);
+  // const [showTimeRangeAlert, setShowTimeRangeAlert] = React.useState(false);
 
   // Add live data readiness hook to prevent flickering
   // Detect if we're filtering for offline sensors
@@ -336,6 +365,35 @@ export const AnalyticsPage: React.FC = () => {
 
   // Track if this is the initial load for the current sensor to prevent duplicate fetches
   const initialLoadRef = React.useRef<string | null>(null);
+
+  // Time range validation effect - removed blocking for > 30 days since backend now handles optimization
+  // React.useEffect(() => {
+  //   const validation = validateTimeRange(filters.timeRange.start, filters.timeRange.end);
+  //   setTimeRangeValidation(validation);
+  //   setShowTimeRangeAlert(validation.severity === 'error'); // Only show for 30+ day ranges
+  //   
+  //   
+  //   // Block data fetching if range is invalid (> 30 days)
+  //   if (!validation.isValid) {
+  //     return;
+  //   }
+  // }, [filters.timeRange.start, filters.timeRange.end]);
+
+  // Handle time range adjustment from alert - removed since backend handles optimization
+  // const handleTimeRangeAdjust = React.useCallback((suggestedEndDate: Date) => {
+  //   
+  //   dispatch(setFilters({
+  //     ...filters,
+  //     timeRange: {
+  //       ...filters.timeRange,
+  //       end: suggestedEndDate
+  //     }
+  //   }));
+  //   
+  //   setShowTimeRangeAlert(false);
+  // }, [dispatch, filters]);
+
+
 
   // Comprehensive state tracking effect (with proper dependencies to avoid render loop)
   React.useEffect(() => {
@@ -414,6 +472,9 @@ export const AnalyticsPage: React.FC = () => {
   ]);
 
   const syncTimeRange = (range: { start: Date; end: Date }) => {
+
+    
+    // Only update the Redux state - let useCompareSelection handle API calls in comparison mode
     dispatch(setFilters({ ...filters, timeRange: range })); // sensors slice
     dispatch(setTimeRange(range)); // telemetry slice
   };
@@ -548,7 +609,7 @@ export const AnalyticsPage: React.FC = () => {
       list = sortSensorsByBattery(list);
     }
 
-    return list;
+    return [...list]; // Duplicate list for testing large datasets
   }, [mappedSensors, filters]);
 
   const [isCompareExpanded, setIsCompareExpanded] = React.useState(false);
@@ -635,6 +696,33 @@ export const AnalyticsPage: React.FC = () => {
   // Add a ref to track the most recent time range request
   const lastTimeRangeRequestRef = React.useRef<string>("");
   const [hasInitialLoadCompleted, setHasInitialLoadCompleted] = React.useState(false);
+  
+  // Export modal state variables
+  const [isExportModalOpen, setIsExportModalOpen] = React.useState(false);
+  const [exportEstimation, setExportEstimation] = React.useState<EstimateExportResponse | null>(null);
+  const [exportStatus, setExportStatus] = React.useState<'estimating' | 'confirming' | 'downloading' | 'completed' | 'error' | 'cancelled'>('estimating');
+  const [exportError, setExportError] = React.useState<string | null>(null);
+  const [isExportLoading, setIsExportLoading] = React.useState(false);
+  const [exportProgress, setExportProgress] = React.useState(0);
+  const [downloadedBytes, setDownloadedBytes] = React.useState(0);
+  const [totalBytes, setTotalBytes] = React.useState(0);
+  const [exportAbortController, setExportAbortController] = React.useState<AbortController | null>(null);
+
+  // Helper function to parse estimated duration string to milliseconds
+  const parseEstimatedDuration = (duration: string): number => {
+    const match = duration.match(/(\d+)([smh])/);
+    if (!match) return 30000; // Default 30 seconds
+    
+    const value = parseInt(match[1]);
+    const unit = match[2];
+    
+    switch (unit) {
+      case 's': return value * 1000;
+      case 'm': return value * 60 * 1000;
+      case 'h': return value * 60 * 60 * 1000;
+      default: return 30000;
+    }
+  };
 
   // Mark initial load as completed
   React.useEffect(() => {
@@ -644,111 +732,89 @@ export const AnalyticsPage: React.FC = () => {
     }
   }, [hasInitialLoadCompleted]);
 
-  // Optimized telemetry fetching - always fetch API data, but control display
+  // Optimized telemetry fetching - always fetch API data when sensor is selected
   React.useEffect(() => {
-
-    if (!selectedSensor) {
-
+    if (!selectedSensor || isCompareMode) {
+      // Don't fetch single sensor data in comparison mode
       return;
     }
 
-    // Create a request ID based on current parameters
-    const currentRequest = `${selectedSensor}-${timeRangeKey}`;
+
+
+    // Create a request ID that includes comparison mode context to prevent stale data
+    // This ensures refetch when switching between single/comparison modes
+    const currentRequest = `${selectedSensor}-${timeRangeKey}-${isCompareMode ? 'compare' : 'single'}`;
 
     // Don't make duplicate requests
     if (lastTimeRangeRequestRef.current === currentRequest) {
-
-      return;
-    }
-
-    // On initial load, give live connection a chance to start before fetching data
-    // This prevents fetching full historical data when live mode will be enabled
-    const isInitialLoad = lastTimeRangeRequestRef.current === "";
-    if (isInitialLoad && !isLiveMode && !isConnecting) {
-
-      // Give live connection 500ms to start, then retry this effect
-      setTimeout(() => {
-
-        // Trigger the effect again by updating a dummy state or using a different approach
-        // Since we can't directly trigger the effect, we'll just proceed with the fetch
-        // The live connection should have started by now
-      }, 500);
       return;
     }
 
     // Always update the request ref to prevent duplicate attempts
     lastTimeRangeRequestRef.current = currentRequest;
 
-    // Check if we should fetch API data based on live data readiness
-    if (!liveDataReadiness.shouldFetchApiData) {
+    // Use the selected time range - always respect user's filter choice
+    const timeRangeToUse = {
+      start: new Date(filters.timeRange.start),
+      end: new Date(filters.timeRange.end),
+    };
 
-      return;
+    
+    // Only extend end time to end-of-day if user selected midnight (00:00:00)
+    // This preserves precise time selections while still handling date-only picks
+    const endTime = new Date(filters.timeRange.end);
+    const isEndOfDaySelection = endTime.getHours() === 0 && endTime.getMinutes() === 0 && endTime.getSeconds() === 0;
+    
+    if (isEndOfDaySelection) {
+      timeRangeToUse.end.setHours(23, 59, 59, 999);
     }
 
-    // Determine if we should fetch limited data or full time range
-    const isLiveModeOrConnecting = isLiveMode || isConnecting;
-    let timeRangeToUse;
-
-    if (isInitialLoad) {
-      // For initial load, use the selected time range - respecting user's filter choice
-      timeRangeToUse = {
-        start: new Date(filters.timeRange.start),
-        end: new Date(filters.timeRange.end),
-      };
-      timeRangeToUse.end.setHours(23, 59, 59, 999);
-
-    } else if (isLiveModeOrConnecting) {
-      // For live mode, use the selected time range - respecting user's filter choice
-      timeRangeToUse = {
-        start: new Date(filters.timeRange.start),
-        end: new Date(filters.timeRange.end),
-      };
-      timeRangeToUse.end.setHours(23, 59, 59, 999);
-
-    } else {
-      // For normal mode, use the full selected time range
-      timeRangeToUse = {
-        start: new Date(filters.timeRange.start),
-        end: new Date(filters.timeRange.end),
-      };
-      timeRangeToUse.end.setHours(23, 59, 59, 999);
-
-    }
-
-    fetchOptimizedData({
+    const request = createOptimizedTelemetryRequest({
       sensorIds: [selectedSensor],
       timeRange: {
-        start: toISO(timeRangeToUse.start),
-        end: toISO(timeRangeToUse.end),
+        start: timeRangeToUse.start.toISOString(),
+        end: timeRangeToUse.end.toISOString()
       },
+      context: {
+        page: isSoloMode ? 'solo-view' : 'analytics',
+        chartType: isSoloMode ? 'line-chart' : 'line-chart',
+        isComparison: false // Single sensor mode is never comparison
+      },
+      liveMode: isLiveMode ? { enabled: true, maxReadings: maxLiveReadings } : undefined
     });
 
-  }, [selectedSensor, timeRangeKey, isOfflineSensorFilter, isLiveMode, isConnecting, hasInitialLoadCompleted]);
+    dispatch(fetchOptimizedTelemetry(request));
+
+  }, [selectedSensor, timeRangeKey, isLiveMode, filters.timeRange, dispatch, isSoloMode, maxLiveReadings, isCompareMode]);
 
   const sameRange = (a: { start: Date; end: Date }, b: { start: Date; end: Date }) =>
     new Date(a.start).getTime() === new Date(b.start).getTime() &&
     new Date(a.end).getTime() === new Date(b.end).getTime();
 
   // Fetch data for comparison sensors with optimization
+  // NOTE: This is now handled by useCompareSelection hook to prevent duplicate API calls
   React.useEffect(() => {
-    if (selectedSensorIds.length > 0) {
-      fetchOptimizedData({
+    if (selectedSensorIds.length > 0 && !isCompareMode) {
+
+      
+      // Only fetch here if NOT in compare mode (compare mode uses useCompareSelection hook)
+      const request = createOptimizedTelemetryRequest({
         sensorIds: selectedSensorIds,
         timeRange: {
-          start: toISO(filters.timeRange.start),
-          end: toISO(filters.timeRange.end),
+          start: filters.timeRange.start.toISOString(),
+          end: filters.timeRange.end.toISOString()
         },
+        context: {
+          page: 'analytics',
+          chartType: 'comparison',
+          isComparison: false // Not comparison mode here
+        },
+        liveMode: isLiveMode ? { enabled: true, maxReadings: maxLiveReadings } : undefined
       });
+      
+      dispatch(fetchOptimizedTelemetry(request));
     }
-  }, [selectedSensorIds, filters.timeRange]); // Remove fetchOptimizedData to prevent unnecessary re-renders
-
-  // Add cleanup effect
-  React.useEffect(() => {
-    return () => {
-      // Cancel any pending requests when component unmounts
-      cancelPendingRequests();
-    };
-  }, [cancelPendingRequests]);
+  }, [selectedSensorIds, filters.timeRange, isLiveMode, maxLiveReadings, dispatch, isCompareMode]); // Added isCompareMode dependency
 
   const handleSensorSelect = (id: string) => {
 
@@ -803,28 +869,40 @@ export const AnalyticsPage: React.FC = () => {
 
       // 3. Force-fetch data with the new time range
       if (selectedSensor) {
-        dispatch(
-          fetchTelemetry({
-            sensorIds: [selectedSensor],
-            timeRange: {
-              start: toISO(timeRange.start),
-              end: toISO(timeRange.end),
-            },
-          })
-        );
+        const request = createOptimizedTelemetryRequest({
+          sensorIds: [selectedSensor],
+          timeRange: {
+            start: timeRange.start.toISOString(),
+            end: timeRange.end.toISOString()
+          },
+          context: {
+            page: isSoloMode ? 'solo-view' : 'analytics',
+            chartType: isSoloMode ? 'line-chart' : 'line-chart',
+            isComparison: false // Single sensor mode
+          },
+          liveMode: isLiveMode ? { enabled: true, maxReadings: maxLiveReadings } : undefined
+        });
+        
+        dispatch(fetchOptimizedTelemetry(request));
       }
 
       // Also fetch for comparison mode
       if (selectedSensorIds.length > 0) {
-        dispatch(
-          fetchTelemetry({
-            sensorIds: selectedSensorIds,
-            timeRange: {
-              start: toISO(timeRange.start),
-              end: toISO(timeRange.end),
-            },
-          })
-        );
+        const request = createOptimizedTelemetryRequest({
+          sensorIds: selectedSensorIds,
+          timeRange: {
+            start: timeRange.start.toISOString(),
+            end: timeRange.end.toISOString()
+          },
+          context: {
+            page: 'analytics',
+            chartType: 'comparison',
+            isComparison: true // Comparison mode
+          },
+          liveMode: isLiveMode ? { enabled: true, maxReadings: maxLiveReadings } : undefined
+        });
+        
+        dispatch(fetchOptimizedTelemetry(request));
       }
     }
   };
@@ -904,7 +982,7 @@ export const AnalyticsPage: React.FC = () => {
     // If removing the last sensor, exit compare mode
     if (selectedSensorIds.length <= 1) {
       setIsCompareExpanded(false);
-      setIsCompareMode(false);
+      dispatch(setCompareMode(false));
     }
   };
 
@@ -912,7 +990,7 @@ export const AnalyticsPage: React.FC = () => {
     // Directly dispatch the clearSelectedSensorIds action
     dispatch(clearSelectedSensorIds());
     setIsCompareExpanded(false);
-    setIsCompareMode(false);
+    dispatch(setCompareMode(false));
   };
 
   const handleBrushChange = (start: Date, end: Date) => {
@@ -924,28 +1002,109 @@ export const AnalyticsPage: React.FC = () => {
     );
   };
 
-  const handleDownloadCSV = () => {
+  const handleDownloadCSV = async () => {
     try {
-      if (!chartConfig || !chartConfig.series) {
+      // Check if we have a sensor selected
+      if (!selectedSensor) {
         addToast({
           title: "Download Failed",
-          description: "No data available to download",
+          description: "Please select a sensor to download data",
         });
         return;
       }
 
-      let csvContent = "Timestamp,Value\n";
+      // Get the selected sensor data for MAC address
+      const currentSensorData = sensors.find((s) => s._id === selectedSensor);
+      if (!currentSensorData?.mac) {
+        addToast({
+          title: "Download Failed", 
+          description: "Sensor MAC address not available",
+        });
+        return;
+      }
 
-      chartConfig.series.forEach((dataPoint) => {
-        const timestamp = new Date(dataPoint.timestamp).toISOString();
-        csvContent += `${timestamp},${dataPoint.value}\n`;
+      // Prepare export request parameters
+      const sensorIds = [currentSensorData.mac];
+      const timeRange = {
+        start: filters.timeRange.start.toISOString(),
+        end: filters.timeRange.end.toISOString(),
+      };
+
+      // Reset modal state and open it
+      setExportEstimation(null);
+      setExportError(null);
+      setExportStatus('estimating');
+      setIsExportModalOpen(true);
+
+      // Get export estimation
+      const estimationResponse = await TelemetryService.estimateExport({
+        sensorIds,
+        timeRange,
       });
 
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      if (estimationResponse.success) {
+        setExportEstimation(estimationResponse);
+        setExportStatus('confirming');
+      } else {
+        throw new Error(estimationResponse.error || 'Failed to estimate export size');
+      }
+
+    } catch (error) {
+      console.error('Export estimation failed:', error);
+      setExportError(error instanceof Error ? error.message : 'Failed to estimate export');
+      setExportStatus('error');
+    }
+  };
+
+  const handleConfirmExport = async () => {
+    if (!selectedSensor || !exportEstimation) return;
+
+    // Create abort controller for cancellation
+    const abortController = new AbortController();
+    setExportAbortController(abortController);
+
+    try {
+      setIsExportLoading(true);
+      setExportStatus('downloading');
+
       const currentSensorData = sensors.find((s) => s._id === selectedSensor);
-      const filename = currentSensorData
-        ? `${currentSensorData.displayName || currentSensorData.mac}_data.csv`
-        : `sensor_data_${new Date().toISOString().split("T")[0]}.csv`;
+      const sensorIds = [currentSensorData!.mac];
+      const timeRange = {
+        start: filters.timeRange.start.toISOString(),
+        end: filters.timeRange.end.toISOString(),
+      };
+
+      // Generate filename
+      const filename = currentSensorData?.displayName 
+        ? `${currentSensorData.displayName}_data.csv`
+        : `${currentSensorData?.mac}_data.csv`;
+
+      // Reset progress tracking
+      setExportProgress(0);
+      setDownloadedBytes(0);
+      setTotalBytes(0);
+
+      // Convert estimated duration to milliseconds
+      const estimatedDurationMs = parseEstimatedDuration(exportEstimation.data.estimatedDuration);
+
+      // Stream export with real progress tracking
+      const blob = await TelemetryService.streamExport({
+        sensorIds,
+        timeRange,
+        format: 'csv',
+        filename,
+        batchSize: exportEstimation.data.recommendedBatchSize,
+        maxRecords: 500000, // Safety limit
+        includeMetadata: false,
+      }, (progress, loaded, total) => {
+        // Update real progress
+        console.log('📊 Analytics progress callback:', { progress, loaded, total });
+        setExportProgress(progress);
+        setDownloadedBytes(loaded);
+        if (total) {
+          setTotalBytes(total);
+        }
+      }, exportEstimation.data.estimatedSizeKB, estimatedDurationMs, abortController.signal);
 
       // Create download link
       const url = URL.createObjectURL(blob);
@@ -958,16 +1117,46 @@ export const AnalyticsPage: React.FC = () => {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
+      setExportStatus('completed');
+      
       addToast({
         title: "CSV Downloaded",
-        description: "Sensor data has been downloaded as CSV",
+        description: `${exportEstimation.data.totalRecords.toLocaleString()} records downloaded successfully`,
       });
-    } catch (error) {
 
-      addToast({
-        title: "Download Failed",
-        description: "Failed to download CSV data",
-      });
+    } catch (error) {
+      console.error('Export failed:', error);
+      if (error instanceof Error && error.name === 'CanceledError') {
+        setExportStatus('cancelled');
+      } else {
+        setExportError(error instanceof Error ? error.message : 'Export failed');
+        setExportStatus('error');
+      }
+    } finally {
+      setIsExportLoading(false);
+      setExportAbortController(null);
+    }
+  };
+
+  const handleCancelExport = () => {
+    if (exportAbortController) {
+      exportAbortController.abort();
+      console.log('🚫 Export cancelled by user');
+    }
+  };
+
+  const handleCloseExportModal = () => {
+    // Only allow closing if not currently downloading
+    if (exportStatus !== 'downloading') {
+      setIsExportModalOpen(false);
+      setExportEstimation(null);
+      setExportError(null);
+      setExportStatus('estimating');
+      setIsExportLoading(false);
+      setExportProgress(0);
+      setDownloadedBytes(0);
+      setTotalBytes(0);
+      setExportAbortController(null);
     }
   };
 
@@ -1004,8 +1193,9 @@ export const AnalyticsPage: React.FC = () => {
 
   // Add handler for toggling compare mode
   const toggleCompareMode = () => {
-    setIsCompareMode(!isCompareMode);
-    if (!isCompareMode) {
+    const newCompareMode = !isCompareMode;
+    dispatch(setCompareMode(newCompareMode));
+    if (newCompareMode) {
       // When entering compare mode, clear any existing selection
       dispatch(clearSelectedSensorIds());
     }
@@ -1085,12 +1275,26 @@ export const AnalyticsPage: React.FC = () => {
     liveDataReadiness.shouldShowLoading, // Track loading state changes
   ]);
 
+
+
   // Prepare multi-series chart config for comparison
   const multiSeriesConfig: MultiSeriesConfig | null = React.useMemo(() => {
+    console.log('[DEBUG] multiSeriesConfig calculation:', {
+      telemetryDataKeys: Object.keys(telemetryData),
+      selectedSensorIds,
+      telemetryDataEntries: Object.entries(telemetryData).map(([key, value]) => ({
+        key,
+        hasData: !!value,
+        seriesLength: value?.series?.length || 0
+      }))
+    });
+
     if (Object.keys(telemetryData).length === 0 || selectedSensorIds.length === 0) return null;
 
     // Find sensors with available telemetry data
     const availableSensors = selectedSensorIds.filter((id) => telemetryData[id]);
+
+    console.log('[DEBUG] availableSensors:', availableSensors);
 
     if (availableSensors.length === 0) return null;
 
@@ -1168,8 +1372,6 @@ export const AnalyticsPage: React.FC = () => {
       
       if (!isCurrentSensorInFilteredList) {
         // Current sensor doesn't match the filter (e.g., online sensor but offline filter)
-        // Log this for debugging
-        console.log(`📍 Sensor ${selectedSensor} from URL doesn't match current filter (${filters.status}), but keeping it visible`);
         // Note: We don't redirect or clear - we let currentSensor memo handle showing it
       }
     }
@@ -1226,19 +1428,8 @@ export const AnalyticsPage: React.FC = () => {
           : "h-screen overflow-auto" // Normal desktop behavior
       }`}
     >
-      {/* Mobile-first responsive structure */}
-      {chartConfig && (
-        <div className="w-full">
-          <ChartPerformanceDebugUI
-            config={chartConfig}
-            actualDisplayedData={actualChartData}
-            lodSystem={lodSystem}
-            isVisible={debugUI.isDebugVisible}
-            onToggle={debugUI.toggleDebugUI}
-          />
-        </div>
-      )}
-
+      {/* Time Range Validation Modal - Removed since backend now handles optimization */}
+      
       {/* Header Section - Mobile First Design */}
       <div className={`shrink-0 border-b border-divider bg-content1`}>
         {/* Mobile: Ultra-compact header */}
@@ -1395,8 +1586,8 @@ export const AnalyticsPage: React.FC = () => {
       {/* Main Content Area - Mobile First Responsive Layout */}
       <div className="flex flex-1 overflow-hidden">
         {!isSoloMode && !isMobile && (
-          <div className="w-80 border-r border-divider flex flex-col">
-            <div className="p-3 border-b border-divider flex justify-between items-center">
+          <div className="w-80 border-r border-divider flex flex-col h-full">
+            <div className="p-3 border-b border-divider flex justify-between items-center shrink-0">
               {/* <h3 className="text-sm font-medium">My Sensors</h3> */}
               <FilterBar filters={filters} onFiltersChange={handleFiltersChange} isMobile={false} />
               {!isLiveMode && (
@@ -1431,7 +1622,7 @@ export const AnalyticsPage: React.FC = () => {
               shouldShowComparison={shouldShowComparison} // Pass comparison check
             />
             {pagination.page < pagination.totalPages && (
-              <div className="p-2 border-t border-divider">
+              <div className="p-2 border-t border-divider shrink-0">
                 <Button
                   fullWidth
                   variant="flat"
@@ -1558,6 +1749,10 @@ export const AnalyticsPage: React.FC = () => {
                           isLoading={isCompareLoading}
                           onDownloadCSV={handleDownloadCSV}
                           onRemoveSensor={removeSensorFromComparison}
+                          timeRange={filters.timeRange}
+                          onTimeRangeChange={syncTimeRange}
+                          isLiveMode={isLiveMode}
+                          onLiveModeChange={syncLiveMode}
                         />
                       </div>
                     ) : (
@@ -1611,7 +1806,7 @@ export const AnalyticsPage: React.FC = () => {
                           isMobile && isSwipingToGauge ? "transform -translate-x-full" : ""
                         }`}
                       >
-                        <ChartContainer
+<ChartContainer
                           config={chartConfig}
                           onBrushChange={handleBrushChange}
                           onDownloadCSV={handleDownloadCSV}
@@ -2057,6 +2252,25 @@ export const AnalyticsPage: React.FC = () => {
           dispatch(fetchSensorStats());
         }}
         gateways={gateways ?? []}
+      />
+
+      <ExportConfirmationModal
+        isOpen={isExportModalOpen}
+        onClose={handleCloseExportModal}
+        onConfirm={handleConfirmExport}
+        onCancel={handleCancelExport}
+        estimation={exportEstimation}
+        isLoading={isExportLoading}
+        exportStatus={exportStatus}
+        error={exportError}
+        selectedSensors={selectedSensor ? [sensors.find(s => s._id === selectedSensor)?.mac || ''] : []}
+        timeRange={{
+          start: filters.timeRange.start.toISOString(),
+          end: filters.timeRange.end.toISOString(),
+        }}
+        progress={exportProgress}
+        downloadedBytes={downloadedBytes}
+        totalBytes={totalBytes}
       />
     </div>
   );

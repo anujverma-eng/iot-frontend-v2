@@ -26,7 +26,7 @@ import {
   selectSelectedSensorIds,
 } from "../store/sensorsSlice";
 import {
-  fetchTelemetry,
+  fetchOptimizedTelemetry,
   selectTelemetryData,
   selectTelemetryLoading,
   selectTimeRange,
@@ -34,6 +34,7 @@ import {
   selectMaxLiveReadings,
   clearTelemetry,
 } from "../store/telemetrySlice";
+import { createOptimizedTelemetryRequest } from "../utils/optimizationUtils";
 import { 
   selectIsLiveMode,
   selectIsConnecting,
@@ -182,13 +183,20 @@ export const DashboardHome: React.FC = () => {
         };
         
         // Force re-fetch data with current time range when switching to offline
-        dispatch(fetchTelemetry({
+        const request = createOptimizedTelemetryRequest({
           sensorIds: [selectedSensor],
           timeRange: {
             start: currentTimeRange.start.toISOString(),
-            end: currentTimeRange.end.toISOString(),
+            end: currentTimeRange.end.toISOString()
           },
-        }) as any);
+          context: {
+            page: 'dashboard',
+            chartType: 'dashboard-card'
+          },
+          liveMode: false ? { enabled: true, maxReadings: maxLiveReadings } : undefined
+        });
+        
+        dispatch(fetchOptimizedTelemetry(request) as any);
       }
     },
     // onOfflineToLive - no action needed since Redux manages state
@@ -307,15 +315,24 @@ export const DashboardHome: React.FC = () => {
       timeRangeToUse = currentTimeRange;
     }
 
-    dispatch(
-      fetchTelemetry({
-        sensorIds: [selectedSensor],
-        timeRange: {
-          start: timeRangeToUse.start.toISOString(),
-          end: timeRangeToUse.end.toISOString(),
-        },
-      }) as any
-    );
+    // Create optimized request for dashboard chart
+    const optimizedRequest = createOptimizedTelemetryRequest({
+      sensorIds: [selectedSensor],
+      timeRange: {
+        start: timeRangeToUse.start.toISOString(),
+        end: timeRangeToUse.end.toISOString(),
+      },
+      context: {
+        page: 'dashboard',
+        chartType: 'dashboard-card'
+      },
+      liveMode: {
+        enabled: isLiveMode,
+        maxReadings: maxLiveReadings
+      }
+    });
+
+    dispatch(fetchOptimizedTelemetry(optimizedRequest) as any);
 
     // Note: requestInProgressRef.current will be reset when telemetry loading completes
     // via the telemetry data change effect above
@@ -333,13 +350,20 @@ export const DashboardHome: React.FC = () => {
     
     // Fetch new data when time range changes in offline mode
     if (!isLiveMode && selectedSensor) {
-      dispatch(fetchTelemetry({
+      const request = createOptimizedTelemetryRequest({
         sensorIds: [selectedSensor],
         timeRange: {
           start: newTimeRange.start.toISOString(),
-          end: newTimeRange.end.toISOString(),
+          end: newTimeRange.end.toISOString()
         },
-      }) as any);
+        context: {
+          page: 'dashboard',
+          chartType: 'dashboard-card'
+        },
+        liveMode: false ? { enabled: true, maxReadings: maxLiveReadings } : undefined
+      });
+      
+      dispatch(fetchOptimizedTelemetry(request) as any);
     }
   };
 

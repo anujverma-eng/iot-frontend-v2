@@ -241,30 +241,58 @@ export const AnomalyDetectionChart: React.FC<AnomalyDetectionChartProps> = ({
                 </Scatter>
 
                 {/* Add brush for interactive time selection - disabled in live mode */}
-                {!isLiveMode && (
+                {!isLiveMode && anomalyData.dataWithZScores && anomalyData.dataWithZScores.length > 2 && (
                   <Brush 
                     dataKey="timestamp" 
                     height={30}
                     stroke="#ef4444"
                     fill="rgba(239, 68, 68, 0.1)"
                     tickFormatter={(timestamp) => {
-                      const date = new Date(timestamp);
-                      return date.toLocaleDateString("en-US", { 
-                        month: "short", 
-                        day: "numeric" 
-                      });
+                      try {
+                        if (typeof timestamp !== 'number' || isNaN(timestamp) || timestamp <= 0) {
+                          return '';
+                        }
+                        const date = new Date(timestamp);
+                        if (isNaN(date.getTime())) {
+                          return '';
+                        }
+                        return date.toLocaleDateString("en-US", { 
+                          month: "short", 
+                          day: "numeric" 
+                        });
+                      } catch (error) {
+                        return '';
+                      }
                     }}
                     onChange={(brushData) => {
-                      if (brushData?.startIndex !== undefined && brushData?.endIndex !== undefined && anomalyData.dataWithZScores) {
-                        const startTimestamp = anomalyData.dataWithZScores[brushData.startIndex]?.timestamp;
-                        const endTimestamp = anomalyData.dataWithZScores[brushData.endIndex]?.timestamp;
-                        if (startTimestamp && endTimestamp) {
-                          setBrushDomain([startTimestamp, endTimestamp]);
+                      if (brushData?.startIndex !== undefined && 
+                          brushData?.endIndex !== undefined && 
+                          anomalyData.dataWithZScores &&
+                          typeof brushData.startIndex === 'number' &&
+                          typeof brushData.endIndex === 'number' &&
+                          !isNaN(brushData.startIndex) &&
+                          !isNaN(brushData.endIndex) &&
+                          brushData.startIndex >= 0 &&
+                          brushData.endIndex >= 0 &&
+                          brushData.startIndex < anomalyData.dataWithZScores.length &&
+                          brushData.endIndex < anomalyData.dataWithZScores.length) {
+                        
+                        const startPoint = anomalyData.dataWithZScores[brushData.startIndex];
+                        const endPoint = anomalyData.dataWithZScores[brushData.endIndex];
+                        
+                        if (startPoint?.timestamp && endPoint?.timestamp &&
+                            typeof startPoint.timestamp === 'number' &&
+                            typeof endPoint.timestamp === 'number' &&
+                            !isNaN(startPoint.timestamp) &&
+                            !isNaN(endPoint.timestamp)) {
+                          setBrushDomain([startPoint.timestamp, endPoint.timestamp]);
+                        } else {
+                          setBrushDomain(null);
+                        }
+                      } else {
+                        setBrushDomain(null);
                       }
-                    } else {
-                      setBrushDomain(null);
-                    }
-                  }}
+                    }}
                   />
                 )}
               </ScatterChart>

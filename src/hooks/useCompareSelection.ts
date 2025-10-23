@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch } from '../store';
-import { fetchTelemetry, selectTelemetryLoading } from '../store/telemetrySlice';
-import { addSelectedSensorId, removeSelectedSensorId } from '../store/sensorsSlice';
+import { fetchOptimizedTelemetry, selectTelemetryLoading } from '../store/telemetrySlice';
+import { addSelectedSensorId, removeSelectedSensorId, selectSelectedSensorIds } from '../store/sensorsSlice';
+import { createOptimizedTelemetryRequest } from '../utils/optimizationUtils';
 
 interface CompareSelectionOptions {
   timeRange: {
@@ -22,18 +23,14 @@ export const useCompareSelection = (options: CompareSelectionOptions) => {
   
   const [loadingSensors, setLoadingSensors] = useState<Set<string>>(new Set());
   const [pendingSelections, setPendingSelections] = useState<string[]>([]);
+  const [isTimeRangeLoading, setIsTimeRangeLoading] = useState(false);
   const batchTimeoutRef = useRef<NodeJS.Timeout>();
   const abortControllerRef = useRef<AbortController | null>(null);
+  const timeRangeRef = useRef<string>('');
   
   const { timeRange, maxSensors = 10, minSensorsForFetch = 2 } = options;
 
-  // Clear loading states when telemetry loading completes
-  useEffect(() => {
-    if (!isLoading && pendingSelections.length > 0) {
-      setLoadingSensors(new Set());
-      setPendingSelections([]);
-    }
-  }, [isLoading, pendingSelections.length]);
+  const selectedSensorIds = useSelector(selectSelectedSensorIds);
 
   // Cancel any pending requests
   const cancelPendingRequests = useCallback(() => {
@@ -44,6 +41,61 @@ export const useCompareSelection = (options: CompareSelectionOptions) => {
       abortControllerRef.current.abort();
     }
   }, []);
+
+  // Clear loading states when telemetry loading completes
+  useEffect(() => {
+    if (!isLoading) {
+      setIsTimeRangeLoading(false);
+      // Only clear loading sensors when not loading, but don't clear pendingSelections here
+      // pendingSelections should only be cleared after successful fetch or manual cancellation
+      if (loadingSensors.size > 0) {
+        setLoadingSensors(new Set());
+      }
+    }
+  }, [isLoading, loadingSensors.size]);
+
+  // Handle time range changes for existing sensor selections
+  useEffect(() => {
+    const currentTimeRangeKey = `${timeRange.start}-${timeRange.end}`;
+    
+    // Only trigger on time range change, not initial mount
+    if (timeRangeRef.current && timeRangeRef.current !== currentTimeRangeKey) {
+      // Only fetch if we have enough selected sensors
+      if (selectedSensorIds.length >= minSensorsForFetch) {
+
+        
+        // Cancel any pending requests
+        cancelPendingRequests();
+        
+        // Show loading state for time range change
+        setIsTimeRangeLoading(true);
+        
+        // Create new abort controller
+        abortControllerRef.current = new AbortController();
+        
+        // Fetch with new time range using optimized endpoint
+        setTimeout(() => {
+          const request = createOptimizedTelemetryRequest({
+            sensorIds: selectedSensorIds,
+            timeRange: {
+              start: timeRange.start,
+              end: timeRange.end
+            },
+            context: {
+              page: 'analytics',
+              chartType: 'comparison',
+              isComparison: true
+            },
+            liveMode: undefined // Comparison mode typically doesn't use live mode
+          });
+          
+          dispatch(fetchOptimizedTelemetry(request));
+        }, 100); // Short delay to allow UI to show loading state
+      }
+    }
+    
+    timeRangeRef.current = currentTimeRangeKey;
+  }, [timeRange, selectedSensorIds, minSensorsForFetch, dispatch, cancelPendingRequests]);
 
   const addSensorToComparison = useCallback((sensorId: string) => {
     // Cancel any existing requests first
@@ -66,13 +118,27 @@ export const useCompareSelection = (options: CompareSelectionOptions) => {
           setLoadingSensors(new Set(newPending));
         }, 200); // Increased delay to ensure UI renders selection state first
         
-        // Batch the telemetry fetch with debounce for stability
+        // Batch the optimized telemetry fetch with minimal debounce for immediate feedback
         batchTimeoutRef.current = setTimeout(() => {
-          dispatch(fetchTelemetry({
+          const request = createOptimizedTelemetryRequest({
             sensorIds: newPending,
-            timeRange
-          }));
-        }, 750); // Increased debounce for better UI responsiveness
+            timeRange: {
+              start: timeRange.start,
+              end: timeRange.end
+            },
+            context: {
+              page: 'analytics',
+              chartType: 'comparison',
+              isComparison: true
+            },
+            liveMode: undefined // Comparison mode typically doesn't use live mode
+          });
+          
+          dispatch(fetchOptimizedTelemetry(request));
+          
+          // Clear pending selections after dispatch
+          setPendingSelections([]);
+        }, 100); // Reduced debounce for immediate response while still preventing rapid-fire calls
       }
       
       return newPending;
@@ -108,11 +174,22 @@ export const useCompareSelection = (options: CompareSelectionOptions) => {
         abortControllerRef.current = new AbortController();
         
         batchTimeoutRef.current = setTimeout(() => {
-          dispatch(fetchTelemetry({
+          const request = createOptimizedTelemetryRequest({
             sensorIds: newPending,
-            timeRange
-          }));
-        }, 750);
+            timeRange: {
+              start: timeRange.start,
+              end: timeRange.end
+            },
+            context: {
+              page: 'analytics',
+              chartType: 'comparison',
+              isComparison: true
+            },
+            liveMode: undefined // Comparison mode typically doesn't use live mode
+          });
+          
+          dispatch(fetchOptimizedTelemetry(request));
+        }, 100); // Reduced debounce for immediate response
       } else {
         // Not enough sensors, clear loading states immediately
         setLoadingSensors(new Set());
@@ -147,7 +224,7 @@ export const useCompareSelection = (options: CompareSelectionOptions) => {
     isSensorLoading,
     canAddMoreSensors,
     shouldShowComparison,
-    isGlobalLoading: isLoading,
+    isGlobalLoading: isLoading || isTimeRangeLoading,
     loadingSensorCount: loadingSensors.size,
     minSensorsForFetch
   };

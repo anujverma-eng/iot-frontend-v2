@@ -73,9 +73,8 @@ export const CompareTray: React.FC<CompareTrayProps> = ({
         
         <div className="flex flex-wrap gap-2 max-h-[120px] overflow-y-auto">
           {selectedSensors.map(sensor => (
-            <span className="inline-flex items-center">
+            <span key={sensor._id} className="inline-flex items-center">
               <Badge
-                key={sensor._id}
                 color={getTypeColor(sensor.type)}
                 variant="flat"
                 className="py-1 px-2"

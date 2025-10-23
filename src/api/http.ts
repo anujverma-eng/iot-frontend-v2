@@ -36,14 +36,6 @@ http.interceptors.request.use((cfg) => {
     }
   }
   
-  // Debug logging (guarded by env flag)
-  if (import.meta.env.VITE_DEBUG_ORG_REQUESTS === 'true') {
-    console.log(`[HTTP] ${cfg.method?.toUpperCase()} ${cfg.url}`, {
-      'X-Org-Id': cfg.headers["X-Org-Id"] || 'NOT_SET',
-      'Authorization': cfg.headers.Authorization ? 'PRESENT' : 'MISSING',
-    });
-  }
-  
   return cfg;
 });
 

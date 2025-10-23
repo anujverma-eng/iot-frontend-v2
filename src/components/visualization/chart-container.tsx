@@ -29,6 +29,8 @@ import { GenericChart } from "./generic-chart";
 import { HeatmapChart } from "./heatmap-chart";
 import { LightChart } from "./light-chart";
 import { LineChart } from "./line-chart";
+import TelemetryService, { EstimateExportResponse } from "../../api/telemetry.service";
+import ExportConfirmationModal from "../ExportConfirmationModal";
 import { PressureChart } from "./pressure-chart";
 import { SparkTimelineChart } from "./spark-timeline-chart";
 import { GatewayResolver } from "../../utils/gatewayResolver";
@@ -369,51 +371,184 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
 
   const downloadCSV = async () => {
     try {
-      let csvContent = "";
+      // Check if we have necessary data for export
+      if (!sensor?.mac || !timeRange) {
+        // Fallback to old method for components that don't provide required data
+        let csvContent = "";
 
-      if (isMultiSeries) {
-        const multiConfig = config as MultiSeriesConfig;
-        // Header
-        csvContent = "Timestamp," + multiConfig.series.map((s) => s.name).join(",") + "\n";
+        if (isMultiSeries) {
+          const multiConfig = config as MultiSeriesConfig;
+          // Header
+          csvContent = "Timestamp," + multiConfig.series.map((s) => s.name).join(",") + "\n";
 
-        // Assuming all series have the same timestamps, use first series as reference
-        if (multiConfig.series.length > 0 && multiConfig.series[0].data) {
-          multiConfig.series[0].data.forEach((dataPoint, index) => {
-            const timestamp = new Date(dataPoint.timestamp).toISOString();
-            const values = multiConfig.series
-              .map((s) => (s.data && s.data[index] ? s.data[index].value : ""))
-              .join(",");
-            csvContent += `${timestamp},${values}\n`;
-          });
+          // Assuming all series have the same timestamps, use first series as reference
+          if (multiConfig.series.length > 0 && multiConfig.series[0].data) {
+            multiConfig.series[0].data.forEach((dataPoint, index) => {
+              const timestamp = new Date(dataPoint.timestamp).toISOString();
+              const values = multiConfig.series
+                .map((s) => (s.data && s.data[index] ? s.data[index].value : ""))
+                .join(",");
+              csvContent += `${timestamp},${values}\n`;
+            });
+          }
+        } else {
+          const singleConfig = config as ChartConfig;
+          csvContent = "Timestamp,Value\n";
+
+          if (singleConfig.series && Array.isArray(singleConfig.series)) {
+            singleConfig.series.forEach((dataPoint) => {
+              const timestamp = new Date(dataPoint.timestamp).toISOString();
+              csvContent += `${timestamp},${dataPoint.value}\n`;
+            });
+          }
         }
-      } else {
-        const singleConfig = config as ChartConfig;
-        csvContent = "Timestamp,Value\n";
 
-        if (singleConfig.series && Array.isArray(singleConfig.series)) {
-          singleConfig.series.forEach((dataPoint) => {
-            const timestamp = new Date(dataPoint.timestamp).toISOString();
-            csvContent += `${timestamp},${dataPoint.value}\n`;
-          });
-        }
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const filename = sensor
+          ? `${sensor.displayName || sensor.mac}_data.csv`
+          : `sensor_data_${new Date().toISOString().split("T")[0]}.csv`;
+
+        saveAs(blob, filename);
+
+        addToast({
+          title: "CSV Downloaded",
+          description: "Chart data has been downloaded as CSV",
+        });
+        return;
       }
 
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const filename = sensor
-        ? `${sensor.displayName || sensor.mac}_data.csv`
-        : `sensor_data_${new Date().toISOString().split("T")[0]}.csv`;
+      // Use new export API system
+      const sensorIds = [sensor.mac];
+      const exportTimeRange = {
+        start: timeRange.start.toISOString(),
+        end: timeRange.end.toISOString(),
+      };
 
-      saveAs(blob, filename);
+      // Reset modal state and open it
+      setExportEstimation(null);
+      setExportError(null);
+      setExportStatus('estimating');
+      setIsExportModalOpen(true);
 
+      // Get export estimation
+      const estimationResponse = await TelemetryService.estimateExport({
+        sensorIds,
+        timeRange: exportTimeRange,
+      });
+
+      if (estimationResponse.success) {
+        setExportEstimation(estimationResponse);
+        setExportStatus('confirming');
+      } else {
+        throw new Error(estimationResponse.error || 'Failed to estimate export size');
+      }
+
+    } catch (error) {
+      console.error('Export estimation failed:', error);
+      setExportError(error instanceof Error ? error.message : 'Failed to estimate export');
+      setExportStatus('error');
+    }
+  };
+
+  const handleConfirmExport = async () => {
+    if (!sensor?.mac || !timeRange || !exportEstimation) return;
+
+    // Create abort controller for cancellation
+    const abortController = new AbortController();
+    setExportAbortController(abortController);
+
+    try {
+      setIsExportLoading(true);
+      setExportStatus('downloading');
+
+      const sensorIds = [sensor.mac];
+      const exportTimeRange = {
+        start: timeRange.start.toISOString(),
+        end: timeRange.end.toISOString(),
+      };
+
+      // Generate filename
+      const filename = sensor.displayName 
+        ? `${sensor.displayName}_data.csv`
+        : `${sensor.mac}_data.csv`;
+
+      // Reset progress tracking
+      setExportProgress(0);
+      setDownloadedBytes(0);
+      setTotalBytes(0);
+
+      // Convert estimated duration to milliseconds
+      const estimatedDurationMs = parseEstimatedDuration(exportEstimation.data.estimatedDuration);
+
+      // Stream export with real progress tracking
+      const blob = await TelemetryService.streamExport({
+        sensorIds,
+        timeRange: exportTimeRange,
+        format: 'csv',
+        filename,
+        batchSize: exportEstimation.data.recommendedBatchSize,
+        maxRecords: 500000, // Safety limit
+        includeMetadata: false,
+      }, (progress, loaded, total) => {
+        // Update real progress
+        setExportProgress(progress);
+        setDownloadedBytes(loaded);
+        if (total) {
+          setTotalBytes(total);
+        }
+      }, exportEstimation.data.estimatedSizeKB, estimatedDurationMs, abortController.signal);
+
+      // Create download link
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", filename);
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      setExportStatus('completed');
+      
       addToast({
         title: "CSV Downloaded",
-        description: "Chart data has been downloaded as CSV",
+        description: `${exportEstimation.data.totalRecords.toLocaleString()} records downloaded successfully`,
       });
+
     } catch (error) {
-      addToast({
-        title: "Download Failed",
-        description: "Failed to download CSV data",
-      });
+      console.error('Export failed:', error);
+      if (error instanceof Error && error.name === 'CanceledError') {
+        setExportStatus('cancelled');
+      } else {
+        setExportError(error instanceof Error ? error.message : 'Export failed');
+        setExportStatus('error');
+      }
+    } finally {
+      setIsExportLoading(false);
+      setExportAbortController(null);
+    }
+  };
+
+  const handleCancelExport = () => {
+    if (exportAbortController) {
+      exportAbortController.abort();
+      console.log('🚫 Export cancelled by user');
+    }
+  };
+
+  const handleCloseExportModal = () => {
+    // Only allow closing if not currently downloading
+    if (exportStatus !== 'downloading') {
+      setIsExportModalOpen(false);
+      setExportEstimation(null);
+      setExportError(null);
+      setExportStatus('estimating');
+      setIsExportLoading(false);
+      setExportProgress(0);
+      setDownloadedBytes(0);
+      setTotalBytes(0);
+      setExportAbortController(null);
     }
   };
 
@@ -532,6 +667,33 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const [activeTab, setActiveTab] = React.useState("chart");
   const [isFullscreen, setIsFullscreen] = React.useState(false);
+
+  // Export modal state variables
+  const [isExportModalOpen, setIsExportModalOpen] = React.useState(false);
+  const [exportEstimation, setExportEstimation] = React.useState<EstimateExportResponse | null>(null);
+  const [exportStatus, setExportStatus] = React.useState<'estimating' | 'confirming' | 'downloading' | 'completed' | 'error' | 'cancelled'>('estimating');
+  const [exportError, setExportError] = React.useState<string | null>(null);
+  const [isExportLoading, setIsExportLoading] = React.useState(false);
+  const [exportProgress, setExportProgress] = React.useState(0);
+  const [downloadedBytes, setDownloadedBytes] = React.useState(0);
+  const [totalBytes, setTotalBytes] = React.useState(0);
+  const [exportAbortController, setExportAbortController] = React.useState<AbortController | null>(null);
+
+  // Helper function to parse estimated duration string to milliseconds
+  const parseEstimatedDuration = (duration: string): number => {
+    const match = duration.match(/(\d+)([smh])/);
+    if (!match) return 30000; // Default 30 seconds
+    
+    const value = parseInt(match[1]);
+    const unit = match[2];
+    
+    switch (unit) {
+      case 's': return value * 1000;
+      case 'm': return value * 60 * 1000;
+      case 'h': return value * 60 * 60 * 1000;
+      default: return 30000;
+    }
+  };
 
   // Use enhanced responsive breakpoints
   const { isMobile, isTablet, isLandscape, isSmallScreen, isMobileLandscape, isMobileLandscapeShort, isMobileDevice } =
@@ -868,7 +1030,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
         {/* Table content */}
         {activeTab === "table" && !(isFullscreen && isMobile) && (
           <div
-            className="flex-1 overflow-auto"
+            className="flex-1 min-h-0"
             style={{
               margin: isSmallScreen ? "0 12px 12px" : "0 16px 16px",
             }}
@@ -902,12 +1064,36 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                         })) ?? [],
                     })) ?? [],
                 }}
+                sensorId={sensor?.id || ''}
+                timeRange={timeRange || { start: new Date(Date.now() - 24 * 60 * 60 * 1000), end: new Date() }}
                 onDownloadCSV={onDownloadCSV}
               />
             )}
           </div>
         )}
       </div>
+      
+      <ExportConfirmationModal
+        isOpen={isExportModalOpen}
+        onClose={handleCloseExportModal}
+        onConfirm={handleConfirmExport}
+        onCancel={handleCancelExport}
+        estimation={exportEstimation}
+        isLoading={isExportLoading}
+        exportStatus={exportStatus}
+        error={exportError}
+        selectedSensors={sensor?.mac ? [sensor.mac] : []}
+        timeRange={timeRange ? {
+          start: timeRange.start.toISOString(),
+          end: timeRange.end.toISOString(),
+        } : {
+          start: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+          end: new Date().toISOString(),
+        }}
+        progress={exportProgress}
+        downloadedBytes={downloadedBytes}
+        totalBytes={totalBytes}
+      />
     </Card>
   );
 };

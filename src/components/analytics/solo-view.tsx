@@ -1,6 +1,5 @@
 import {
   addToast,
-  Badge,
   Button,
   Card,
   CardBody,
@@ -8,22 +7,21 @@ import {
   DropdownItem,
   DropdownMenu,
   DropdownTrigger,
-  Input,
   Spinner,
   Tab,
-  Tabs,
+  Tabs
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
-import React from "react";
-import html2canvas from "html2canvas";
 import { saveAs } from "file-saver";
+import html2canvas from "html2canvas";
+import React from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, useParams } from "react-router-dom";
-import { LiveDataLoading } from "../visualization/live-data-loading";
-import { formatNumericValue } from "../../utils/numberUtils";
 import { chartColors } from "../../data/analytics";
-import { AppDispatch, RootState } from "../../store";
 import { useOptimizedDataFetch } from "../../hooks/useOptimizedDataFetch";
+import { AppDispatch, RootState } from "../../store";
+import { fetchGateways, selectGateways } from "../../store/gatewaySlice";
+import { selectIsConnecting, selectIsLiveMode, toggleLiveMode } from "../../store/liveDataSlice";
 import {
   fetchSensorById,
   fetchSensors,
@@ -36,29 +34,32 @@ import {
   toggleSensorStar,
   updateSensorDisplayName,
 } from "../../store/sensorsSlice";
-import { 
-  fetchTelemetry, 
-  selectTelemetryData, 
+import {
+  selectMaxLiveReadings,
+  selectTelemetryData,
   selectTelemetryLoading,
-  selectMaxLiveReadings
+  setTimeRange
 } from "../../store/telemetrySlice";
-import { selectIsLiveMode, selectIsConnecting, toggleLiveMode } from "../../store/liveDataSlice";
-import { fetchGateways, selectGateways } from "../../store/gatewaySlice";
 import { ChartConfig, SensorType } from "../../types/sensor";
+import { formatNumericValue } from "../../utils/numberUtils";
 import { LineChart } from "../visualization/line-chart";
+import { LiveDataLoading } from "../visualization/live-data-loading";
 import { AnomalyDetectionChart } from "./distribution-charts/anomaly-detection-chart";
 import { CorrelationAnalysisChart } from "./distribution-charts/correlation-analysis-chart";
 import { DistributionChart } from "./distribution-charts/distribution-chart";
 import { TrendAnalysisChart } from "./distribution-charts/trend-analysis-chart";
-import { FilterBar } from "./filter-bar";
+// import { FilterBar } from "./filter-bar";
+import ExportConfirmationModal from "../ExportConfirmationModal";
+import TelemetryService, { EstimateExportResponse } from "../../api/telemetry.service";
+import { useBreakpoints } from "../../hooks/use-media-query";
+import { useLiveDataReadiness } from "../../hooks/useLiveDataReadiness";
+import { useLiveModeTransition } from "../../hooks/useLiveModeTransition";
+import { useOfflineDetectionIntegration } from "../../hooks/useOfflineDetectionIntegration";
+import { createOptimizedChartConfig, useOptimizedChartData } from "../../hooks/useOptimizedChartData";
 import { LiveReadingsSelector } from "./live-readings-selector";
 import { TableView } from "./table-view";
 import { TimeRangeSelector } from "./time-range-selector";
-import { useBreakpoints } from "../../hooks/use-media-query";
-import { useLiveModeTransition } from "../../hooks/useLiveModeTransition";
-import { useLiveDataReadiness } from "../../hooks/useLiveDataReadiness";
-import { useOfflineDetectionIntegration } from "../../hooks/useOfflineDetectionIntegration";
-import { useOptimizedChartData, createOptimizedChartConfig } from "../../hooks/useOptimizedChartData";
+
 
 // Fix the interface to satisfy the Record<string, string | undefined> constraint
 interface SoloViewParams {
@@ -71,10 +72,17 @@ export const SoloView: React.FC = () => {
   const { sensorId } = useParams<SoloViewParams>();
   const dispatch = useDispatch<AppDispatch>();
 
-  // Check URL parameters for inherited state
-  const urlParams = new URLSearchParams(window.location.search);
-  const inheritedMode = urlParams.get("mode"); // "live" or "offline"
-  const hasInheritedMode = inheritedMode === "live" || inheritedMode === "offline";
+  // Capture inherited mode from URL only once on mount
+  const [inheritedMode, setInheritedMode] = React.useState<string | null>(null);
+  const [hasInheritedMode, setHasInheritedMode] = React.useState(false);
+  
+  // Read URL parameters only once on component mount
+  React.useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const modeParam = urlParams.get("mode"); // "live" or "offline"
+    setInheritedMode(modeParam);
+    setHasInheritedMode(modeParam === "live" || modeParam === "offline");
+  }, []); // Empty dependency array - only run once on mount
 
   // Use enhanced responsive breakpoints
   const { isMobile, isSmallScreen, isLandscape, isMobileLandscape, isMobileDevice } = useBreakpoints();
@@ -109,6 +117,8 @@ export const SoloView: React.FC = () => {
   const [starLoading, setStarLoading] = React.useState(false);
   const chartRef = React.useRef<HTMLDivElement>(null);
 
+
+
   // Live mode state - use centralized Redux state directly (no local state)
   const isLiveMode = useSelector(selectIsLiveMode);
   const isConnecting = useSelector(selectIsConnecting);
@@ -128,10 +138,8 @@ export const SoloView: React.FC = () => {
         // Force re-fetch data with current time range when switching to offline
         fetchOptimizedData({
           sensorIds: [sensorId],
-          timeRange: {
-            start: filters.timeRange.start.toISOString(),
-            end: filters.timeRange.end.toISOString(),
-          },
+          timeRange: filters.timeRange,
+          pageContext: 'solo-view'
         }, true); // Force immediate execution
       }
     },
@@ -150,7 +158,6 @@ export const SoloView: React.FC = () => {
   try {
     liveDataReadiness = useLiveDataReadiness(sensorId || null, isOfflineSensorFilter);
   } catch (error) {
-    console.error('[SoloView] Error in useLiveDataReadiness:', error);
     // Fallback values
     liveDataReadiness = {
       shouldWaitForLiveData: false,
@@ -168,6 +175,9 @@ export const SoloView: React.FC = () => {
   
   // Add state to track auto-enable attempt completion
   const [hasAttemptedAutoEnable, setHasAttemptedAutoEnable] = React.useState(false);
+  
+  // Add state to track if we've applied inherited mode from URL (only apply once)
+  const [hasAppliedInheritedMode, setHasAppliedInheritedMode] = React.useState(false);
 
   // Set initial loading to false after a short delay (similar to analytics page)
   React.useEffect(() => {
@@ -307,6 +317,33 @@ export const SoloView: React.FC = () => {
   // Add state for initial loading
   const [initialLoading, setInitialLoading] = React.useState(true);
 
+  // Export modal state variables
+  const [isExportModalOpen, setIsExportModalOpen] = React.useState(false);
+  const [exportEstimation, setExportEstimation] = React.useState<EstimateExportResponse | null>(null);
+  const [exportStatus, setExportStatus] = React.useState<'estimating' | 'confirming' | 'downloading' | 'completed' | 'error' | 'cancelled'>('estimating');
+  const [exportError, setExportError] = React.useState<string | null>(null);
+  const [isExportLoading, setIsExportLoading] = React.useState(false);
+  const [exportProgress, setExportProgress] = React.useState(0);
+  const [downloadedBytes, setDownloadedBytes] = React.useState(0);
+  const [totalBytes, setTotalBytes] = React.useState(0);
+  const [exportAbortController, setExportAbortController] = React.useState<AbortController | null>(null);
+
+  // Helper function to parse estimated duration string to milliseconds
+  const parseEstimatedDuration = (duration: string): number => {
+    const match = duration.match(/(\d+)([smh])/);
+    if (!match) return 30000; // Default 30 seconds
+    
+    const value = parseInt(match[1]);
+    const unit = match[2];
+    
+    switch (unit) {
+      case 's': return value * 1000;
+      case 'm': return value * 60 * 1000;
+      case 'h': return value * 60 * 60 * 1000;
+      default: return 30000;
+    }
+  };
+
   // Set initialLoading to false when sensors are loaded
   React.useEffect(() => {
     if (sensorsLoaded && initialLoading) {
@@ -343,13 +380,12 @@ export const SoloView: React.FC = () => {
     let autoEnableTimer: NodeJS.Timeout;
     
     // Wait for gateways to be loaded and component to be initialized
-    if (gateways.length > 0 && !isLiveMode && !initialLoading) {
-      // Check if we should respect inherited mode
+    if (gateways.length > 0 && !isLiveMode && !initialLoading && !hasAppliedInheritedMode) {
+      // Apply inherited mode from URL only once
       if (hasInheritedMode) {
         
         // If inherited mode is "live", enable live mode
         if (inheritedMode === "live") {
-          console.log('[SoloView] Inherited live mode from parent page');
           autoEnableTimer = setTimeout(async () => {
             try {
               const gatewayIds = gateways
@@ -358,23 +394,22 @@ export const SoloView: React.FC = () => {
 
               if (gatewayIds.length > 0) {
                 await dispatch(toggleLiveMode({ enable: true })).unwrap();
-                console.log('[SoloView] Live mode enabled based on inherited state');
               }
             } catch (error) {
-              console.error('[SoloView] Failed to enable inherited live mode:', error);
+              // Error handled silently
             } finally {
-              // Mark auto-enable attempt as completed regardless of success/failure
+              // Mark both auto-enable and inherited mode application as completed
               setHasAttemptedAutoEnable(true);
+              setHasAppliedInheritedMode(true);
             }
           }, 500); // Shorter delay since we know the intended state
         } else {
           // If inherited mode is "offline", stay in offline mode
-          console.log('[SoloView] Inherited offline mode from parent page - staying offline');
           setHasAttemptedAutoEnable(true);
+          setHasAppliedInheritedMode(true);
         }
       } else {
         // Default behavior: auto-enable live mode if no inherited state
-        console.log('[SoloView] No inherited mode - auto-enabling live mode');
         autoEnableTimer = setTimeout(async () => {
           try {
             const gatewayIds = gateways
@@ -383,13 +418,13 @@ export const SoloView: React.FC = () => {
 
             if (gatewayIds.length > 0) {
               await dispatch(toggleLiveMode({ enable: true })).unwrap();
-              console.log('[SoloView] Live mode auto-enabled');
             }
           } catch (error) {
-            console.error('[SoloView] Failed to auto-enable live mode:', error);
+            // Error handled silently
           } finally {
-            // Mark auto-enable attempt as completed regardless of success/failure
+            // Mark both auto-enable and inherited mode application as completed
             setHasAttemptedAutoEnable(true);
+            setHasAppliedInheritedMode(true);
           }
         }, 1500); // Slightly longer delay for solo-view
       }
@@ -400,7 +435,7 @@ export const SoloView: React.FC = () => {
         clearTimeout(autoEnableTimer);
       }
     };
-  }, [gateways, isLiveMode, initialLoading, dispatch, hasInheritedMode, inheritedMode]);
+  }, [gateways, isLiveMode, initialLoading, dispatch, hasAppliedInheritedMode]); // Removed hasInheritedMode and inheritedMode from deps
 
   /*****************************************************************************
    * 2️⃣  Ensure we always have a “selected” sensor
@@ -452,13 +487,13 @@ export const SoloView: React.FC = () => {
       }
       
       if (sensorId && !initialLoading) {
+
+        
         // Use optimized data fetch for better performance and live mode support
         fetchOptimizedData({
           sensorIds: [sensorId],
-          timeRange: {
-            start: filters.timeRange.start.toISOString(),
-            end: filters.timeRange.end.toISOString(),
-          },
+          timeRange: filters.timeRange,
+          pageContext: 'solo-view'
         });
       }
     }, 500); // Small delay to let live connection attempt start
@@ -466,12 +501,22 @@ export const SoloView: React.FC = () => {
     return () => clearTimeout(fetchTimer);
   }, [sensorId, filters.timeRange.start, filters.timeRange.end, initialLoading, fetchOptimizedData, liveDataReadiness.shouldFetchApiData, hasAttemptedAutoEnable]);
 
-  // Create optimized chart config using centralized optimization
+  // Create optimized chart config using centralized optimization (for charts only)
   const chartConfig: ChartConfig | null = React.useMemo(() => {
     if (!baseChartConfig || !optimizedChartData.hasData) return null;
 
     return createOptimizedChartConfig(baseChartConfig, optimizedChartData);
   }, [baseChartConfig, optimizedChartData]);
+
+  // Create separate config for table that uses FULL API data (not optimized)
+  const tableConfig: ChartConfig | null = React.useMemo(() => {
+    if (!baseChartConfig) return null;
+    
+    // Use the baseChartConfig which contains full API data
+    return baseChartConfig;
+  }, [baseChartConfig]);
+
+
 
   // Check if sensor is offline - only show offline state when we have sensor data and it's actually offline
   // AND we're not waiting for live data (give live connection a chance to update the status)
@@ -642,22 +687,22 @@ export const SoloView: React.FC = () => {
   };
 
   const handleTimeRangeChange = (range: { start: Date; end: Date }) => {
-    dispatch(
-      setFilters({
-        ...filters,
-        timeRange: range,
-      })
-    );
+    // Update both slices like the main analytics page
+    dispatch(setFilters({ ...filters, timeRange: range })); // sensors slice
+    dispatch(setTimeRange(range)); // telemetry slice
   };
 
   const handleLiveModeChange = async (isLive: boolean) => {
-
     try {
       // Use centralized toggle - it handles all gateway discovery and connection logic
       await dispatch(toggleLiveMode({ enable: isLive })).unwrap();
-
+      
+      // Update URL parameter to reflect user's choice (optional - keeps URL in sync)
+      const currentUrl = new URL(window.location.href);
+      currentUrl.searchParams.set('mode', isLive ? 'live' : 'offline');
+      window.history.replaceState({}, '', currentUrl.toString());
     } catch (error) {
-
+      // Error handled silently
     }
   };
 
@@ -681,27 +726,97 @@ export const SoloView: React.FC = () => {
     }
   };
 
-  const handleDownloadCSV = () => {
+  const handleDownloadCSV = async () => {
     try {
-      if (!chartConfig || !chartConfig.series) {
+      // Check if we have a sensor selected
+      if (!currentSensor?.mac) {
         addToast({
           title: "Download Failed",
-          description: "No data available to download",
+          description: "Sensor MAC address not available",
         });
         return;
       }
 
-      let csvContent = "Timestamp,Value\n";
+      // Prepare export request parameters
+      const sensorIds = [currentSensor.mac];
+      const timeRange = {
+        start: filters.timeRange.start.toISOString(),
+        end: filters.timeRange.end.toISOString(),
+      };
 
-      chartConfig.series.forEach((dataPoint) => {
-        const timestamp = new Date(dataPoint.timestamp).toISOString();
-        csvContent += `${timestamp},${dataPoint.value}\n`;
+      // Reset modal state and open it
+      setExportEstimation(null);
+      setExportError(null);
+      setExportStatus('estimating');
+      setIsExportModalOpen(true);
+
+      // Get export estimation
+      const estimationResponse = await TelemetryService.estimateExport({
+        sensorIds,
+        timeRange,
       });
 
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const filename = currentSensor
-        ? `${currentSensor.displayName || currentSensor.mac}_data.csv`
-        : `sensor_data_${new Date().toISOString().split("T")[0]}.csv`;
+      if (estimationResponse.success) {
+        setExportEstimation(estimationResponse);
+        setExportStatus('confirming');
+      } else {
+        throw new Error(estimationResponse.error || 'Failed to estimate export size');
+      }
+
+    } catch (error) {
+      console.error('Export estimation failed:', error);
+      setExportError(error instanceof Error ? error.message : 'Failed to estimate export');
+      setExportStatus('error');
+    }
+  };
+
+  const handleConfirmExport = async () => {
+    if (!currentSensor || !exportEstimation) return;
+
+    // Create abort controller for cancellation
+    const abortController = new AbortController();
+    setExportAbortController(abortController);
+
+    try {
+      setIsExportLoading(true);
+      setExportStatus('downloading');
+
+      const sensorIds = [currentSensor.mac];
+      const timeRange = {
+        start: filters.timeRange.start.toISOString(),
+        end: filters.timeRange.end.toISOString(),
+      };
+
+      // Generate filename
+      const filename = currentSensor.displayName 
+        ? `${currentSensor.displayName}_data.csv`
+        : `${currentSensor.mac}_data.csv`;
+
+      // Reset progress tracking
+      setExportProgress(0);
+      setDownloadedBytes(0);
+      setTotalBytes(0);
+
+      // Convert estimated duration to milliseconds
+      const estimatedDurationMs = parseEstimatedDuration(exportEstimation.data.estimatedDuration);
+
+      // Stream export with real progress tracking
+      const blob = await TelemetryService.streamExport({
+        sensorIds,
+        timeRange,
+        format: 'csv',
+        filename,
+        batchSize: exportEstimation.data.recommendedBatchSize,
+        maxRecords: 500000, // Safety limit
+        includeMetadata: false,
+      }, (progress, loaded, total) => {
+        // Update real progress
+        setExportProgress(progress);
+        setDownloadedBytes(loaded);
+        if (total) {
+          setTotalBytes(total);
+        }
+      }, exportEstimation.data.estimatedSizeKB, estimatedDurationMs, abortController.signal);
 
       // Create download link
       const url = URL.createObjectURL(blob);
@@ -714,16 +829,46 @@ export const SoloView: React.FC = () => {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
+      setExportStatus('completed');
+      
       addToast({
         title: "CSV Downloaded",
-        description: "Sensor data has been downloaded as CSV",
+        description: `${exportEstimation.data.totalRecords.toLocaleString()} records downloaded successfully`,
       });
-    } catch (error) {
 
-      addToast({
-        title: "Download Failed",
-        description: "Failed to download CSV data",
-      });
+    } catch (error) {
+      console.error('Export failed:', error);
+      if (error instanceof Error && error.name === 'CanceledError') {
+        setExportStatus('cancelled');
+      } else {
+        setExportError(error instanceof Error ? error.message : 'Export failed');
+        setExportStatus('error');
+      }
+    } finally {
+      setIsExportLoading(false);
+      setExportAbortController(null);
+    }
+  };
+
+  const handleCancelExport = () => {
+    if (exportAbortController) {
+      exportAbortController.abort();
+      console.log('🚫 Export cancelled by user');
+    }
+  };
+
+  const handleCloseExportModal = () => {
+    // Only allow closing if not currently downloading
+    if (exportStatus !== 'downloading') {
+      setIsExportModalOpen(false);
+      setExportEstimation(null);
+      setExportError(null);
+      setExportStatus('estimating');
+      setIsExportLoading(false);
+      setExportProgress(0);
+      setDownloadedBytes(0);
+      setTotalBytes(0);
+      setExportAbortController(null);
     }
   };
 
@@ -818,48 +963,13 @@ export const SoloView: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen">
-      <div className="bg-content1 border-b border-divider p-3">
+      {/* <div className="bg-content1 border-b border-divider p-3">
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Button isIconOnly size="sm" variant="light" onPress={handleBackToAnalytics}>
                 <Icon icon="lucide:arrow-left" width={16} />
               </Button>
-
-              {/* <div className="relative w-full max-w-xs">
-                <Input
-                  placeholder="Search sensors"
-                  value={filters.search || ""}
-                  onValueChange={handleSearchChange}
-                  startContent={<Icon icon="lucide:search" className="text-default-400" />}
-                  size="sm"
-                  className="w-full"
-                  isClearable
-                  onClear={() => setIsDropdownOpen(false)}
-                  onFocus={() => filteredSensors.length > 0 && setIsDropdownOpen(true)}
-                />
-
-                {isDropdownOpen && filteredSensors.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-content1 shadow-md rounded-md z-50 max-h-[300px] overflow-y-auto">
-                    {filteredSensors.map((sensor) => (
-                      <div
-                        key={sensor._id}
-                        className={`flex items-center gap-2 p-2 hover:bg-content2 cursor-pointer ${sensor._id === sensorId ? "bg-primary-100" : ""}`}
-                        onClick={() => handleSensorSelect(sensor._id)}
-                      >
-                        <div
-                          className={`w-2 h-2 rounded-full ${sensor.isOnline ? "bg-success" : "bg-danger"}`}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate">{sensor.displayName || sensor.mac}</div>
-                          {sensor.displayName && <div className="text-xs text-default-500 truncate">{sensor.mac}</div>}
-                        </div>
-                        {sensor.starred && <Icon icon="lucide:star" className="text-warning fill-warning" width={14} />}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div> */}
             </div>
 
             <div className="flex items-center gap-2">
@@ -867,7 +977,6 @@ export const SoloView: React.FC = () => {
             </div>
           </div>
 
-          {/* Active filters display */}
           {(filters.types.length > 0 || filters.status !== "all") && (
             <div className="flex gap-2 overflow-x-auto pb-1">
               {filters.types.length > 0 && (
@@ -896,7 +1005,7 @@ export const SoloView: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
+      </div> */}
 
       {/* Main content with tabs */}
       <div className="flex-1 p-4 overflow-auto" onClick={() => setIsDropdownOpen(false)}>
@@ -1186,8 +1295,13 @@ export const SoloView: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                  ) : chartConfig ? (
-                    <TableView config={chartConfig} onDownloadCSV={handleDownloadCSV} />
+                  ) : tableConfig ? (
+                    <TableView 
+                      config={tableConfig} 
+                      sensorId={sensorId || ''} 
+                      timeRange={filters.timeRange}
+                      onDownloadCSV={handleDownloadCSV} 
+                    />
                   ) : (
                     <div className="h-full flex flex-col items-center justify-center p-8 text-center">
                       <div className="flex flex-col items-center gap-4 max-w-md">
@@ -1563,6 +1677,25 @@ export const SoloView: React.FC = () => {
           </div>
         )}
       </div>
+
+      <ExportConfirmationModal
+        isOpen={isExportModalOpen}
+        onClose={handleCloseExportModal}
+        onConfirm={handleConfirmExport}
+        onCancel={handleCancelExport}
+        estimation={exportEstimation}
+        isLoading={isExportLoading}
+        exportStatus={exportStatus}
+        error={exportError}
+        selectedSensors={currentSensor?.mac ? [currentSensor.mac] : []}
+        timeRange={{
+          start: filters.timeRange.start.toISOString(),
+          end: filters.timeRange.end.toISOString(),
+        }}
+        progress={exportProgress}
+        downloadedBytes={downloadedBytes}
+        totalBytes={totalBytes}
+      />
     </div>
   );
 };

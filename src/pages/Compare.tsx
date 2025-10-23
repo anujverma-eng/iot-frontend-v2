@@ -13,6 +13,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { FilterBar } from '../components/analytics/filter-bar';
 import { ChartContainer } from '../components/visualization/chart-container';
+import { TimeRangeSelector } from '../components/analytics/time-range-selector';
 import { chartColors, sensorTypes, statusOptions, timeRangePresets } from '../data/analytics';
 import { useBreakpoints } from '../hooks/use-media-query';
 import { AppDispatch } from '../store';
@@ -28,9 +29,10 @@ import {
   setFilters
 } from '../store/sensorsSlice';
 import {
-  fetchTelemetry,
+  fetchOptimizedTelemetry,
   selectTelemetryData,
-  selectTelemetryLoading
+  selectTelemetryLoading,
+  setTimeRange
 } from '../store/telemetrySlice';
 import { FilterState, MultiSeriesConfig, SensorType } from '../types/sensor';
 
@@ -66,15 +68,18 @@ export const ComparePage: React.FC = () => {
     }));
   }, [dispatch, filters.search, filters.types, filters.status]);
   
-  // Fetch data for comparison sensors
+  // Fetch optimized data for comparison sensors
   React.useEffect(() => {
     if (selectedSensorIds.length > 0) {
-      dispatch(fetchTelemetry({
+      const isMobile = window.innerWidth < 768;
+      dispatch(fetchOptimizedTelemetry({
         sensorIds: selectedSensorIds,
         timeRange: {
           start: filters.timeRange.start.toISOString(),
           end: filters.timeRange.end.toISOString()
-        }
+        },
+        targetPoints: isMobile ? 200 : 400,
+        deviceType: isMobile ? 'mobile' : 'desktop'
       }));
     }
   }, [selectedSensorIds, filters.timeRange, dispatch]);
@@ -145,6 +150,17 @@ export const ComparePage: React.FC = () => {
   // Handle filter changes
   const handleFiltersChange = (newFilters: Partial<FilterState>) => {
     dispatch(setFilters({ ...filters, ...newFilters }));
+    
+    // If timeRange is being updated, also update the telemetry slice
+    if (newFilters.timeRange) {
+      dispatch(setTimeRange(newFilters.timeRange));
+    }
+  };
+
+  // Handle time range changes (like analytics page syncTimeRange)
+  const handleTimeRangeChange = (range: { start: Date; end: Date }) => {
+    dispatch(setFilters({ ...filters, timeRange: range })); // sensors slice
+    dispatch(setTimeRange(range)); // telemetry slice
   };
   
   // Handle sensor selection toggle
@@ -575,24 +591,15 @@ export const ComparePage: React.FC = () => {
                   
                   <Divider />
                   
-                  {/* Time Range Filter */}
+                  {/* Time Range Filter - Enhanced with DateTime Picker */}
                   <div>
                     <h4 className="text-sm font-medium mb-2">Time Range</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {timeRangePresets.map((preset, index) => (
-                        <Button
-                          key={index}
-                          size="sm"
-                          variant="bordered"
-                          onPress={() => {
-                            const newTimeRange = preset.getValue();
-                            handleFiltersChange({ timeRange: newTimeRange });
-                          }}
-                        >
-                          {preset.label}
-                        </Button>
-                      ))}
-                    </div>
+                    <TimeRangeSelector
+                      timeRange={filters.timeRange}
+                      onTimeRangeChange={handleTimeRangeChange}
+                      showApplyButtons={true}
+                      isMobile={isMobileDevice}
+                    />
                   </div>
                 </div>
               </div>

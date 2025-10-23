@@ -1,14 +1,19 @@
 import { useRef, useCallback, useEffect } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch } from '../store';
-import { fetchTelemetry } from '../store/telemetrySlice';
+import { fetchOptimizedTelemetry } from '../store/telemetrySlice';
+import { selectIsLiveMode } from '../store/liveDataSlice';
+import { selectMaxLiveReadings } from '../store/telemetrySlice';
+import { createOptimizedTelemetryRequest, CreateOptimizedRequestOptions } from '../utils/optimizationUtils';
 
 interface DataFetchParams {
   sensorIds: string[];
   timeRange: {
-    start: string;
-    end: string;
+    start: Date;
+    end: Date;
   };
+  pageContext?: 'analytics' | 'solo-view' | 'dashboard';
+  chartType?: string;
 }
 
 /**
@@ -16,20 +21,37 @@ interface DataFetchParams {
  * - Request cancellation for stale requests
  * - Throttling to prevent rapid API calls
  * - Memory of last successful request
+ * - Backend optimization with proper context
  */
 export const useOptimizedDataFetch = () => {
   const dispatch = useDispatch<AppDispatch>();
+  const isLiveMode = useSelector(selectIsLiveMode);
+  const maxLiveReadings = useSelector(selectMaxLiveReadings);
+  
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastRequestRef = useRef<string>('');
   const throttleTimeoutRef = useRef<NodeJS.Timeout>();
   const requestInProgressRef = useRef<boolean>(false);
   
   const fetchData = useCallback((params: DataFetchParams, immediate = false) => {
-    const requestId = `${params.sensorIds.join(',')}-${params.timeRange.start}-${params.timeRange.end}`;
+    // Create optimized request with context
+    const optimizedRequest = createOptimizedTelemetryRequest({
+      sensorIds: params.sensorIds,
+      timeRange: {
+        start: params.timeRange.start.toISOString(),
+        end: params.timeRange.end.toISOString()
+      },
+      context: {
+        page: params.pageContext || 'analytics',
+        chartType: (params.chartType as any) || 'line-chart',
+      },
+      liveMode: isLiveMode ? { enabled: true, maxReadings: maxLiveReadings } : undefined
+    });
+    
+    const requestId = `${params.sensorIds.join(',')}-${params.timeRange.start.toISOString()}-${params.timeRange.end.toISOString()}-${params.pageContext || 'analytics'}`;
     
     // Don't make the same request twice
     if (lastRequestRef.current === requestId) {
-
       return;
     }
     
@@ -41,7 +63,6 @@ export const useOptimizedDataFetch = () => {
     const executeFetch = () => {
       // Only cancel existing request if it's actually in progress and different
       if (abortControllerRef.current && requestInProgressRef.current && lastRequestRef.current !== requestId) {
-
         abortControllerRef.current.abort();
       }
       
@@ -50,8 +71,8 @@ export const useOptimizedDataFetch = () => {
       lastRequestRef.current = requestId;
       requestInProgressRef.current = true;
 
-      // Dispatch the fetch action
-      dispatch(fetchTelemetry(params))
+      // Dispatch the optimized fetch action
+      dispatch(fetchOptimizedTelemetry(optimizedRequest))
         .finally(() => {
           requestInProgressRef.current = false;
         });
@@ -63,7 +84,7 @@ export const useOptimizedDataFetch = () => {
       // Throttle the request by 200ms to prevent rapid consecutive calls
       throttleTimeoutRef.current = setTimeout(executeFetch, 200);
     }
-  }, [dispatch]);
+  }, [dispatch, isLiveMode, maxLiveReadings]);
   
   const cancelPendingRequests = useCallback(() => {
 

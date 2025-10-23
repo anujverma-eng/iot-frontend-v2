@@ -1,6 +1,6 @@
 // src/api/sensor.service.ts
 import { ServerResponse } from "http";
-import type { Sensor, SensorTelemetryResponse, TelemetryQueryParams } from "../types/sensor";
+import type { Sensor } from "../types/sensor";
 import http from "./http";
 
 /** All sensor-related API calls live here so pages/slices never import `http` directly */
@@ -55,9 +55,7 @@ export const SensorService = {
     });
   },
 
-  telemetry(params: TelemetryQueryParams): Promise<SensorTelemetryResponse[]> {
-    return http.post("/telemetry/query", params).then((r) => r.data.data);
-  },
+
 
   toggleSensorStar(mac: string) {
     return http.post(`/sensors/${mac}/favorite`).then((r) => r.data);

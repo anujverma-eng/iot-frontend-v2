@@ -36,16 +36,30 @@ export const store = configureStore({
     getDefaultMiddleware({
       serializableCheck: {
         // Ignore these action types
-        ignoredActions: ["sensors/setFilters", "telemetry/setTimeRange"],
+        ignoredActions: [
+          "sensors/setFilters", 
+          "telemetry/setTimeRange",
+          "telemetry/fetchTelemetry/fulfilled",
+          "liveData/addLiveData"
+        ],
         // Ignore these field paths in all actions
-        ignoredActionPaths: ["payload.timeRange.start", "payload.timeRange.end"],
+        ignoredActionPaths: [
+          "payload.timeRange.start", 
+          "payload.timeRange.end",
+          "payload.data",
+          "payload.timestamp"
+        ],
         // Ignore these paths in the state
         ignoredPaths: [
           "sensors.filters.timeRange.start",
           "sensors.filters.timeRange.end",
           "telemetry.timeRange.start",
           "telemetry.timeRange.end",
+          "telemetry.data",
+          "liveData.readings"
         ],
+        // Increase the warning threshold to avoid false positives
+        warnAfter: 64,
       },
     }),
 });

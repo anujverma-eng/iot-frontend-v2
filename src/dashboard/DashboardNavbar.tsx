@@ -20,6 +20,7 @@ import { cn } from "../lib/utils";
 import { useAppDispatch, useAppSelector } from "../hooks/useAppDispatch";
 import { logout } from "../store/authSlice";
 import { selectIsLiveMode, selectIsConnecting, toggleLiveMode } from "../store/liveDataSlice";
+import { selectIsCompareMode } from "../store/telemetrySlice";
 import { selectActiveOrgName, selectActiveOrgStatus } from "../store/activeOrgSlice";
 import { OrgSelector } from "../components/OrgSelector";
 import { CreateOrganizationModal } from "../components/CreateOrganizationModal";
@@ -61,6 +62,7 @@ export const DashboardNavbar = ({ onMenuToggle, className }: DashboardNavbarProp
   const activeOrgStatus = useAppSelector(selectActiveOrgStatus);
   const isLiveMode = useAppSelector(selectIsLiveMode);
   const isConnecting = useAppSelector(selectIsConnecting);
+  const isCompareMode = useAppSelector(selectIsCompareMode);
 
   // Check if user can create organization
   const memberships = profile.data?.memberships || [];
@@ -125,44 +127,49 @@ export const DashboardNavbar = ({ onMenuToggle, className }: DashboardNavbarProp
         <OrgSelector />
 
         {/* Real-time mode indicator */}
-        <Tooltip
-          content={
-            isConnecting
-              ? "Connecting to live data..."
-              : isLiveMode
-                ? "Live mode is active - Click to disable"
-                : "Live mode is disabled - Click to enable"
-          }
-        >
-          <PermissionButton
-            permission={getPermissionValue('SENSORS', 'LIVE')}
-            isIconOnly
-            size="sm"
-            variant="flat"
-            color={isLiveMode ? "success" : "default"}
-            onPress={handleLiveModeToggle}
-            isLoading={isConnecting}
-            className={cn("transition-all duration-200", isLiveMode && "animate-pulse")}
-            lockedTooltip="You need 'sensors.live' permission to control live mode"
-          >
-            {isConnecting ? (
-              <Icon icon="lucide:loader-2" className="h-4 w-4 animate-spin" />
-            ) : (
-              <Icon icon={isLiveMode ? "lucide:radio" : "lucide:wifi-off"} className="h-4 w-4" />
-            )}
-          </PermissionButton>
-        </Tooltip>
+        {/* Live mode controls - Hidden in compare mode */}
+        {!isCompareMode && (
+          <>
+            <Tooltip
+              content={
+                isConnecting
+                  ? "Connecting to live data..."
+                  : isLiveMode
+                    ? "Live mode is active - Click to disable"
+                    : "Live mode is disabled - Click to enable"
+              }
+            >
+              <PermissionButton
+                permission={getPermissionValue('SENSORS', 'LIVE')}
+                isIconOnly
+                size="sm"
+                variant="flat"
+                color={isLiveMode ? "success" : "default"}
+                onPress={handleLiveModeToggle}
+                isLoading={isConnecting}
+                className={cn("transition-all duration-200", isLiveMode && "animate-pulse")}
+                lockedTooltip="You need 'sensors.live' permission to control live mode"
+              >
+                {isConnecting ? (
+                  <Icon icon="lucide:loader-2" className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Icon icon={isLiveMode ? "lucide:radio" : "lucide:wifi-off"} className="h-4 w-4" />
+                )}
+              </PermissionButton>
+            </Tooltip>
 
-        {/* Live mode status chip */}
-        <Chip
-          size="sm"
-          variant="flat"
-          color={isLiveMode ? "success" : "default"}
-          startContent={<Icon icon={isLiveMode ? "lucide:activity" : "lucide:pause"} className="h-3 w-3" />}
-          className={cn("transition-all duration-200", isLiveMode && "animate-pulse")}
-        >
-          {isConnecting ? "Connecting..." : isLiveMode ? "LIVE" : "OFFLINE"}
-        </Chip>
+            {/* Live mode status chip */}
+            <Chip
+              size="sm"
+              variant="flat"
+              color={isLiveMode ? "success" : "default"}
+              startContent={<Icon icon={isLiveMode ? "lucide:activity" : "lucide:pause"} className="h-3 w-3" />}
+              className={cn("transition-all duration-200", isLiveMode && "animate-pulse")}
+            >
+              {isConnecting ? "Connecting..." : isLiveMode ? "LIVE" : "OFFLINE"}
+            </Chip>
+          </>
+        )}
         {/* <Button isIconOnly variant="light" size="sm" className="text-default-500">
           <Icon icon="lucide:type" className="h-5 w-5" />
         </Button>

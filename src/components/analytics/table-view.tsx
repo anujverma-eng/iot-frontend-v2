@@ -19,14 +19,23 @@ import {
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import React from "react";
+import { useDispatch, useSelector } from 'react-redux';
 import { formatNumericValue } from "../../utils/numberUtils";
 import { ChartConfig, DataPoint } from '../../types/sensor';
+import { AppDispatch } from '../../store';
+import { fetchTableData, selectTableData, selectTableLoading } from '../../store/telemetrySlice';
+import { selectIsLiveMode } from '../../store/liveDataSlice';
 
 type GroupByOption = 'none' | 'hourly' | 'daily' | 'weekly';
 
 interface TableViewProps {
   config: ChartConfig;
   onDownloadCSV?: () => void;
+  sensorId: string;
+  timeRange: {
+    start: Date;
+    end: Date;
+  };
 }
 
 interface TableDataItem {
@@ -41,30 +50,228 @@ interface TableDataItem {
   count?: number;
 }
 
-export const TableView: React.FC<TableViewProps> = ({ config, onDownloadCSV }) => {
+export const TableView: React.FC<TableViewProps> = ({ 
+  config, 
+  onDownloadCSV, 
+  sensorId, 
+  timeRange 
+}) => {
+  const dispatch = useDispatch<AppDispatch>();
+  const isLiveMode = useSelector(selectIsLiveMode);
+  const tableData = useSelector(selectTableData);
+  const isTableLoading = useSelector(selectTableLoading);
+
+  // Store the unit from API response for accuracy
+  const [actualUnit, setActualUnit] = React.useState<string>(config.unit || '');
+
   const [page, setPage] = React.useState(1);
   const [rowsPerPage, setRowsPerPage] = React.useState(10);
   const [groupBy, setGroupBy] = React.useState<GroupByOption>('none');
   const [sortDescriptor, setSortDescriptor] = React.useState({ column: 'timestamp', direction: 'descending' });
   const [searchQuery, setSearchQuery] = React.useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = React.useState('');
+
+  // Fetch paginated table data when component mounts or parameters change
+  React.useEffect(() => {
+    if (sensorId && timeRange && !isLiveMode && groupBy === 'none') {
+      // Only fetch server-side data when not in live mode and no grouping
+      dispatch(fetchTableData({
+        sensorIds: [sensorId],
+        timeRange: {
+          start: timeRange.start.toISOString(),
+          end: timeRange.end.toISOString()
+        },
+        pagination: {
+          page,
+          limit: rowsPerPage
+        },
+        sortBy: sortDescriptor.column as 'timestamp' | 'value',
+        sortOrder: sortDescriptor.direction as 'asc' | 'desc',
+        search: debouncedSearchQuery || undefined // Include search if provided
+      }));
+    }
+  }, [dispatch, sensorId, timeRange, page, rowsPerPage, sortDescriptor, isLiveMode, groupBy, debouncedSearchQuery]);
+
+  // Get current sensor's paginated table data
+  const currentSensorTableData = sensorId && tableData[sensorId] ? tableData[sensorId] : null;
+
+  // Helper function to format date and time
+  const formatDateTime = React.useCallback((timestamp: number | string) => {
+    const date = new Date(timestamp);
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      return {
+        date: 'Invalid Date',
+        time: 'Invalid Time'
+      };
+    }
+    
+    return {
+      date: date.toLocaleDateString(),
+      time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    };
+  }, []);
+
+  // Helper function to process grouped data (used for both live and offline modes with grouping)
+  const processGroupedData = React.useCallback((dataSource: DataPoint[], groupBy: GroupByOption) => {
+    // Group data based on selected option
+    const groupedData: Record<string, DataPoint[]> = {};
+    
+    dataSource.forEach((point: DataPoint) => {
+      const date = new Date(point.timestamp);
+      let groupKey: string;
+      
+      if (groupBy === 'hourly') {
+        // Group by hour
+        groupKey = new Date(
+          date.getFullYear(),
+          date.getMonth(),
+          date.getDate(),
+          date.getHours()
+        ).toISOString();
+      } else if (groupBy === 'daily') {
+        // Group by day
+        groupKey = new Date(
+          date.getFullYear(),
+          date.getMonth(),
+          date.getDate()
+        ).toISOString();
+      } else {
+        // Group by week
+        const dayOfWeek = date.getDay();
+        const diff = date.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Adjust for Sunday
+        const startOfWeek = new Date(date.setDate(diff));
+        groupKey = new Date(
+          startOfWeek.getFullYear(),
+          startOfWeek.getMonth(),
+          startOfWeek.getDate()
+        ).toISOString();
+      }
+      
+      if (!groupedData[groupKey]) {
+        groupedData[groupKey] = [];
+      }
+      
+      groupedData[groupKey].push(point);
+    });
+    
+    // Calculate statistics for each group
+    return Object.entries(groupedData).map(([key, points], index) => {
+      const values = points.map(p => p.value);
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
+      const timestamp = new Date(key).getTime();
+      const { date, time } = formatDateTime(timestamp);
+      
+      let displayDate: string;
+      if (groupBy === 'hourly') {
+        displayDate = `${date} ${new Date(timestamp).getHours()}:00`;
+      } else if (groupBy === 'daily') {
+        displayDate = date;
+      } else {
+        // Weekly
+        const endOfWeek = new Date(timestamp);
+        endOfWeek.setDate(endOfWeek.getDate() + 6);
+        displayDate = `${date} - ${endOfWeek.toLocaleDateString()}`;
+      }
+      
+      return {
+        id: `group-${index}`,
+        timestamp,
+        date: displayDate,
+        time: groupBy === 'hourly' ? `${new Date(timestamp).getHours()}:00 - ${new Date(timestamp).getHours()}:59` : '',
+        value: avg,
+        min,
+        max,
+        avg,
+        count: points.length
+      };
+    });
+  }, [formatDateTime]);
 
   // Process data for table display
   const processedData = React.useMemo(() => {
+
+    // OFFLINE MODE: Use server-side paginated table data (primary data source)
+    if (!isLiveMode) {
+      if (!currentSensorTableData || !currentSensorTableData.data || !Array.isArray(currentSensorTableData.data)) {
+        return []; // Return empty array if no server data - let loading/empty state handle display
+      }
+
+      // Extract the sensor data from the API response structure
+      // API returns: { status, success, message, data: [{ sensorId, mac, type, unit, data: [...] }], pagination: {...} }
+      let sensorDataArray: any[] = [];
+      let actualDataPoints: any[] = [];
+      
+      // Check if we have the full API response or just the processed data
+      if (currentSensorTableData.data && Array.isArray(currentSensorTableData.data)) {
+        sensorDataArray = currentSensorTableData.data;
+        
+        // Find the matching sensor data (should be the first one since we query by specific sensor ID)
+        if (sensorDataArray.length > 0) {
+          const sensorEntry = sensorDataArray.find((sensor: any) => sensor.sensorId === sensorId || sensor.mac === sensorId);
+          if (sensorEntry && sensorEntry.data && Array.isArray(sensorEntry.data)) {
+            actualDataPoints = sensorEntry.data;
+            // Update unit from API response
+            if (sensorEntry.unit && sensorEntry.unit !== actualUnit) {
+              setActualUnit(sensorEntry.unit);
+            }
+          } else if (sensorDataArray[0] && sensorDataArray[0].data) {
+            // Fallback: use first sensor's data if exact match not found
+            actualDataPoints = sensorDataArray[0].data;
+            // Update unit from API response
+            if (sensorDataArray[0].unit && sensorDataArray[0].unit !== actualUnit) {
+              setActualUnit(sensorDataArray[0].unit);
+            }
+          }
+        }
+      } else if (Array.isArray(currentSensorTableData)) {
+        // Handle case where data is directly an array of data points
+        actualDataPoints = currentSensorTableData;
+      }
+
+      if (actualDataPoints.length === 0) {
+        return []; // No actual data points found
+      }
+
+      // For server-side data, use paginated results directly
+      // Server handles pagination, sorting, and filtering, so no client-side grouping
+      if (groupBy === 'none') {
+        return actualDataPoints.map((point: any, index: number) => {
+          const { date, time } = formatDateTime(point.timestamp);
+          const timestamp = new Date(point.timestamp).getTime();
+          
+          return {
+            id: `row-${index}`,
+            timestamp: isNaN(timestamp) ? Date.now() : timestamp, // Fallback for invalid timestamps
+            date,
+            time,
+            value: typeof point.value === 'number' ? point.value : 0, // Ensure value is a number
+            min: undefined,
+            max: undefined,
+            avg: undefined,
+            count: undefined
+          };
+        });
+      }
+      
+      // For offline mode with grouping, convert server data to client format for grouping
+      const dataSource = actualDataPoints.map((point: any) => ({
+        timestamp: new Date(point.timestamp).getTime(),
+        value: point.value
+      }));
+      
+      return processGroupedData(dataSource, groupBy);
+    }
+
+    // LIVE MODE: Use chart config series data (fallback data source)
     if (!config.series || config.series.length === 0) return [];
-
-    // Function to format date and time
-    const formatDateTime = (timestamp: number) => {
-      const date = new Date(timestamp);
-      return {
-        date: date.toLocaleDateString(),
-        time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-      };
-    };
-
-    // Group data if needed
+    
     if (groupBy === 'none') {
-      // No grouping, just format each point
-      return config.series.map((point: DataPoint, index) => {
+      // No grouping for live data, just format each point
+      return config.series.map((point: DataPoint, index: number) => {
         const { date, time } = formatDateTime(point.timestamp);
         return {
           id: `row-${index}`,
@@ -78,89 +285,16 @@ export const TableView: React.FC<TableViewProps> = ({ config, onDownloadCSV }) =
           count: undefined
         };
       });
-    } else {
-      // Group data based on selected option
-      const groupedData: Record<string, DataPoint[]> = {};
-      
-      config.series.forEach((point: DataPoint) => {
-        const date = new Date(point.timestamp);
-        let groupKey: string;
-        
-        if (groupBy === 'hourly') {
-          // Group by hour
-          groupKey = new Date(
-            date.getFullYear(),
-            date.getMonth(),
-            date.getDate(),
-            date.getHours()
-          ).toISOString();
-        } else if (groupBy === 'daily') {
-          // Group by day
-          groupKey = new Date(
-            date.getFullYear(),
-            date.getMonth(),
-            date.getDate()
-          ).toISOString();
-        } else {
-          // Group by week
-          const dayOfWeek = date.getDay();
-          const diff = date.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Adjust for Sunday
-          const startOfWeek = new Date(date.setDate(diff));
-          groupKey = new Date(
-            startOfWeek.getFullYear(),
-            startOfWeek.getMonth(),
-            startOfWeek.getDate()
-          ).toISOString();
-        }
-        
-        if (!groupedData[groupKey]) {
-          groupedData[groupKey] = [];
-        }
-        
-        groupedData[groupKey].push(point);
-      });
-      
-      // Calculate statistics for each group
-      return Object.entries(groupedData).map(([key, points], index) => {
-        const values = points.map(p => p.value);
-        const min = Math.min(...values);
-        const max = Math.max(...values);
-        const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
-        const timestamp = new Date(key).getTime();
-        const { date, time } = formatDateTime(timestamp);
-        
-        let displayDate: string;
-        if (groupBy === 'hourly') {
-          displayDate = `${date} ${new Date(timestamp).getHours()}:00`;
-        } else if (groupBy === 'daily') {
-          displayDate = date;
-        } else {
-          // Weekly
-          const endOfWeek = new Date(timestamp);
-          endOfWeek.setDate(endOfWeek.getDate() + 6);
-          displayDate = `${date} - ${endOfWeek.toLocaleDateString()}`;
-        }
-        
-        return {
-          id: `group-${index}`,
-          timestamp,
-          date: displayDate,
-          time: groupBy === 'hourly' ? `${new Date(timestamp).getHours()}:00 - ${new Date(timestamp).getHours()}:59` : '',
-          value: avg,
-          min,
-          max,
-          avg,
-          count: points.length
-        };
-      });
     }
-  }, [config.series, groupBy]);
+    
+    return processGroupedData(config.series, groupBy);
+  }, [isLiveMode, currentSensorTableData, config.series, groupBy, processGroupedData]);
 
   // Apply search filter
   const filteredData = React.useMemo(() => {
     if (!searchQuery) return processedData;
     
-    return processedData.filter(item => 
+    return processedData.filter((item: any) => 
       item.date.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.time.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.value.toString().includes(searchQuery)
@@ -188,16 +322,55 @@ export const TableView: React.FC<TableViewProps> = ({ config, onDownloadCSV }) =
     });
   }, [filteredData, sortDescriptor]);
 
-  // Pagination
+  // Pagination logic: server-side for offline mode without grouping, client-side otherwise
   const paginatedData = React.useMemo(() => {
+    // Server-side pagination: offline mode without grouping
+    if (!isLiveMode && groupBy === 'none' && currentSensorTableData) {
+      // Server already handled pagination, sorting, and filtering
+      return processedData;
+    } 
+    
+    // Client-side pagination: live mode or grouping enabled
     const start = (page - 1) * rowsPerPage;
     const end = start + rowsPerPage;
     return sortedData.slice(start, end);
-  }, [sortedData, page, rowsPerPage]);
+  }, [isLiveMode, groupBy, currentSensorTableData, processedData, sortedData, page, rowsPerPage]);
 
-  const handleGroupByChange = (key: string) => {
+  // Get total count for pagination
+  const totalItems = React.useMemo(() => {
+    // Server-side total: offline mode without grouping
+    if (!isLiveMode && groupBy === 'none' && currentSensorTableData) {
+      return currentSensorTableData.pagination.totalRecords;
+    }
+    
+    // Client-side total: live mode or grouping enabled
+    return sortedData.length;
+  }, [isLiveMode, groupBy, currentSensorTableData, sortedData.length]);
+
+  const totalPages = Math.max(1, Math.ceil(totalItems / rowsPerPage));
+
+  const handleGroupByChange = (key: React.Key) => {
     setGroupBy(key as GroupByOption);
-    setPage(1); // Reset to first page when changing grouping
+    setPage(1); // Reset to first page when changing grouping - this will trigger new API call if needed
+  };
+
+  const handleRowsPerPageChange = (key: React.Key) => {
+    setRowsPerPage(Number(key));
+    setPage(1); // Reset to first page when changing page size - this will trigger new API call if needed
+  };
+
+  // Debounce search query to avoid too many API calls
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setPage(1); // Reset to first page when searching - this will trigger new API call if needed
   };
 
   const handleSortChange = (column: string) => {
@@ -205,6 +378,9 @@ export const TableView: React.FC<TableViewProps> = ({ config, onDownloadCSV }) =
       column,
       direction: prev.column === column && prev.direction === 'ascending' ? 'descending' : 'ascending'
     }));
+    
+    // Reset to first page when changing sort - this will trigger useEffect to fetch new data
+    setPage(1);
   };
 
   const handleDownloadCSV = () => {
@@ -251,20 +427,20 @@ export const TableView: React.FC<TableViewProps> = ({ config, onDownloadCSV }) =
       case 'value':
         return (
           <Badge color="primary" variant="flat">
-            {formatNumericValue(item.value, 4)} {config.unit}
+            {formatNumericValue(item.value, 4)} {actualUnit}
           </Badge>
         );
       case 'min':
         return item.min !== undefined ? (
-          <span className="text-danger">{formatNumericValue(item.min, 4)} {config.unit}</span>
+          <span className="text-danger">{formatNumericValue(item.min, 4)} {actualUnit}</span>
         ) : null;
       case 'max':
         return item.max !== undefined ? (
-          <span className="text-success">{formatNumericValue(item.max, 4)} {config.unit}</span>
+          <span className="text-success">{formatNumericValue(item.max, 4)} {actualUnit}</span>
         ) : null;
       case 'avg':
         return item.avg !== undefined ? (
-          <span>{formatNumericValue(item.avg, 4)} {config.unit}</span>
+          <span>{formatNumericValue(item.avg, 4)} {actualUnit}</span>
         ) : null;
       case 'count':
         return item.count !== undefined ? (
@@ -279,15 +455,15 @@ export const TableView: React.FC<TableViewProps> = ({ config, onDownloadCSV }) =
     <div className="w-full h-full flex flex-col">
       <div className="flex justify-between items-center mb-4 bg-white dark:bg-gray-900 p-3 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-2">
-          {/* <Input
+          <Input
             placeholder="Search data..."
             value={searchQuery}
-            onValueChange={setSearchQuery}
+            onValueChange={handleSearchChange}
             startContent={<Icon icon="lucide:search" className="text-default-400" />}
             size="sm"
             className="w-48 md:w-64"
             isClearable
-          /> */}
+          />
           
           <Dropdown>
             <DropdownTrigger>
@@ -332,7 +508,7 @@ export const TableView: React.FC<TableViewProps> = ({ config, onDownloadCSV }) =
             </DropdownTrigger>
             <DropdownMenu
               aria-label="Rows Per Page"
-              onAction={(key) => setRowsPerPage(Number(key))}
+              onAction={handleRowsPerPageChange}
             >
               <DropdownItem key="5">5 rows</DropdownItem>
               <DropdownItem key="10">10 rows</DropdownItem>
@@ -355,7 +531,17 @@ export const TableView: React.FC<TableViewProps> = ({ config, onDownloadCSV }) =
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm">
+      <div className="flex-1 overflow-auto border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm relative">
+        {/* Loading overlay for when refreshing data */}
+        {isTableLoading && paginatedData.length > 0 && (
+          <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 flex items-center justify-center z-10">
+            <div className="flex flex-col items-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mb-2"></div>
+              <p className="text-sm text-primary-600 dark:text-primary-400">Refreshing data...</p>
+            </div>
+          </div>
+        )}
+        
         <table className="w-full min-w-full table-auto border-collapse">
           <thead>
             <tr className="bg-primary-50 dark:bg-primary-900/20">
@@ -428,7 +614,7 @@ export const TableView: React.FC<TableViewProps> = ({ config, onDownloadCSV }) =
           </thead>
           <tbody>
             {paginatedData.length > 0 ? (
-              paginatedData.map((item) => (
+              paginatedData.map((item: any) => (
                 <tr 
                   key={item.id} 
                   className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
@@ -451,8 +637,17 @@ export const TableView: React.FC<TableViewProps> = ({ config, onDownloadCSV }) =
                   className="px-4 py-8 text-center text-default-500"
                 >
                   <div className="flex flex-col items-center justify-center">
-                    <Icon icon="lucide:database-x" className="text-default-300 mb-2" width={24} height={24} />
-                    <p>No data available</p>
+                    {isTableLoading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500 mb-2"></div>
+                        <p>Loading table data...</p>
+                      </>
+                    ) : (
+                      <>
+                        <Icon icon="lucide:database-x" className="text-default-300 mb-2" width={24} height={24} />
+                        <p>No data available</p>
+                      </>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -468,7 +663,7 @@ export const TableView: React.FC<TableViewProps> = ({ config, onDownloadCSV }) =
           showShadow
           color="primary"
           page={page}
-          total={Math.ceil(sortedData.length / rowsPerPage)}
+          total={totalPages}
           onChange={setPage}
         />
       </div>

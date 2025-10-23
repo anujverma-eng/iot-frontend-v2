@@ -93,7 +93,6 @@ export const initializeLiveConnection = createAsyncThunk(
       }
 
       // First fetch all available gateways
-      console.log("[initializeLiveConnection] Fetching gateways...");
 
       const gatewaysResponse = await dispatch(
         fetchGateways({
@@ -152,13 +151,8 @@ export const initializeLiveConnection = createAsyncThunk(
           });
         },
         onPresence: (topic, message) => {
-          console.log(`[MQTT] Presence message received on topic: ${topic}`, message);
-
           // Handle gateway presence updates
           if (typeof message === "object" && message.gatewayId && typeof message.isConnected === "boolean") {
-            console.log(
-              `[MQTT] Gateway ${message.gatewayId} presence: ${message.isConnected ? "ONLINE" : "OFFLINE"} at ${message.ts}`
-            );
             const presenceData = {
               gatewayId: message.gatewayId,
               isConnected: message.isConnected,
@@ -183,7 +177,6 @@ export const initializeLiveConnection = createAsyncThunk(
 
             // If gateway went offline, handle sensor dependencies
             if (!message.isConnected) {
-              console.log(`[MQTT] Dispatching handleGatewayOfflineEvent for ${message.gatewayId}`);
               // We need to trigger this through a thunk to access current state
               dispatch(handleGatewayOfflineEvent(message.gatewayId));
             }
@@ -241,7 +234,6 @@ const liveDataSlice = createSlice({
       }
     },
     setConnectionError: (state, action: PayloadAction<string>) => {
-      console.log("[liveDataSlice] Connection error occurred:", action.payload);
       state.error = action.payload;
       state.isConnecting = false;
       state.isConnected = false;
