@@ -44,7 +44,8 @@ export const sensorTypes = [
   { value: 'battery', label: 'Battery' },
   { value: 'co2', label: 'CO₂' },
   { value: 'light', label: 'Light' },
-  { value: 'motion', label: 'Motion' }
+  { value: 'motion', label: 'Motion' },
+  { value: 'deflection', label: 'Deflection' }
 ];
 
 export const chartColors = [
