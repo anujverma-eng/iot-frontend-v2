@@ -77,6 +77,7 @@ export const EmailInput: React.FC<EmailInputProps> = ({
           type="email"
           errorMessage={error}
           isInvalid={!!error}
+          isDisabled={emails.length >= maxEmails}
           endContent={
             <Button
               size="sm"

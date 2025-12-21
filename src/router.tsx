@@ -32,6 +32,8 @@ import SecurityPage from "./pages/SecurityPage";
 import OrganizationManagementPage from "./pages/OrganizationManagementPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { getPermissionValue } from "./constants/permissions";
+import { ManageAlertsPage } from "./pages/ManageAlertsPage";
+import { NotificationsPage } from "./pages/NotificationsPage";
 
 export function AppRouter() {
   return (
@@ -139,6 +141,7 @@ export function AppRouter() {
               <Route path="invitations" element={<DashboardInvitationsPage />} />
               <Route path="profile" element={<MyProfilePage />} />
               <Route path="security" element={<SecurityPage />} />
+              <Route path="notifications" element={<ManageAlertsPage />} />
             </Route>
 
             <Route path="/onboarding" element={<OnboardingPage />} />

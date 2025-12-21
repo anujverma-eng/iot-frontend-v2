@@ -62,11 +62,16 @@ export const DashboardSidebar = ({ isOpen, onToggle, className }: DashboardSideb
 
   // Create dynamic appPages with live invitation count
   const appPages = [
-    {
-      name: "Reports",
-      icon: "lucide:file-text",
-      path: "/dashboard/reports",
-    },
+      {
+    name: "Notifications",
+    icon: "lucide:bell-ring",
+    path: "/dashboard/notifications",
+  },
+    // {
+    //   name: "Reports",
+    //   icon: "lucide:file-text",
+    //   path: "/dashboard/reports",
+    // },
     {
       name: "My Invitations",
       icon: "lucide:mail",

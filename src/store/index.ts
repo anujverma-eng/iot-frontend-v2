@@ -13,6 +13,7 @@ import members from "./membersSlice";
 import invites from "./invitesSlice";
 import permissionsCatalog from "./permissionsCatalogSlice";
 import rolePermissions from "./rolePermissionsSlice";
+import alerts from "./alertsSlice";
 import { setStoreReference } from "../api/http";
 
 export const store = configureStore({
@@ -30,7 +31,8 @@ export const store = configureStore({
     members,
     invites,
     permissionsCatalog,
-    rolePermissions
+    rolePermissions,
+    alerts
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

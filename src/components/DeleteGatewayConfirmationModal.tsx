@@ -42,13 +42,14 @@ export const DeleteGatewayConfirmationModal: React.FC<ConfirmationModalProps> = 
           </div>
         </ModalHeader>
         <ModalBody>
-          <p className="mb-3">{message}</p>
-          <p className="mb-2">This action will:</p>
+          <h1 className="font-medium">Are you sure you want to delete the alert?</h1>
+          {/* <p className="mb-3">{message}</p> */}
+          {/* <p className="mb-2">This action will:</p>
           <ul className="list-disc pl-6 space-y-1 text-sm">
             <li>Remove all historical data for corresponding sensors</li>
             <li>Mark the sensor as ignored</li>
             <li>Make it available for others to claim</li>
-          </ul>
+          </ul> */}
           <p className="mt-3 font-medium text-danger-600">This action cannot be undone.</p>
         </ModalBody>
         <ModalFooter>
