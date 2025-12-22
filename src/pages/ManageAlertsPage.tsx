@@ -89,13 +89,14 @@ export const ManageAlertsPage: React.FC = () => {
     dispatch(fetchAlertHistory({ page: 1, limit: 10 }));
   };
   
-  const loadAllNotifications = () => {
-    dispatch(fetchAlertHistory({ page: historyPagination.page, limit: historyPagination.limit }));
+  const loadAllNotifications = (page?: number) => {
+    const targetPage = page ?? historyPagination.page;
+    dispatch(fetchAlertHistory({ page: targetPage, limit: historyPagination.limit }));
   };
   
   const handleNotificationPageChange = (page: number) => {
     dispatch(setHistoryPage(page));
-    loadAllNotifications();
+    loadAllNotifications(page);
   };
 
   const handleAddAlert = () => {

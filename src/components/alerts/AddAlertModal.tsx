@@ -56,9 +56,9 @@ const EVENT_TYPES: { value: AlertType; label: string }[] = [
 const OPERATORS: { value: ConditionOperator; label: string }[] = [
   { value: 'gt', label: 'Greater than' },
   { value: 'lt', label: 'Less than' },
-  { value: 'gte', label: 'Greater than or equal to' },
-  { value: 'lte', label: 'Less than or equal to' },
-  { value: 'eq', label: 'Equal to' },
+  // { value: 'gte', label: 'Greater than or equal to' },
+  // { value: 'lte', label: 'Less than or equal to' },
+  // { value: 'eq', label: 'Equal to' },
   { value: 'between', label: 'Between' },
 ];
 
@@ -441,7 +441,7 @@ export const AddAlertModal: React.FC<AddAlertModalProps> = ({ isOpen, onClose, o
                     <p className="text-sm font-medium text-default-700">Tolerance Range</p>
                     
                     <Select
-                      label="Operator"
+                      label="Condition"
                       selectedKeys={[operator]}
                       onChange={(e) => {
                         setOperator(e.target.value as ConditionOperator);
