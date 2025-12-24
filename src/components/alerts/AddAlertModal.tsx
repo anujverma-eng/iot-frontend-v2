@@ -166,8 +166,12 @@ export const AddAlertModal: React.FC<AddAlertModalProps> = ({ isOpen, onClose, o
   const isSensorBased = eventType === 'LOW_BATTERY' || eventType === 'DEVICE_OUT_OF_TOLERANCE';
   const showToleranceRange = eventType === 'DEVICE_OUT_OF_TOLERANCE';
 
-  const sourceList = isGatewayBased 
-    ? gateways.map(g => ({ id: g._id, label: g.label || g.mac, mac: g.mac }))
+  // Single dropdown source list: sensors first, then gateways for online/offline
+  const sourceList = isGatewayBased
+    ? [
+        ...sensors.map(s => ({ id: s._id, label: s.displayName || s.mac, mac: s.mac })),
+        ...gateways.map(g => ({ id: g._id, label: g.label || g.mac, mac: g.mac })),
+      ]
     : sensors.map(s => ({ id: s._id, label: s.displayName || s.mac, mac: s.mac }));
 
   const validateForm = (): boolean => {
@@ -178,7 +182,7 @@ export const AddAlertModal: React.FC<AddAlertModalProps> = ({ isOpen, onClose, o
     }
 
     if (!selectedDevice) {
-      newErrors.source = isGatewayBased ? 'Please select a gateway' : 'Please select a sensor';
+      newErrors.source = isGatewayBased ? 'Please select a sensor or gateway' : 'Please select a sensor';
     }
 
     if (showToleranceRange) {
@@ -391,8 +395,8 @@ export const AddAlertModal: React.FC<AddAlertModalProps> = ({ isOpen, onClose, o
                 {/* Source Selection */}
                 {isGatewayBased && (
                   <Select
-                    label="Gateway"
-                    placeholder="Select a gateway"
+                    label="Device"
+                    placeholder="Select a sensor or gateway"
                     selectedKeys={selectedDevice ? [selectedDevice] : []}
                     onChange={(e) => setSelectedDevice(e.target.value)}
                     variant="bordered"
