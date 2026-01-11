@@ -202,7 +202,7 @@ export const OrganizationSettings: React.FC<OrganizationSettingsProps> = ({
               </div>
             </CardHeader>
             <Divider />
-            <CardBody className="gap-6">
+            <CardBody className="gap-4">
               <div className="space-y-4">
                 <div className="p-4 border border-default-200 rounded-lg">
                   <div className="h-6 bg-default-200 rounded mb-2"></div>
@@ -367,7 +367,7 @@ export const OrganizationSettings: React.FC<OrganizationSettingsProps> = ({
           </div>
         </CardHeader>
         <Divider />
-        <CardBody className="gap-6">
+        <CardBody className="gap-4">
           {/* Offline Timeout Setting */}
           <div className="flex flex-col gap-4">
             <div className="flex items-start justify-between">

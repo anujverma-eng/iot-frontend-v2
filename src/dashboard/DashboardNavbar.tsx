@@ -32,9 +32,10 @@ import { getPermissionValue } from "../constants/permissions";
 interface DashboardNavbarProps {
   onMenuToggle: () => void;
   className?: string;
+  style?: React.CSSProperties;
 }
 
-export const DashboardNavbar = ({ onMenuToggle, className }: DashboardNavbarProps) => {
+export const DashboardNavbar = ({ onMenuToggle, className, style }: DashboardNavbarProps) => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const {
@@ -52,8 +53,6 @@ export const DashboardNavbar = ({ onMenuToggle, className }: DashboardNavbarProp
       onCreateOrgModalOpen();
     } else if (key === "profile_page") {
       navigate("/dashboard/profile");
-    } else if (key === "security") {
-      navigate("/dashboard/security");
     }
   };
 
@@ -92,6 +91,7 @@ export const DashboardNavbar = ({ onMenuToggle, className }: DashboardNavbarProp
         "max-lg:pl-0",
         className
       )}
+      style={style}
       maxWidth="full"
     >
       <NavbarContent justify="start">
@@ -176,27 +176,19 @@ export const DashboardNavbar = ({ onMenuToggle, className }: DashboardNavbarProp
         <Button isIconOnly variant="light" size="sm" className="text-default-500">
           <Icon icon="lucide:sun" className="h-5 w-5" />
         </Button>
-        <Button isIconOnly variant="light" size="sm" className="text-default-500">
+        <Button isIconOnly variant="light" size="sm" className="text-default-500" radius="full">
           <Icon icon="lucide:layout-grid" className="h-5 w-5" />
         </Button> */}
-        <Dropdown placement="bottom-end">
-          <DropdownTrigger>
-            <Button isIconOnly variant="light" size="sm" className="text-default-500" radius="full">
-              <Icon icon="lucide:bell" className="h-5 w-5" />
-            </Button>
-          </DropdownTrigger>
-          <DropdownMenu aria-label="Notifications" className="w-80">
-            <DropdownItem key="title" className="h-14 gap-2">
-              <div className="flex justify-between w-full">
-                <p className="font-semibold">Notifications</p>
-                <Chip size="sm" variant="flat" color="primary">
-                  8 New
-                </Chip>
-              </div>
-            </DropdownItem>
-            {/* Add notification items here */}
-          </DropdownMenu>
-        </Dropdown>
+        <Button 
+          isIconOnly 
+          variant="light" 
+          size="sm" 
+          className="text-default-500" 
+          radius="full"
+          onPress={() => navigate('/dashboard/notifications')}
+        >
+          <Icon icon="lucide:bell" className="h-5 w-5" />
+        </Button>
 
         <Dropdown placement="bottom-end">
           <DropdownTrigger>
@@ -234,9 +226,6 @@ export const DashboardNavbar = ({ onMenuToggle, className }: DashboardNavbarProp
             ) : null}
             <DropdownItem key="profile_page" startContent={<Icon icon="lucide:user" />}>
               My Profile
-            </DropdownItem>
-            <DropdownItem key="security" startContent={<Icon icon="lucide:shield" />}>
-              Security
             </DropdownItem>
             <DropdownItem key="settings" startContent={<Icon icon="lucide:settings" />}>
               Settings

@@ -75,7 +75,7 @@ export const SensorList: React.FC<SensorListProps> = ({
         />
       </div>
       
-      <div className="h-96 overflow-y-auto">{/* Fixed height to show ~3 sensor cards */}
+      <div className="h-[548px] overflow-y-auto">{/* Fixed height to show ~4 sensor cards */}
         {!sensors || sensors.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full p-4 text-center">
             <Icon icon="lucide:wifi-off" className="text-default-300 mb-2" width={32} height={32} />

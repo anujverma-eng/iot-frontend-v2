@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import React from "react";
 import { DashboardNavbar } from "../dashboard/DashboardNavbar";
-import { DashboardSidebar } from "../dashboard/DashboardSidebar";
+import { DashboardSidebar, cn } from "../dashboard/DashboardSidebar";
 import { useAppSelector, useAppDispatch } from "../hooks/useAppDispatch";
 import { useUnknownSensorDiscovery } from "../hooks/useUnknownSensorDiscovery";
 import { useLiveDataConnection } from "../hooks/useLiveDataConnection";
@@ -93,11 +93,13 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       {/* ─── header ─────────────────────────────────────────────── */}
       <DashboardNavbar
         onMenuToggle={() => setIsSidebarOpen((o) => !o)}
-        className={
-          isSidebarOpen
-            ? "lg:pl-64 bg-white/80 backdrop-blur-md border-b border-default-200"
-            : "lg:pl-16 bg-white/80 backdrop-blur-md border-b border-default-200"
-        }
+        className={cn(
+          "bg-white/80 backdrop-blur-md border-b border-default-200",
+          isSidebarOpen ? "lg:pl-64" : "lg:pl-[4.5rem]"
+        )}
+        style={{
+          transition: "padding 300ms cubic-bezier(0.4, 0, 0.2, 1)",
+        }}
       />
 
       {/* ─── body: sidebar  page content ───────────────────────── */}
@@ -113,9 +115,12 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             flex-1 min-w-0
             pt-10 
             p-4 sm:p-6 lg:p-8
-            transition-[margin] duration-200
-            ${isSidebarOpen ? "lg:ml-64" : "lg:ml-16"}
+            transition-[margin] duration-300
+            ${isSidebarOpen ? "lg:ml-64" : "lg:ml-[4.5rem]"}
           `}
+          style={{
+            transitionTimingFunction: "cubic-bezier(0.4, 0, 0.2, 1)",
+          }}
         >
           <div className="mx-auto w-full max-w-full">
             {children}

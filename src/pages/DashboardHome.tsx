@@ -199,9 +199,30 @@ export const DashboardHome: React.FC = () => {
         dispatch(fetchOptimizedTelemetry(request) as any);
       }
     },
-    // onOfflineToLive - no action needed since Redux manages state
+    // onOfflineToLive - fetch fresh historical data to fill any gap, then MQTT will append new readings
     () => {
-      // No action needed - Redux handles the state transition
+      if (selectedSensor) {
+        // For live mode on dashboard, fetch last ~5 minutes to match live data view
+        // Add +1 minute buffer to end time to account for network latency
+        const now = new Date();
+        const fiveMinutesAgo = new Date(now.getTime() - (5 * 60 * 1000)); // Extended from 4 to 5 minutes
+        const endWithBuffer = new Date(now.getTime() + (5 * 60 * 1000)); // +5 minute buffer
+        
+        const request = createOptimizedTelemetryRequest({
+          sensorIds: [selectedSensor],
+          timeRange: {
+            start: fiveMinutesAgo.toISOString(),
+            end: endWithBuffer.toISOString() // Use current time + 1 min buffer
+          },
+          context: {
+            page: 'dashboard',
+            chartType: 'dashboard-card'
+          },
+          liveMode: { enabled: true, maxReadings: maxLiveReadings }
+        });
+        
+        dispatch(fetchOptimizedTelemetry(request) as any);
+      }
     }
   );
 
@@ -297,13 +318,15 @@ export const DashboardHome: React.FC = () => {
     let timeRangeToUse;
 
     if (isLiveMode) {
-      // For live mode, fetch last ~4 minutes to match live data view
+      // For live mode, fetch last ~5 minutes to match live data view
+      // Add +5 minute buffer to end time to account for network latency
       const now = new Date();
-      const fourMinutesAgo = new Date(now.getTime() - (4 * 60 * 1000));
+      const fiveMinutesAgo = new Date(now.getTime() - (5 * 60 * 1000));
+      const endWithBuffer = new Date(now.getTime() + (5 * 60 * 1000)); // +5 minute buffer
       
       timeRangeToUse = {
-        start: fourMinutesAgo,
-        end: now
+        start: fiveMinutesAgo,
+        end: endWithBuffer
       };
     } else {
       // For historical mode, use selected time range or default to last 24 hours
@@ -514,7 +537,7 @@ export const DashboardHome: React.FC = () => {
         ? "p-0 space-y-3 m-0" // Mobile: reduced padding and spacing
         : "p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6" // Desktop: normal spacing
     }`}>
-      <DebugActiveOrg />
+      {/* <DebugActiveOrg /> */}
       <motion.h1
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}

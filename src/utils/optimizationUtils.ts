@@ -150,12 +150,18 @@ export const createOptimizedTelemetryRequest = (options: CreateOptimizedRequestO
     isComparison: context.isComparison
   });
 
+  // Cap liveMode.maxReadings at 100 (backend limit) whenever liveMode is present
+  // Backend validates maxReadings regardless of whether enabled is true or false
+  const safeLiveMode = liveMode 
+    ? { enabled: liveMode.enabled, maxReadings: Math.min(liveMode.maxReadings, 100) }
+    : undefined;
+
   return {
     sensorIds,
     timeRange,
     targetPoints,
     deviceType,
-    liveMode
+    liveMode: safeLiveMode
   };
 };
 

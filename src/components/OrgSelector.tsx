@@ -108,10 +108,10 @@ export const OrgSelector: React.FC = () => {
                 key="manage" 
                 startContent={<Icon icon="lucide:settings" className="h-4 w-4" />}
                 onPress={() => {
-                  navigate('/dashboard/organization');
+                  navigate('/dashboard/settings');
                 }}
               >
-                Manage Organizations
+                Organization Settings
               </DropdownItem>
             );
           }

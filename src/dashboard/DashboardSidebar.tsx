@@ -1,4 +1,4 @@
-import { Button, Chip, Tooltip } from "@heroui/react";
+import { Chip, Tooltip } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { clsx, type ClassValue } from "clsx";
 import { motion } from "framer-motion";
@@ -26,11 +26,11 @@ const sidebarItems: SidebarItem[] = [
     icon: "lucide:home",
     path: "/dashboard/home",
   },
-  {
-    name: "Dashboard",
-    icon: "lucide:bar-chart-2",
-    path: "/dashboard/panel",
-  },
+  // {
+  //   name: "Dashboard",
+  //   icon: "lucide:bar-chart-2",
+  //   path: "/dashboard/panel",
+  // },
   // {
   //   name: "Monitoring",
   //   icon: "lucide:activity",
@@ -112,8 +112,8 @@ export const DashboardSidebar = ({ isOpen, onToggle, className }: DashboardSideb
               ? "16rem"
               : "4.5rem" // rail vs drawer on desktop
             : "16rem", // mobile drawer width
-          transition: { duration: 0.25, ease: "easeInOut" },
         }}
+        transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
         /* ✨ 1B – an attribute to let the navbar know when we are in rail mode */
         data-collapsed={!isDesktop || !isOpen ? true : undefined}
         className={cn(
@@ -121,40 +121,75 @@ export const DashboardSidebar = ({ isOpen, onToggle, className }: DashboardSideb
           "fixed top-0 left-0 z-50 flex h-screen flex-col shadow-md",
           /* glass effect only for the wide drawer */
           isOpen ? "bg-white/80 dark:bg-zinc-900/70 backdrop-blur-md" : "bg-[#353f8b]",
-          "transition-[width] duration-400 ease-in-out",
           className
         )}
       >
         {/* ─── brand bar ───────── */}
-
-        <>
-          {isOpen ? (
-            <div className="flex h-28 flex-col items-center justify-center bg-[#353f8b]/100 rounded-br-lg">
-              <img
-                src="https://motionics.com/wp-content/uploads/2019/07/Motionics-logo-2.png"
-                alt="Motionics"
-                className="h-11 w-auto mb-3"
-              />
-              <span className="text-white/90 text-sm font-medium tracking-wide">IOT Platform</span>
-            </div>
-          ) : (
-            <div className="flex h-18 flex-col items-center justify-center p-6">
-              <Icon icon="lucide:cloud" className="h-6 w-6 text-white/90" />
-            </div>
-          )}
-        </>
+        <div 
+          className="flex flex-col items-center justify-center bg-[#353f8b]/100 rounded-br-lg overflow-hidden relative"
+          style={{ height: "5.5rem" }}
+        >
+          {/* Full logo - only visible when expanded, fades AFTER collapse completes */}
+          <motion.div
+            className="absolute inset-0 flex flex-col items-center justify-center"
+            initial={false}
+            animate={{
+              opacity: isOpen ? 1 : 0,
+            }}
+            transition={{ 
+              duration: 0.2, 
+              ease: [0.4, 0, 0.2, 1],
+              // When expanding: wait for sidebar to open first
+              // When collapsing: fade out immediately
+              delay: isOpen ? 0.25 : 0,
+            }}
+          >
+            <img
+              src="https://motionics.com/wp-content/uploads/2019/07/Motionics-logo-2.png"
+              alt="Motionics"
+              className="h-10 w-auto mb-1"
+            />
+            <span className="text-white/90 text-xs font-medium tracking-wide">IOT Platform</span>
+          </motion.div>
+          
+          {/* Collapsed icon - fades in ONLY after collapse completes */}
+          <motion.div
+            className="absolute inset-0 flex items-center justify-center"
+            initial={false}
+            animate={{
+              opacity: isOpen ? 0 : 1,
+            }}
+            transition={{ 
+              duration: 0.2, 
+              ease: [0.4, 0, 0.2, 1],
+              // When collapsing: wait for sidebar to close first (300ms)
+              // When expanding: fade out immediately
+              delay: isOpen ? 0 : 0.3,
+            }}
+          >
+            <Icon icon="lucide:cloud" className="h-7 w-7 text-white/90" />
+          </motion.div>
+        </div>
 
         {/* ─── navigation links ────────────────────────────────── */}
-        <nav className={cn("flex flex-1 flex-col gap-1 overflow-y-auto py-4 ", isOpen ? "px-3" : "items-center px-3")}>
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto py-4 px-2">
           {/* primary links */}
           {sidebarItems.map((i) => (
             <NavItem key={i.path} item={i} isOpen={isOpen} active={pathname.startsWith(i.path)} onSelect={onToggle} />
           ))}
 
-          {/* section label */}
-          {isOpen && (
-            <p className="mt-6 mb-1 px-4 text-[10px] font-semibold tracking-wide text-default-400">MANAGEMENT</p>
-          )}
+          {/* section label - opacity controlled */}
+          <p 
+            className={cn(
+              "mt-4 mb-1 px-4 text-[10px] font-semibold tracking-wide text-default-400 whitespace-nowrap",
+              isOpen ? "opacity-100" : "opacity-0"
+            )}
+            style={{
+              transition: "opacity 300ms cubic-bezier(0.4, 0, 0.2, 1)",
+            }}
+          >
+            MANAGEMENT
+          </p>
 
           {/* secondary links */}
           {appPages.map((i) => (
@@ -164,22 +199,39 @@ export const DashboardSidebar = ({ isOpen, onToggle, className }: DashboardSideb
           {/* spacer */}
           <div className="flex-1" />
 
-          {/* collapse / expand */}
+          {/* collapse / expand - styled like NavItem */}
           <Tooltip content={isOpen ? "Collapse" : "Expand"} placement="right" isDisabled={isOpen}>
-            <Button
-              onPress={onToggle} // ← NOW TOGGLES
-              variant="light"
-              size="sm"
-              className="w-full justify-start gap-2 rounded-lg"
-              startContent={
-                <Icon
-                  icon={isOpen ? "lucide:panel-left-close" : "lucide:panel-left-open"}
-                  className="h-5 w-5 text-default-500"
-                />
-              }
+            <button
+              onClick={onToggle}
+              className={cn(
+                "relative flex items-center rounded-lg py-2.5 px-3 gap-3 w-full",
+                isOpen 
+                  ? "text-default-600 hover:bg-default-100" 
+                  : "text-white hover:bg-white/10"
+              )}
             >
-              {isOpen && "Collapse sidebar"}
-            </Button>
+              {/* Icon */}
+              <Icon
+                icon={isOpen ? "lucide:panel-left-close" : "lucide:panel-left-open"}
+                className={cn(
+                  "h-5 w-5 flex-shrink-0",
+                  isOpen ? "text-default-500" : "text-white/100"
+                )}
+              />
+              
+              {/* Text */}
+              <span 
+                className={cn(
+                  "whitespace-nowrap flex-1 text-left text-sm",
+                  isOpen ? "opacity-100" : "opacity-0"
+                )}
+                style={{
+                  transition: "opacity 300ms cubic-bezier(0.4, 0, 0.2, 1)",
+                }}
+              >
+                Collapse sidebar
+              </span>
+            </button>
           </Tooltip>
         </nav>
       </motion.aside>
@@ -198,60 +250,73 @@ function NavItem({
   active: boolean;
   onSelect: () => void;
 }) {
-  const pill =
-    active &&
-    `before:absolute before:inset-y-1 before:w-1.5 before:rounded-r-lg ${
-      isOpen ? "before:left-0 before:bg-primary" : "before:left-1 before:bg-white/100"
-    }`;
   const { pathname } = useLocation();
   const isActive = pathname.startsWith(item.path);
   const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
 
   return (
-    <motion.div key={item.name} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
-      <Tooltip content={item.name} placement="right" isDisabled={isOpen}>
-        <Button
-          as={Link}
-          to={item.path}
-          variant="light"
-          color={isActive ? "primary" : "default"}
+    <Tooltip content={item.name} placement="right" isDisabled={isOpen}>
+      <Link
+        to={item.path}
+        className={cn(
+          "relative flex items-center rounded-lg py-2.5 px-3 gap-3",
+          active 
+            ? "bg-primary/15 text-primary-400" 
+            : isOpen 
+              ? "text-default-600 hover:bg-default-100" 
+              : "text-white hover:bg-white/10",
+          // Active indicator pill
+          active && "before:absolute before:inset-y-1 before:w-1.5 before:rounded-r-lg",
+          active && (isOpen ? "before:left-0 before:bg-primary" : "before:left-1 before:bg-white/100")
+        )}
+        onClick={() => {
+          if (!isDesktop || isOpen) {
+            // onSelect();
+          }
+        }}
+      >
+        {/* Icon - always visible */}
+        <Icon
+          icon={item.icon}
           className={cn(
-            "relative overflow-hidden rounded-lg py-2 transition",
-            isOpen ? "w-full justify-start gap-3 px-3" : "w-12 justify-center",
-            active ? "bg-primary/15 text-primary-400" : isOpen ? "text-default-600" : "text-white",
-            !isOpen && "justify-center px-2",
-            pill
+            "h-5 w-5 flex-shrink-0",
+            isActive ? "text-primary-400" : isOpen ? "text-default-500" : "text-white/100"
           )}
-          startContent={
-            <Icon
-              icon={item.icon}
-              className={`h-5 w-5 flex-shrink-0 transition-transform duration-200
-                    ${isActive ? "text-primary-400" : isOpen ? "text-default-500" : "text-white/100"}
-                    group-hover:scale-110`}
-            />
-          }
-          endContent={
-            item.badge && isOpen ? (
-              <Chip
-                size="sm"
-                variant="flat"
-                color={item.badge === "Live" ? "success" : "primary"}
-                className="animate-pulse"
-              >
-                {item.badge}
-              </Chip>
-            ) : null
-          }
-          onPress={() => {
-            if (!isDesktop || isOpen) {
-              // onSelect();
-            }
+        />
+        
+        {/* Text - space preserved, opacity controlled */}
+        <span
+          className={cn(
+            "whitespace-nowrap flex-1",
+            isActive ? "font-medium" : "",
+            isOpen ? "opacity-100" : "opacity-0"
+          )}
+          style={{
+            transition: "opacity 300ms cubic-bezier(0.4, 0, 0.2, 1)",
           }}
         >
-          {isOpen && <span className={`${isActive ? "font-medium" : ""}`}>{item.name}</span>}
-        </Button>
-      </Tooltip>
-    </motion.div>
+          {item.name}
+        </span>
+        
+        {/* Badge - opacity controlled */}
+        {item.badge && (
+          <Chip
+            size="sm"
+            variant="flat"
+            color={item.badge === "Live" ? "success" : "primary"}
+            className={cn(
+              "animate-pulse flex-shrink-0",
+              isOpen ? "opacity-100" : "opacity-0"
+            )}
+            style={{
+              transition: "opacity 300ms cubic-bezier(0.4, 0, 0.2, 1)",
+            }}
+          >
+            {item.badge}
+          </Chip>
+        )}
+      </Link>
+    </Tooltip>
   );
 }
 

@@ -313,7 +313,7 @@ export const ClaimSensorModal: React.FC<ClaimSensorModalProps> = ({ isOpen, onCl
         isOpen={isOpen}
         onClose={onClose}
         size="lg"
-        backdrop="blur"
+        // backdrop="blur"
         scrollBehavior="inside"
         motionProps={{
           initial: { opacity: 0, y: 20 },
@@ -380,7 +380,15 @@ export const ClaimSensorModal: React.FC<ClaimSensorModalProps> = ({ isOpen, onCl
                   </div>
                 ) : filteredSensors.length > 0 ? (
                   <div className="space-y-4 overflow-x-auto">
-                    <Table removeWrapper aria-label="Unclaimed sensors table" isStriped>
+                    <Table 
+                      removeWrapper 
+                      aria-label="Unclaimed sensors table"
+                      classNames={{
+                        tr: "border-none hover:bg-default-100 dark:hover:bg-default-50/10 transition-colors",
+                        td: "border-none",
+                        th: "border-none",
+                      }}
+                    >
                       <TableHeader>
                         <TableColumn key="mac" onClick={() => handleSort("mac")} className="cursor-pointer">
                           <div className="flex items-center gap-2">

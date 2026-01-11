@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Download, Clock, HardDrive, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { EstimateExportResponse } from '../api/telemetry.service';
 
@@ -283,16 +284,17 @@ const ExportConfirmationModal: React.FC<ExportConfirmationModalProps> = ({
   // Prevent closing during download (but allow closing when cancelled)
   const canClose = exportStatus !== 'downloading';
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+  // Use portal to render at document body level to avoid z-index/clipping issues
+  return createPortal(
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto dark:bg-content1">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b">
+        <div className="flex items-center justify-between p-6 border-b dark:border-divider">
           <h2 className="text-lg font-semibold">CSV Data Export</h2>
           {canClose && (
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className="text-gray-400 hover:text-gray-600 transition-colors dark:text-default-400 dark:hover:text-default-600"
             >
               <X className="w-5 h-5" />
             </button>
@@ -304,7 +306,8 @@ const ExportConfirmationModal: React.FC<ExportConfirmationModalProps> = ({
           {getStatusContent()}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

@@ -28,6 +28,16 @@ import { selectIsLiveMode } from '../../store/liveDataSlice';
 
 type GroupByOption = 'none' | 'hourly' | 'daily' | 'weekly';
 
+// Export controls state interface for parent components
+export interface TableControlsState {
+  searchQuery: string;
+  groupBy: GroupByOption;
+  rowsPerPage: number;
+  onSearchChange: (value: string) => void;
+  onGroupByChange: (key: React.Key) => void;
+  onRowsPerPageChange: (key: React.Key) => void;
+}
+
 interface TableViewProps {
   config: ChartConfig;
   onDownloadCSV?: () => void;
@@ -36,6 +46,8 @@ interface TableViewProps {
     start: Date;
     end: Date;
   };
+  onControlsReady?: (controls: TableControlsState) => void;
+  hideInternalControls?: boolean; // Option to hide built-in controls when rendered externally
 }
 
 interface TableDataItem {
@@ -54,7 +66,9 @@ export const TableView: React.FC<TableViewProps> = ({
   config, 
   onDownloadCSV, 
   sensorId, 
-  timeRange 
+  timeRange,
+  onControlsReady,
+  hideInternalControls = false
 }) => {
   const dispatch = useDispatch<AppDispatch>();
   const isLiveMode = useSelector(selectIsLiveMode);
@@ -373,6 +387,20 @@ export const TableView: React.FC<TableViewProps> = ({
     setPage(1); // Reset to first page when searching - this will trigger new API call if needed
   };
 
+  // Notify parent component about controls state when ready
+  React.useEffect(() => {
+    if (onControlsReady) {
+      onControlsReady({
+        searchQuery,
+        groupBy,
+        rowsPerPage,
+        onSearchChange: handleSearchChange,
+        onGroupByChange: handleGroupByChange,
+        onRowsPerPageChange: handleRowsPerPageChange
+      });
+    }
+  }, [onControlsReady, searchQuery, groupBy, rowsPerPage]);
+
   const handleSortChange = (column: string) => {
     setSortDescriptor(prev => ({
       column,
@@ -453,83 +481,85 @@ export const TableView: React.FC<TableViewProps> = ({
 
   return (
     <div className="w-full h-full flex flex-col">
-      <div className="flex justify-between items-center mb-4 bg-white dark:bg-gray-900 p-3 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-        <div className="flex items-center gap-2">
-          <Input
-            placeholder="Search data..."
-            value={searchQuery}
-            onValueChange={handleSearchChange}
-            startContent={<Icon icon="lucide:search" className="text-default-400" />}
-            size="sm"
-            className="w-48 md:w-64"
-            isClearable
-          />
-          
-          <Dropdown>
-            <DropdownTrigger>
-              <Button
-                variant="flat"
-                color="primary"
-                size="sm"
-                endContent={<Icon icon="lucide:chevron-down" width={16} />}
-              >
-                {groupBy === 'none'
-                  ? "No Grouping"
-                  : groupBy === 'hourly'
-                    ? "Group by Hour"
-                    : groupBy === 'daily'
-                      ? "Group by Day"
-                      : "Group by Week"}
-              </Button>
-            </DropdownTrigger>
-            <DropdownMenu
-              aria-label="Group By Options"
-              onAction={(key) => handleGroupByChange(key as string)}
-            >
-              <DropdownItem key="none">No Grouping</DropdownItem>
-              <DropdownItem key="hourly">Group by Hour</DropdownItem>
-              <DropdownItem key="daily">Group by Day</DropdownItem>
-              <DropdownItem key="weekly">Group by Week</DropdownItem>
-            </DropdownMenu>
-          </Dropdown>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Dropdown>
-            <DropdownTrigger>
-              <Button
-                size="sm"
-                variant="flat"
-                color="primary"
-                endContent={<Icon icon="lucide:chevron-down" width={16} />}
-              >
-                Rows: {rowsPerPage}
-              </Button>
-            </DropdownTrigger>
-            <DropdownMenu
-              aria-label="Rows Per Page"
-              onAction={handleRowsPerPageChange}
-            >
-              <DropdownItem key="5">5 rows</DropdownItem>
-              <DropdownItem key="10">10 rows</DropdownItem>
-              <DropdownItem key="25">25 rows</DropdownItem>
-              <DropdownItem key="50">50 rows</DropdownItem>
-            </DropdownMenu>
-          </Dropdown>
-
-          {/* <Tooltip content="Download as CSV">
-            <Button
+      {!hideInternalControls && (
+        <div className="flex justify-between items-center mb-4 bg-white dark:bg-gray-900 p-3 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center gap-2">
+            <Input
+              placeholder="Search data..."
+              value={searchQuery}
+              onValueChange={handleSearchChange}
+              startContent={<Icon icon="lucide:search" className="text-default-400" />}
               size="sm"
-              variant="flat"
-              color="primary"
-              onPress={handleDownloadCSV}
-              startContent={<Icon icon="lucide:download" width={16} />}
-            >
-              Export
-            </Button>
-          </Tooltip> */}
+              className="w-48 md:w-64"
+              isClearable
+            />
+            
+            <Dropdown>
+              <DropdownTrigger>
+                <Button
+                  variant="flat"
+                  color="primary"
+                  size="sm"
+                  endContent={<Icon icon="lucide:chevron-down" width={16} />}
+                >
+                  {groupBy === 'none'
+                    ? "No Grouping"
+                    : groupBy === 'hourly'
+                      ? "Group by Hour"
+                      : groupBy === 'daily'
+                        ? "Group by Day"
+                        : "Group by Week"}
+                </Button>
+              </DropdownTrigger>
+              <DropdownMenu
+                aria-label="Group By Options"
+                onAction={(key) => handleGroupByChange(key as string)}
+              >
+                <DropdownItem key="none">No Grouping</DropdownItem>
+                <DropdownItem key="hourly">Group by Hour</DropdownItem>
+                <DropdownItem key="daily">Group by Day</DropdownItem>
+                <DropdownItem key="weekly">Group by Week</DropdownItem>
+              </DropdownMenu>
+            </Dropdown>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Dropdown>
+              <DropdownTrigger>
+                <Button
+                  size="sm"
+                  variant="flat"
+                  color="primary"
+                  endContent={<Icon icon="lucide:chevron-down" width={16} />}
+                >
+                  Rows: {rowsPerPage}
+                </Button>
+              </DropdownTrigger>
+              <DropdownMenu
+                aria-label="Rows Per Page"
+                onAction={handleRowsPerPageChange}
+              >
+                <DropdownItem key="5">5 rows</DropdownItem>
+                <DropdownItem key="10">10 rows</DropdownItem>
+                <DropdownItem key="25">25 rows</DropdownItem>
+                <DropdownItem key="50">50 rows</DropdownItem>
+              </DropdownMenu>
+            </Dropdown>
+
+            {/* <Tooltip content="Download as CSV">
+              <Button
+                size="sm"
+                variant="flat"
+                color="primary"
+                onPress={handleDownloadCSV}
+                startContent={<Icon icon="lucide:download" width={16} />}
+              >
+                Export
+              </Button>
+            </Tooltip> */}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="flex-1 overflow-auto border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm relative">
         {/* Loading overlay for when refreshing data */}
@@ -544,9 +574,9 @@ export const TableView: React.FC<TableViewProps> = ({
         
         <table className="w-full min-w-full table-auto border-collapse">
           <thead>
-            <tr className="bg-primary-50 dark:bg-primary-900/20">
+            <tr className="bg-gray-100 dark:bg-gray-100/20">
               <th 
-                className="px-4 py-3 text-left text-sm font-medium text-primary-700 dark:text-primary-300 cursor-pointer"
+                className="px-4 py-3 text-left text-sm font-medium text-dark cursor-pointer"
                 onClick={() => handleSortChange('timestamp')}
               >
                 <div className="flex items-center gap-1">
@@ -561,7 +591,7 @@ export const TableView: React.FC<TableViewProps> = ({
                 </div>
               </th>
               <th 
-                className="px-4 py-3 text-left text-sm font-medium text-primary-700 dark:text-primary-300 cursor-pointer"
+                className="px-4 py-3 text-left text-sm font-medium text-dark cursor-pointer"
                 onClick={() => handleSortChange('value')}
               >
                 <div className="flex items-center gap-1">
@@ -617,7 +647,7 @@ export const TableView: React.FC<TableViewProps> = ({
               paginatedData.map((item: any) => (
                 <tr 
                   key={item.id} 
-                  className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                  className="border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                 >
                   <td className="px-4 py-3 text-sm">{renderCell(item, 'timestamp')}</td>
                   <td className="px-4 py-3 text-sm">{renderCell(item, 'value')}</td>

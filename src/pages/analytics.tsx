@@ -22,6 +22,8 @@ import { FilterBar } from "../components/analytics/filter-bar";
 import { SensorCard } from "../components/analytics/sensor-card";
 import { SensorList } from "../components/analytics/sensor-list";
 import { SoloView } from "../components/analytics/solo-view";
+import { TimeRangeSelector } from "../components/analytics/time-range-selector";
+import { LiveReadingsSelector } from "../components/analytics/live-readings-selector";
 import { ClaimSensorModal } from "../components/sensors/claim-sensor-modal";
 import { PermissionButton } from "../components/PermissionButton";
 import { StatsCard } from "../components/stats-card";
@@ -310,10 +312,50 @@ export const AnalyticsPage: React.FC = () => {
         dispatch(fetchOptimizedTelemetry(request));
       }
     },
-    // onOfflineToLive - let live connection handle data when switching to live
+    // onOfflineToLive - fetch fresh historical data to fill any gap, then MQTT will append new readings
     () => {
-      // Live mode will handle its own data fetching via MQTT
-      // No need to fetch API data immediately
+      if (selectedSensor) {
+        // Update end time to NOW + 5 minute buffer to account for network latency
+        // This ensures we don't miss any readings due to timing differences
+        const now = new Date();
+        const endWithBuffer = new Date(now.getTime() + (5 * 60 * 1000)); // +5 minute buffer
+        const request = createOptimizedTelemetryRequest({
+          sensorIds: [selectedSensor],
+          timeRange: {
+            start: filters.timeRange.start.toISOString(),
+            end: endWithBuffer.toISOString() // Use current time + 1 min buffer to fill the gap
+          },
+          context: {
+            page: isSoloMode ? 'solo-view' : 'analytics',
+            chartType: isSoloMode ? 'line-chart' : 'line-chart',
+            isComparison: false // Single sensor mode
+          },
+          liveMode: { enabled: true, maxReadings: maxLiveReadings }
+        });
+        
+        dispatch(fetchOptimizedTelemetry(request));
+      }
+      
+      // Also refresh comparison data if active
+      if (selectedSensorIds.length > 0) {
+        const now = new Date();
+        const endWithBuffer = new Date(now.getTime() + (5 * 60 * 1000)); // +5 minute buffer
+        const request = createOptimizedTelemetryRequest({
+          sensorIds: selectedSensorIds,
+          timeRange: {
+            start: filters.timeRange.start.toISOString(),
+            end: endWithBuffer.toISOString() // Use current time + 1 min buffer to fill the gap
+          },
+          context: {
+            page: 'analytics',
+            chartType: 'comparison',
+            isComparison: true // Comparison mode
+          },
+          liveMode: { enabled: true, maxReadings: maxLiveReadings }
+        });
+        
+        dispatch(fetchOptimizedTelemetry(request));
+      }
     }
   );
 
@@ -619,6 +661,12 @@ export const AnalyticsPage: React.FC = () => {
   // Add loading state for skeleton
   const [isPageLoading, setIsPageLoading] = React.useState(true);
 
+  // Inline detail view state (instead of opening in new tab)
+  const [showInlineDetailView, setShowInlineDetailView] = React.useState(false);
+  
+  // Fullscreen tab state - when true, shows only the selected tab content in fullscreen
+  const [isFullscreenTab, setIsFullscreenTab] = React.useState(false);
+
   const claimModalOpen = useSelector((state: RootState) => state.sensors.claimModal.isOpen);
 
   // Simulate initial page load
@@ -768,6 +816,12 @@ export const AnalyticsPage: React.FC = () => {
     if (isEndOfDaySelection) {
       timeRangeToUse.end.setHours(23, 59, 59, 999);
     }
+    
+    // In live mode, add +1 minute buffer to end time to account for network latency
+    // This ensures we don't miss any readings due to timing differences
+    if (isLiveMode) {
+      timeRangeToUse.end = new Date(timeRangeToUse.end.getTime() + (5 * 60 * 1000));
+    }
 
     const request = createOptimizedTelemetryRequest({
       sensorIds: [selectedSensor],
@@ -798,11 +852,16 @@ export const AnalyticsPage: React.FC = () => {
 
       
       // Only fetch here if NOT in compare mode (compare mode uses useCompareSelection hook)
+      // In live mode, add +1 minute buffer to end time to account for network latency
+      const endTime = isLiveMode 
+        ? new Date(filters.timeRange.end.getTime() + (5 * 60 * 1000))
+        : filters.timeRange.end;
+      
       const request = createOptimizedTelemetryRequest({
         sensorIds: selectedSensorIds,
         timeRange: {
           start: filters.timeRange.start.toISOString(),
-          end: filters.timeRange.end.toISOString()
+          end: endTime.toISOString()
         },
         context: {
           page: 'analytics',
@@ -820,6 +879,7 @@ export const AnalyticsPage: React.FC = () => {
 
     // No need to cancel - optimized fetch will handle deduplication
     setSelectedSensor(id);
+    setShowInlineDetailView(false); // Close inline detail view when selecting new sensor
     navigate(`/dashboard/sensors/${id}`);
 
   };
@@ -1179,12 +1239,14 @@ export const AnalyticsPage: React.FC = () => {
 
   const handleOpenInNewTab = () => {
     if (selectedSensor) {
-      // Open in new tab with solo=true parameter and inherit current live mode state
-      const url = new URL(`/dashboard/sensors/${selectedSensor}`, window.location.origin);
-      url.searchParams.set("solo", "true");
-      url.searchParams.set("mode", isLiveMode ? "live" : "offline");
-      window.open(url.toString(), "_blank");
+      // Show inline detail view instead of opening in new tab
+      setShowInlineDetailView(true);
     }
+  };
+
+  // Handler to go back from inline detail view to sensor list
+  const handleBackFromDetailView = () => {
+    setShowInlineDetailView(false);
   };
 
   const handleToggleCompareSheet = () => {
@@ -1419,6 +1481,145 @@ export const AnalyticsPage: React.FC = () => {
     return <SoloView />;
   }
 
+  // Show inline detail view with breadcrumbs when "Show Details" is clicked
+  if (showInlineDetailView && currentSensor) {
+    return (
+      <div className="w-full h-screen overflow-auto bg-background">
+        {/* Breadcrumb Navigation with Sensor Info and Controls */}
+        <div className="bg-content1 border-b border-divider px-4 py-3">
+          <div className="flex items-center justify-between gap-2">
+            {/* Left side - Breadcrumb and sensor info */}
+            <div className="flex items-center gap-2 text-sm">
+              <button
+                onClick={handleBackFromDetailView}
+                className="text-default-500 hover:text-primary transition-colors flex items-center gap-1"
+              >
+                <Icon icon="lucide:chevron-left" width={16} />
+                Sensors
+              </button>
+              <Icon icon="lucide:chevron-right" className="text-default-400" width={16} />
+              <div className="flex flex-col">
+                <span className="font-medium text-foreground flex items-center gap-2">
+                  {currentSensor.displayName || currentSensor.mac}
+                  {/* Online/Offline status indicator */}
+                  <span className="flex items-center gap-1.5">
+                    <span
+                      className={`w-2 h-2 rounded-full ${
+                        currentSensor.isOnline === false ? "bg-danger animate-pulse" : "bg-success"
+                      }`}
+                    />
+                    <span
+                      className={`text-xs font-medium ${
+                        currentSensor.isOnline === false ? "text-danger" : "text-success"
+                      }`}
+                    >
+                      {currentSensor.isOnline === false ? "OFFLINE" : "ONLINE"}
+                    </span>
+                  </span>
+                </span>
+                {/* MAC Address */}
+                <span className="text-xs text-default-500">{currentSensor.mac}</span>
+              </div>
+            </div>
+
+            {/* Right side - Controls */}
+            <div className="flex items-center gap-2">
+              {/* Time Range Selector */}
+              <TimeRangeSelector
+                timeRange={filters.timeRange}
+                onTimeRangeChange={syncTimeRange}
+                showApplyButtons={true}
+                isMobile={isMobile}
+                isLiveMode={isLiveMode}
+                onLiveModeChange={syncLiveMode}
+                liveStatus={isConnecting ? "connecting" : isLiveMode ? "connected" : "disconnected"}
+                gatewayIds={gateways.map(g => g._id)}
+              />
+              
+              {/* Live Readings Selector */}
+              <LiveReadingsSelector 
+                isLiveMode={isLiveMode}
+                className="flex-shrink-0"
+              />
+              
+              {/* Star icon */}
+              <Button
+                size="sm"
+                variant="light"
+                isIconOnly
+                onPress={() => handleToggleStar(currentSensor.mac)}
+              >
+                <Icon
+                  icon={currentSensor.favorite ? "mdi:star" : "mdi:star-outline"}
+                  className={currentSensor.favorite ? "text-warning" : "text-default-400"}
+                  style={currentSensor.favorite ? { color: "#fbbf24" } : {}}
+                  width={18}
+                />
+              </Button>
+              
+              {/* Download dropdown */}
+              <Dropdown>
+                <DropdownTrigger>
+                  <Button size="sm" variant="light" color="primary" isIconOnly>
+                    <Icon icon="lucide:download" width={16} />
+                  </Button>
+                </DropdownTrigger>
+                <DropdownMenu aria-label="Download options">
+                  <DropdownItem
+                    key="csv"
+                    startContent={<Icon icon="lucide:download" width={16} />}
+                    onPress={handleDownloadCSV}
+                  >
+                    Download as CSV
+                  </DropdownItem>
+                </DropdownMenu>
+              </Dropdown>
+              
+              {/* Fullscreen/Expand button */}
+              <Button
+                size="sm"
+                variant="light"
+                color="primary"
+                isIconOnly
+                onPress={() => setIsFullscreenTab(true)}
+                title="Expand to fullscreen"
+              >
+                <Icon icon="lucide:maximize-2" width={16} />
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Embedded SoloView - preserves current live/offline mode */}
+        <SoloView 
+          isEmbedded={true} 
+          isFullscreen={isFullscreenTab}
+          onExitFullscreen={() => setIsFullscreenTab(false)}
+        />
+
+        {/* Export Modal for inline detail view */}
+        <ExportConfirmationModal
+          isOpen={isExportModalOpen}
+          onClose={handleCloseExportModal}
+          onConfirm={handleConfirmExport}
+          onCancel={handleCancelExport}
+          estimation={exportEstimation}
+          isLoading={isExportLoading}
+          exportStatus={exportStatus}
+          error={exportError}
+          selectedSensors={selectedSensor ? [sensors.find(s => s._id === selectedSensor)?.mac || ''] : []}
+          timeRange={{
+            start: filters.timeRange.start.toISOString(),
+            end: filters.timeRange.end.toISOString(),
+          }}
+          progress={exportProgress}
+          downloadedBytes={downloadedBytes}
+          totalBytes={totalBytes}
+        />
+      </div>
+    );
+  }
+
   return (
     // <div className="w-full h-screen overflow-hidden bg-background">
     <div
@@ -1431,7 +1632,7 @@ export const AnalyticsPage: React.FC = () => {
       {/* Time Range Validation Modal - Removed since backend now handles optimization */}
       
       {/* Header Section - Mobile First Design */}
-      <div className={`shrink-0 border-b border-divider bg-content1`}>
+      <div className={`shrink-0 bg-content1`}>
         {/* Mobile: Ultra-compact header */}
         {isMobile ? (
           <div className={`px-3 ${isShortHeight ? "py-0.5" : "py-2"}`}>
@@ -1529,7 +1730,7 @@ export const AnalyticsPage: React.FC = () => {
             <div className="flex items-center justify-between">
               <h1 className="text-2xl font-semibold text-foreground">Sensors</h1>
               <div className="flex items-center gap-2">
-                {isLiveMode && (
+                {/* {isLiveMode && (
                   <Button
                     size="sm"
                     variant="flat"
@@ -1539,7 +1740,7 @@ export const AnalyticsPage: React.FC = () => {
                   >
                     Test
                   </Button>
-                )}
+                )} */}
                 <PermissionButton
                   permissions={["sensors.add"]}
                   color="primary"
@@ -1586,8 +1787,8 @@ export const AnalyticsPage: React.FC = () => {
       {/* Main Content Area - Mobile First Responsive Layout */}
       <div className="flex flex-1 overflow-hidden">
         {!isSoloMode && !isMobile && (
-          <div className="w-80 border-r border-divider flex flex-col h-full">
-            <div className="p-3 border-b border-divider flex justify-between items-center shrink-0">
+          <div className="w-80 flex flex-col h-full">
+            <div className="p-3 flex justify-between items-center shrink-0">
               {/* <h3 className="text-sm font-medium">My Sensors</h3> */}
               <FilterBar filters={filters} onFiltersChange={handleFiltersChange} isMobile={false} />
               {!isLiveMode && (
@@ -1649,7 +1850,7 @@ export const AnalyticsPage: React.FC = () => {
                     variant="flat"
                     onPress={() => setIsMobileSensorDrawerOpen(true)}
                     isIconOnly
-                    className="w-10 h-10 min-w-10 bg-content1/95 backdrop-blur-md border border-divider shadow-sm"
+                    className="w-10 h-10 min-w-10 bg-content1/95 backdrop-blur-md border border-divider "
                   >
                     <Icon icon="lucide:list" width={20} />
                   </Button>
@@ -1938,7 +2139,7 @@ export const AnalyticsPage: React.FC = () => {
 
             <div className="flex flex-wrap gap-2 mb-4">
               {selectedSensorsForCompare.map((sensor) => (
-                <div key={sensor._id} className="flex items-center gap-2 p-2 border border-divider rounded-lg">
+                <div key={sensor._id} className="flex items-center gap-2 p-2 rounded-lg">
                   <div className={`w-2 h-2 rounded-full ${sensor.isOnline ? "bg-success" : "bg-danger"}`} />
                   <span className="text-sm">{sensor.displayName || sensor.mac}</span>
                   <Button isIconOnly size="sm" variant="light" onPress={() => handleRemoveCompare(sensor._id)}>
@@ -1979,7 +2180,7 @@ export const AnalyticsPage: React.FC = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex flex-col h-full">
-              <div className="p-4 border-b border-divider flex justify-between items-center">
+              <div className="p-4 flex justify-between items-center">
                 <h3 className="text-lg font-medium">Sensors</h3>
                 <div className="flex items-center gap-2">
                   {isCompareMode && (
@@ -1996,7 +2197,7 @@ export const AnalyticsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-4 border-b border-divider">
+              <div className="p-4">
                 <Input
                   placeholder="Search by MAC or display name"
                   value={searchQuery}
@@ -2061,7 +2262,7 @@ export const AnalyticsPage: React.FC = () => {
               </div>
 
               {isCompareMode && selectedSensorIds.length > 0 && (
-                <div className="p-3 border-t border-divider">
+                <div className="p-3">
                   <Button
                     color="primary"
                     fullWidth
@@ -2089,7 +2290,7 @@ export const AnalyticsPage: React.FC = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex flex-col h-full">
-              <div className="p-4 border-b border-divider flex justify-between items-center">
+              <div className="p-4 flex justify-between items-center">
                 <h3 className="text-lg font-medium">Filters</h3>
                 <Button isIconOnly size="sm" variant="light" onPress={() => setIsMobileFilterDrawerOpen(false)}>
                   <Icon icon="lucide:x" width={16} />
@@ -2226,7 +2427,7 @@ export const AnalyticsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-4 border-t border-divider">
+              <div className="p-4">
                 <Button color="primary" fullWidth onPress={applyPendingFilters}>
                   Apply Filters
                 </Button>

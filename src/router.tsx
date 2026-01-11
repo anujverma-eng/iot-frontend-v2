@@ -28,8 +28,6 @@ import { TeamPage } from "./pages/TeamPage";
 import { PublicInvitePage } from "./pages/PublicInvitePage";
 import AuthBootstrap from "./lib/auth/AuthBootstrap";
 import MyProfilePage from "./pages/MyProfilePage";
-import SecurityPage from "./pages/SecurityPage";
-import OrganizationManagementPage from "./pages/OrganizationManagementPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { getPermissionValue } from "./constants/permissions";
 import { ManageAlertsPage } from "./pages/ManageAlertsPage";
@@ -126,21 +124,10 @@ export function AppRouter() {
                 } 
               />
 
-              {/* Organization Management - protected by settings.view permission */}
-              <Route 
-                path="organization" 
-                element={
-                  <ProtectedRoute permission={getPermissionValue('SETTINGS', 'VIEW')}>
-                    <OrganizationManagementPage />
-                  </ProtectedRoute>
-                } 
-              />
-
               {/* Routes that don't require specific permissions */}
               <Route path="panel" element={<PanelPage />} />
               <Route path="invitations" element={<DashboardInvitationsPage />} />
               <Route path="profile" element={<MyProfilePage />} />
-              <Route path="security" element={<SecurityPage />} />
               <Route path="notifications" element={<ManageAlertsPage />} />
             </Route>
 

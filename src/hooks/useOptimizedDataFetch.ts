@@ -34,21 +34,29 @@ export const useOptimizedDataFetch = () => {
   const requestInProgressRef = useRef<boolean>(false);
   
   const fetchData = useCallback((params: DataFetchParams, immediate = false) => {
+    // In live mode, add +1 minute buffer to end time to account for network latency
+    // This ensures we don't miss any readings due to timing differences
+    const endTime = isLiveMode 
+      ? new Date(params.timeRange.end.getTime() + (5 * 60 * 1000)) // +5 minute buffer for live mode
+      : params.timeRange.end;
+    
     // Create optimized request with context
     const optimizedRequest = createOptimizedTelemetryRequest({
       sensorIds: params.sensorIds,
       timeRange: {
         start: params.timeRange.start.toISOString(),
-        end: params.timeRange.end.toISOString()
+        end: endTime.toISOString()
       },
       context: {
         page: params.pageContext || 'analytics',
         chartType: (params.chartType as any) || 'line-chart',
       },
-      liveMode: isLiveMode ? { enabled: true, maxReadings: maxLiveReadings } : undefined
+      liveMode: isLiveMode ? { enabled: true, maxReadings: Math.min(maxLiveReadings, 100) } : undefined
     });
     
-    const requestId = `${params.sensorIds.join(',')}-${params.timeRange.start.toISOString()}-${params.timeRange.end.toISOString()}-${params.pageContext || 'analytics'}`;
+    // Include isLiveMode in requestId to differentiate live vs offline requests
+    // This ensures switching modes triggers a new API call with correct liveMode parameter
+    const requestId = `${params.sensorIds.join(',')}-${params.timeRange.start.toISOString()}-${params.timeRange.end.toISOString()}-${params.pageContext || 'analytics'}-${isLiveMode ? 'live' : 'offline'}`;
     
     // Don't make the same request twice
     if (lastRequestRef.current === requestId) {

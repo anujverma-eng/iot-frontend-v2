@@ -246,10 +246,10 @@ export const fetchOptimizedTelemetry = createAsyncThunk<
       timeRange: params.timeRange,
       targetPoints: params.targetPoints,
       deviceType,
-      liveMode: params.liveMode || {
-        enabled: isLiveMode,
-        maxReadings: maxLiveReadings
-      }
+      // Always cap maxReadings at 100 (backend limit) - whether provided or fallback
+      liveMode: params.liveMode 
+        ? { enabled: params.liveMode.enabled, maxReadings: Math.min(params.liveMode.maxReadings, 100) }
+        : (isLiveMode ? { enabled: true, maxReadings: Math.min(maxLiveReadings, 100) } : undefined)
     });
 
     // Map backend payload to UI-friendly structure

@@ -17,7 +17,7 @@ import html2canvas from "html2canvas";
 import React from "react";
 import { formatNumericValue } from "../../utils/numberUtils";
 import { ChartConfig, MultiSeriesConfig, VisualizationType } from "../../types/sensor";
-import { TableView } from "../analytics/table-view";
+import { TableView, TableControlsState } from "../analytics/table-view";
 import { TimeRangeSelector } from "../analytics/time-range-selector";
 import { LiveReadingsSelector } from "../analytics/live-readings-selector";
 import { AreaChart } from "./area-chart";
@@ -229,8 +229,8 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   // Add error handling for when config is null
   if (!config) {
     return (
-      <Card className="w-full h-full border border-default-200 shadow-md">
-        <div className="p-4 border-b border-divider bg-default-50">
+      <Card className="w-full h-full shadow-md">
+        <div className="p-4 bg-default-50">
           {sensor && (
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -267,9 +267,9 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                     size="sm"
                     variant="flat"
                     onPress={onOpenInNewTab}
-                    startContent={<Icon icon="lucide:external-link" width={16} />}
+                    startContent={<Icon icon="lucide:maximize-2" width={16} />}
                   >
-                    Open in new tab
+                    Show Details
                   </Button>
                 )}
               </div>
@@ -290,8 +290,8 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   // Ensure we have data before rendering charts
   if (!config || (isMultiSeries && (!config.series || config.series.length === 0))) {
     return (
-      <Card className="w-full h-full border border-default-200 shadow-md">
-        <div className="p-4 border-b border-divider bg-default-50">
+      <Card className="w-full h-full shadow-md">
+        <div className="p-4 bg-default-50">
           {sensor && (
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -335,9 +335,9 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                     size="sm"
                     variant="flat"
                     onPress={onOpenInNewTab}
-                    startContent={<Icon icon="lucide:external-link" width={16} />}
+                    startContent={<Icon icon="lucide:maximize-2" width={16} />}
                   >
-                    Open in new tab
+                    Show Details
                   </Button>
                 )}
               </div>
@@ -667,6 +667,9 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const [activeTab, setActiveTab] = React.useState("chart");
   const [isFullscreen, setIsFullscreen] = React.useState(false);
+  
+  // Table controls state for rendering in header
+  const [tableControls, setTableControls] = React.useState<TableControlsState | null>(null);
 
   // Export modal state variables
   const [isExportModalOpen, setIsExportModalOpen] = React.useState(false);
@@ -811,7 +814,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
 
   // Desktop header component
   const renderDesktopHeader = () => (
-    <div className="p-4 border-b border-divider bg-default-50">
+    <div className="p-4 bg-default-50">
       {sensor && (
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -894,7 +897,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                 size="sm"
                 variant="flat"
                 onPress={onOpenInNewTab}
-                startContent={<Icon icon="lucide:external-link" width={16} />}
+                startContent={<Icon icon="lucide:maximize-2" width={16} />}
               >
                 Show Details
               </Button>
@@ -924,7 +927,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
 
   return (
     <Card
-      className={`w-full h-full flex flex-col border border-default-200 shadow-md ${
+      className={`w-full h-full flex flex-col shadow-md ${
         isFullscreen && isMobileDevice ? "fixed inset-0 z-50 rounded-none" : ""
       }`}
     >
@@ -932,27 +935,93 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       {isMobileDevice ? renderMobileHeader() : renderDesktopHeader()}
 
       <div className="flex flex-col flex-1 min-h-0">
-        {/* Tab headers - hide on mobile fullscreen to save space */}
+        {/* Tab headers with table controls - hide on mobile fullscreen to save space */}
         {!(isFullscreen && isMobile) && (
-          <Tabs
-            selectedKey={activeTab}
-            onSelectionChange={setActiveTab as any}
-            variant="underlined"
-            color="primary"
-            className={`${
-              isMobileLandscapeShort
-                ? "px-2 mb-1" // Reduced spacing
-                : isSmallScreen
-                  ? "px-3 mb-2"
-                  : "px-4 mb-4"
-            }`}
-            classNames={{
-              tabList: isMobileLandscapeShort ? "h-8" : undefined, // Smaller tab height
-            }}
-          >
-            <Tab key="chart" title={isSmallScreen ? "Chart" : "Chart View"} />
-            <Tab key="table" title={isSmallScreen ? "Table" : "Table View"} />
-          </Tabs>
+          <div className={`flex items-center justify-between ${
+            isMobileLandscapeShort
+              ? "px-2 mb-1"
+              : isSmallScreen
+                ? "px-3 mb-2"
+                : "px-4 mb-4"
+          }`}>
+            <Tabs
+              selectedKey={activeTab}
+              onSelectionChange={setActiveTab as any}
+              variant="underlined"
+              color="primary"
+              classNames={{
+                tabList: isMobileLandscapeShort ? "h-8" : undefined,
+              }}
+            >
+              <Tab key="chart" title={isSmallScreen ? "Chart" : "Chart View"} />
+              <Tab key="table" title={isSmallScreen ? "Table" : "Table View"} />
+            </Tabs>
+            
+            {/* Table controls - only show when table tab is active */}
+            {activeTab === "table" && tableControls && (
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="Search data..."
+                  value={tableControls.searchQuery}
+                  onValueChange={tableControls.onSearchChange}
+                  startContent={<Icon icon="lucide:search" className="text-default-400" />}
+                  size="sm"
+                  className="w-32 md:w-48"
+                  isClearable
+                />
+                
+                <Dropdown>
+                  <DropdownTrigger>
+                    <Button
+                      variant="flat"
+                      color="primary"
+                      size="sm"
+                      endContent={<Icon icon="lucide:chevron-down" width={16} />}
+                    >
+                      {tableControls.groupBy === 'none'
+                        ? "No Grouping"
+                        : tableControls.groupBy === 'hourly'
+                          ? "Group by Hour"
+                          : tableControls.groupBy === 'daily'
+                            ? "Group by Day"
+                            : "Group by Week"}
+                    </Button>
+                  </DropdownTrigger>
+                  <DropdownMenu
+                    aria-label="Group By Options"
+                    onAction={(key) => tableControls.onGroupByChange(key)}
+                  >
+                    <DropdownItem key="none">No Grouping</DropdownItem>
+                    <DropdownItem key="hourly">Group by Hour</DropdownItem>
+                    <DropdownItem key="daily">Group by Day</DropdownItem>
+                    <DropdownItem key="weekly">Group by Week</DropdownItem>
+                  </DropdownMenu>
+                </Dropdown>
+                
+                <Dropdown>
+                  <DropdownTrigger>
+                    <Button
+                      size="sm"
+                      variant="flat"
+                      color="primary"
+                      endContent={<Icon icon="lucide:chevron-down" width={16} />}
+                    >
+                      Rows: {tableControls.rowsPerPage}
+                    </Button>
+                  </DropdownTrigger>
+                  <DropdownMenu
+                    aria-label="Rows Per Page"
+                    onAction={(key) => tableControls.onRowsPerPageChange(key)}
+                  >
+                    <DropdownItem key="5">5 rows</DropdownItem>
+                    <DropdownItem key="10">10 rows</DropdownItem>
+                    <DropdownItem key="25">25 rows</DropdownItem>
+                    <DropdownItem key="50">50 rows</DropdownItem>
+                  </DropdownMenu>
+                </Dropdown>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Chart content - Explicit height for proper chart rendering */}
@@ -1067,6 +1136,8 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                 sensorId={sensor?.id || ''}
                 timeRange={timeRange || { start: new Date(Date.now() - 24 * 60 * 60 * 1000), end: new Date() }}
                 onDownloadCSV={onDownloadCSV}
+                onControlsReady={setTableControls}
+                hideInternalControls={true}
               />
             )}
           </div>

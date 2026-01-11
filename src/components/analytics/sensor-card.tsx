@@ -129,7 +129,7 @@ export const SensorCard: React.FC<SensorCardProps> = ({
     const borderClasses = isSelected || (isComparing && isLocallyChecked) ? "border-primary border-2" : "";
     const loadingClasses = showDataLoading ? "opacity-70" : "";
     const batteryClasses = getBatteryCardClass(sensor.battery);
-    return `${baseClasses} ${borderClasses} ${loadingClasses} ${batteryClasses}`.trim();
+    return `${baseClasses} ${borderClasses} ${loadingClasses} ${batteryClasses} shadow`.trim();
   }, [isSelected, isComparing, isLocallyChecked, showDataLoading, sensor.battery]);
 
   // Use useCallback for event handlers to prevent unnecessary re-renders

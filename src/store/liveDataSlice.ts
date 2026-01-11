@@ -65,12 +65,9 @@ export const initializeLiveConnection = createAsyncThunk(
       const userPermissions = selectCurrentUserPermissions(state);
       const requiredPermission = getPermissionValue("SENSORS", "LIVE");
 
-      const urlParams = new URLSearchParams(window.location.search);
-      const isSoloMode = urlParams.get("solo") === "true";
-      const inheritedMode = urlParams.get("mode");
-      const shouldSkipAutoConnect = isSoloMode && inheritedMode === "offline";
-
-      if (!userPermissions.includes(requiredPermission) || shouldSkipAutoConnect) {
+      // Only check permissions here - URL param checks should be handled by the calling component
+      // The ?mode=offline param only affects INITIAL auto-connect, not manual toggles
+      if (!userPermissions.includes(requiredPermission)) {
         return {
           gatewayIds: [],
           connected: false,

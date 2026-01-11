@@ -504,7 +504,7 @@ export const TimeRangeSelector: React.FC<{
             {getButtonContent()}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className={`${isMobileDevice ? 'w-80' : 'w-96'} p-4`}>
+        <PopoverContent className={`${isMobileDevice ? 'w-80' : ''} p-4`}>
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h4 className="text-sm font-semibold text-default-700">Data Source</h4>
@@ -666,7 +666,7 @@ export const TimeRangeSelector: React.FC<{
             {showApplyButtons && (
               <>
                 <Divider />
-                <div className={`flex gap-2 ${isMobileDevice ? 'flex-col' : ''}`}>
+                <div className={`flex gap-2 ${isMobileDevice ? 'flex-row' : ''}`}>
                   <Button
                     size={isMobileDevice ? "md" : "sm"}
                     variant="flat"
