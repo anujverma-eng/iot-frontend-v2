@@ -1202,32 +1202,8 @@ export const DashboardHome: React.FC = () => {
       </Card>
 
       {/* Favorite Dashboard Section */}
-      <Card>
-        <CardHeader className={isMobile ? "px-3 py-3" : "px-6 py-4"}> {/* Mobile: reduced padding */}
-          <h2 className={`font-semibold ${
-            isMobile ? "text-lg" : "text-xl" // Mobile: smaller heading
-          }`}>Favorite Dashboard</h2>
-        </CardHeader>
-        <CardBody className={isMobile ? "px-3 py-2" : "px-6 py-4"}> {/* Mobile: reduced padding */}
-          <div className={`flex flex-col items-center justify-center ${
-            isMobile ? "py-8" : "py-12" // Mobile: reduced padding
-          }`}>
-            <Icon icon="lucide:layout-dashboard" className={`text-default-300 mb-4 ${
-              isMobile ? "w-12 h-12" : "w-16 h-16" // Mobile: smaller icon
-            }`} />
-            <p className={`text-default-600 mb-4 ${
-              isMobile ? "text-sm" : "text-base" // Mobile: smaller text
-            }`}>No favorite dashboard available</p>
-            <Button 
-              color="primary" 
-              size={isMobile ? "sm" : "md"} // Mobile: smaller button
-              startContent={<Icon icon="lucide:plus" />}
-            >
-              Add Favorite Dashboard
-            </Button>
-          </div>
-        </CardBody>
-      </Card>
+      {/* Hide favorite dashboard for time being */}
+      
     </div>
   );
 };
