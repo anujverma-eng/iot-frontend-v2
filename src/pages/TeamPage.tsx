@@ -88,7 +88,17 @@ import { EditPermissionsModal } from "../components/EditPermissionsModal";
 
 // Icons
 import { Icon } from "@iconify/react";
-import { EllipsisVerticalIcon, PlusIcon, PaperAirplaneIcon, XMarkIcon, LinkIcon, ClipboardDocumentIcon, ArrowLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
+import {
+  EllipsisVerticalIcon,
+  PlusIcon,
+  PaperAirplaneIcon,
+  XMarkIcon,
+  LinkIcon,
+  ClipboardDocumentIcon,
+  ArrowLeftIcon,
+  ChevronRightIcon,
+} from "@heroicons/react/24/outline";
+import { motion } from "framer-motion";
 
 interface InviteFormData {
   email: string;
@@ -167,17 +177,18 @@ const categorizeInvites = (invites: Invite[]) => {
 
 // Helper function to categorize my invitations
 const categorizeMyInvitations = (invitations: Invite[]) => {
-  const pending = invitations.filter((invitation) => {
-    const statusInfo = getMyInvitationStatus(invitation);
-    return statusInfo.status === "PENDING";
+  const now = new Date();
+
+  const pending = invitations.filter((inv) => {
+    const isExpired = new Date(inv.expiresAt) < now;
+    return !isExpired && [InviteStatus.CREATED, InviteStatus.SENT, InviteStatus.DELIVERED].includes(inv.status);
   });
 
-  const others = invitations.filter((invitation) => {
-    const statusInfo = getMyInvitationStatus(invitation);
-    return statusInfo.status !== "PENDING";
-  });
+  const processed = invitations.filter((inv) => [InviteStatus.ACCEPTED, InviteStatus.DECLINED].includes(inv.status));
 
-  return { pending, others };
+  const expired = invitations.filter((inv) => new Date(inv.expiresAt) < now || inv.status === InviteStatus.REVOKED);
+
+  return { pending, processed, expired };
 };
 
 // Helper function to copy invite link to clipboard
@@ -239,23 +250,23 @@ const InviteTable: React.FC<{
   }
 
   return (
-    <Table
-      className={isMobile ? "text-xs" : ""}
-      classNames={{
-        table: isMobile ? "min-w-full" : "",
-        th: isMobile ? "px-2 py-3 text-xs" : "",
-        td: isMobile ? "px-2 py-3" : "",
-      }}
-    >
-      <TableHeader columns={invitesColumns}>
-        {(column) => <TableColumn key={column.key}>{column.label}</TableColumn>}
-      </TableHeader>
-      <TableBody>
-        {invites.map((invite: Invite) => (
-          <TableRow
-            key={invite._id}
-            className="hover:bg-gray-50/50 odd:bg-gray-50/25 dark:odd:bg-gray-800/25 dark:hover:bg-gray-800/50"
-          >
+    <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+      <Table
+        removeWrapper
+        className={isMobile ? "text-xs" : ""}
+        classNames={{
+          table: isMobile ? "min-w-full" : "",
+          th: `${isMobile ? "px-2 py-3 text-xs" : "px-4 py-3"} bg-gray-100 dark:bg-gray-100/20 text-sm font-medium`,
+          td: isMobile ? "px-2 py-3" : "px-4 py-3",
+          tr: "hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors",
+        }}
+      >
+        <TableHeader columns={invitesColumns}>
+          {(column) => <TableColumn key={column.key}>{column.label}</TableColumn>}
+        </TableHeader>
+        <TableBody>
+          {invites.map((invite: Invite) => (
+            <TableRow key={invite._id}>
             <TableCell className={isMobile ? "text-xs" : ""}>
               <div className="flex items-center gap-2">
                 <span>{isMobile ? invite.email.split("@")[0] : invite.email}</span>
@@ -332,6 +343,7 @@ const InviteTable: React.FC<{
         ))}
       </TableBody>
     </Table>
+    </div>
   );
 };
 
@@ -355,23 +367,23 @@ const MyInvitationsTable: React.FC<{
   }
 
   return (
-    <Table
-      className={isMobile ? "text-xs" : ""}
-      classNames={{
-        table: isMobile ? "min-w-full" : "",
-        th: isMobile ? "px-2 py-3 text-xs" : "",
-        td: isMobile ? "px-2 py-3" : "",
-      }}
-    >
-      <TableHeader columns={myInvitationsColumns}>
-        {(column) => <TableColumn key={column.key}>{column.label}</TableColumn>}
-      </TableHeader>
-      <TableBody>
-        {invitations.map((invitation: Invite) => (
-          <TableRow
-            key={invitation._id}
-            className="hover:bg-gray-50/50 odd:bg-gray-50/25 dark:odd:bg-gray-800/25 dark:hover:bg-gray-800/50"
-          >
+    <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+      <Table
+        removeWrapper
+        className={isMobile ? "text-xs" : ""}
+        classNames={{
+          table: isMobile ? "min-w-full" : "",
+          th: `${isMobile ? "px-2 py-3 text-xs" : "px-4 py-3"} bg-gray-100 dark:bg-gray-100/20 text-sm font-medium`,
+          td: isMobile ? "px-2 py-3" : "px-4 py-3",
+          tr: "hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors",
+        }}
+      >
+        <TableHeader columns={myInvitationsColumns}>
+          {(column) => <TableColumn key={column.key}>{column.label}</TableColumn>}
+        </TableHeader>
+        <TableBody>
+          {invitations.map((invitation: Invite) => (
+            <TableRow key={invitation._id}>
             <TableCell>
               <div className={`${isMobile ? "text-xs" : ""}`}>
                 <p className="font-medium">{invitation.orgId.name}</p>
@@ -423,6 +435,7 @@ const MyInvitationsTable: React.FC<{
         ))}
       </TableBody>
     </Table>
+    </div>
   );
 };
 
@@ -528,16 +541,24 @@ export const TeamPage: React.FC = () => {
 
   // Handle URL parameters (tab, invitation token)
   useEffect(() => {
-    const tab = searchParams.get('tab');
-    const token = searchParams.get('token');
-    
+    const tab = searchParams.get("tab");
+    const token = searchParams.get("token");
+
     // Set active tab from URL
-    if (tab && ['members', 'invites'].includes(tab)) {
+    if (tab && ["members", "invites", "myinvitations"].includes(tab)) {
       setActiveTab(tab);
     }
-    
-    // Token handling is no longer needed for teams page since invitations have their own page
-  }, [searchParams]);
+
+    // Handle token parameter for auto-opening invitation details modal
+    if (token && myInvitations && myInvitations.length > 0) {
+      const invitation = myInvitations.find((inv: Invite) => inv.token === token);
+      if (invitation) {
+        setActiveTab("myinvitations");
+        setSelectedInvitation(invitation);
+        setIsInvitationDetailsModalOpen(true);
+      }
+    }
+  }, [searchParams, myInvitations]);
 
   // Reset fetch flag when user or organization changes
   useEffect(() => {
@@ -563,7 +584,7 @@ export const TeamPage: React.FC = () => {
           dir: membersSortDescriptor.direction === "ascending" ? "asc" : "desc",
         })
       );
-      
+
       // Only fetch invites if user has permission to view them
       if (hasPermission("invites.view")) {
         dispatch(
@@ -575,7 +596,7 @@ export const TeamPage: React.FC = () => {
           })
         );
       }
-      
+
       dispatch(fetchCatalog());
     }
   }, [
@@ -612,16 +633,16 @@ export const TeamPage: React.FC = () => {
       await dispatch(createInvite(inviteForm)).unwrap();
       setInviteForm({ email: "", role: UserRole.VIEWER });
       setIsInviteModalOpen(false);
-      
+
       addToast({
-        title: 'Invitation Sent',
+        title: "Invitation Sent",
         description: `Invitation has been sent to ${inviteForm.email}`,
-        color: 'success'
+        color: "success",
       });
-      
+
       // Switch to invited members tab to show the new invite
       setActiveTab("invites");
-      
+
       // Refresh invites only if user has permission
       if (hasPermission("invites.view")) {
         dispatch(
@@ -670,11 +691,11 @@ export const TeamPage: React.FC = () => {
       }
 
       setInviteError(errorMessage);
-      
+
       addToast({
-        title: 'Invitation Failed',
+        title: "Invitation Failed",
         description: errorMessage,
-        color: 'danger'
+        color: "danger",
       });
     } finally {
       setIsSubmittingInvite(false);
@@ -745,13 +766,13 @@ export const TeamPage: React.FC = () => {
   const handleRemoveMember = async (membershipId: string) => {
     try {
       await dispatch(removeMember(membershipId)).unwrap();
-      
+
       addToast({
-        title: 'Member Removed',
-        description: 'Team member has been successfully removed from the organization',
-        color: 'success'
+        title: "Member Removed",
+        description: "Team member has been successfully removed from the organization",
+        color: "success",
       });
-      
+
       // Refresh members
       dispatch(
         fetchMembers({
@@ -761,18 +782,18 @@ export const TeamPage: React.FC = () => {
       );
     } catch (error: any) {
       console.error("Failed to remove member:", error);
-      
+
       let errorMessage = "Failed to remove member. Please try again.";
       if (error?.response?.data?.message) {
         errorMessage = error.response.data.message;
       } else if (error?.message) {
         errorMessage = error.message;
       }
-      
+
       addToast({
-        title: 'Remove Failed',
+        title: "Remove Failed",
         description: errorMessage,
-        color: 'danger'
+        color: "danger",
       });
     }
   };
@@ -782,13 +803,13 @@ export const TeamPage: React.FC = () => {
     setRevokeError(null);
     try {
       await dispatch(revokeInvite(token)).unwrap();
-      
+
       addToast({
-        title: 'Invitation Revoked',
-        description: 'The invitation has been successfully revoked',
-        color: 'success'
+        title: "Invitation Revoked",
+        description: "The invitation has been successfully revoked",
+        color: "success",
       });
-      
+
       // Refresh invites only if user has permission
       if (hasPermission("invites.view")) {
         dispatch(
@@ -837,13 +858,13 @@ export const TeamPage: React.FC = () => {
       }
 
       setRevokeError(errorMessage);
-      
+
       addToast({
-        title: 'Revocation Failed',
+        title: "Revocation Failed",
         description: errorMessage,
-        color: 'danger'
+        color: "danger",
       });
-      
+
       // Clear error after 5 seconds
       setTimeout(() => setRevokeError(null), 5000);
     }
@@ -1009,38 +1030,66 @@ export const TeamPage: React.FC = () => {
   }
 
   return (
-    <div className={`max-w-7xl mx-auto ${isMobile ? "p-4" : "p-6"}`}>
-      {/* Back Navigation */}
-      <div className="flex items-center gap-2 mb-4">
-        <Button
-          variant="light"
-          size="sm"
-          startContent={<ArrowLeftIcon className="h-4 w-4" />}
-          onPress={() => navigate(-1)}
-        >
-          Back
-        </Button>
-        <ChevronRightIcon className="h-4 w-4 text-default-400" />
-        <span className="text-sm text-default-500">Team Management</span>
-      </div>
-
-      <div className={`${isMobile ? "space-y-4" : "flex justify-between items-center"} mb-6`}>
+    <div className={`max-w-7xl mx-auto ${isMobile ? "p-3" : "p-4"}`}>
+      <div className={`${isMobile ? "space-y-4" : "flex justify-between items-center"} mb-2`}>
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className={`font-bold ${isMobile ? "text-2xl" : "text-3xl"}`}>Team Management</h1>
-            {pendingMyInvitationsCount > 0 && (
+          <div className="flex items-center gap-2">
+            <motion.h1
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`text-2xl sm:text-3xl font-bold ${
+                isMobile
+                  ? "mb-3 px-1" // Mobile: reduced margin and padding
+                  : "mb-4 sm:mb-6 px-2 sm:px-0" // Desktop: normal spacing
+              }`}
+            >
+              Team Management
+            </motion.h1>
+            {/* {pendingMyInvitationsCount > 0 && (
               <div className="flex items-center gap-2">
                 <Chip size="sm" color="primary" className="animate-pulse">
                   {pendingMyInvitationsCount} pending invitation{pendingMyInvitationsCount > 1 ? "s" : ""}
                 </Chip>
               </div>
-            )}
+            )} */}
           </div>
-          {!isMobile && <p className="text-gray-600 mt-1">Manage your organization's team members and permissions</p>}
         </div>
+      </div>
+
+      {/* Tabs with Invite Button */}
+      <div className={`flex ${isMobile ? "flex-col gap-3" : "items-center justify-between"} mb-4`}>
+        <Tabs
+          selectedKey={activeTab}
+          onSelectionChange={(key) => setActiveTab(key as string)}
+          className={isMobile ? "w-full" : ""}
+          variant="underlined"
+          classNames={{
+            tabList: `${isMobile ? "w-full" : ""} bg-transparent`,
+            tab: isMobile ? "flex-1" : "",
+            panel: "hidden",
+            cursor: "bg-primary",
+          }}
+        >
+          <Tab key="members" title={`Members (${membersPagination?.total || 0})`} />
+          <Tab key="invites" title={`Invited Members (${invitesPagination?.total || 0})`} />
+          <Tab
+            key="myinvitations"
+            title={
+              <div className="flex items-center gap-2">
+                <span>My Invitations</span>
+                {pendingMyInvitationsCount > 0 && (
+                  <Chip size="sm" color="warning" variant="flat">
+                    {pendingMyInvitationsCount}
+                  </Chip>
+                )}
+              </div>
+            }
+          />
+        </Tabs>
         <PermissionButton
           permissions={["invites.create"]}
           color="primary"
+          size="sm"
           startContent={<PlusIcon className="w-4 h-4" />}
           onPress={() => {
             setInviteError(null); // Clear any previous errors
@@ -1053,299 +1102,432 @@ export const TeamPage: React.FC = () => {
         </PermissionButton>
       </div>
 
-      <Card className={isMobile ? "shadow-none border-0" : ""}>
-        <CardBody className={isMobile ? "p-0" : ""}>
-          <Tabs
-            selectedKey={activeTab}
-            onSelectionChange={(key) => setActiveTab(key as string)}
-            className="w-full"
+      {/* Tab Content */}
+      {activeTab === "members" && (
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+          <Table
+            isHeaderSticky
+            removeWrapper
+            sortDescriptor={membersSortDescriptor}
+            onSortChange={setMembersSortDescriptor}
+            className={isMobile ? "text-xs" : ""}
             classNames={{
-              tabList: isMobile ? "w-full" : "",
-              tab: isMobile ? "flex-1" : "",
-              panel: isMobile ? "px-0" : "",
+              table: isMobile ? "min-w-full" : "",
+              th: `${isMobile ? "px-2 py-3 text-xs" : "px-4 py-3"} bg-gray-100 dark:bg-gray-100/20 text-sm font-medium`,
+              td: isMobile ? "px-2 py-3" : "px-4 py-3",
+              tr: "hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors",
             }}
+            bottomContent={
+              membersPagination && membersPagination.totalPages > 1 ? (
+                <div className="flex w-full justify-center">
+                  <Pagination
+                    isCompact
+                    showControls
+                    showShadow
+                    color="primary"
+                    page={membersPage}
+                    total={membersPagination.totalPages}
+                    onChange={(page) => setMembersPage(page)}
+                  />
+                </div>
+              ) : null
+            }
           >
-            <Tab key="members" title={`Members (${membersPagination?.total || 0})`}>
-              <div className="space-y-4">
-                {/* {!isMobile && (
-                  <div className="flex justify-between items-center">
-                    <Input
-                      placeholder="Search members..."
-                      value={membersSearch}
-                      onChange={(e) => setMembersSearch(e.target.value)}
-                      className="max-w-xs"
-                    />
-                  </div>
-                )} */}
-
-                <Table
-                  isHeaderSticky
-                  sortDescriptor={membersSortDescriptor}
-                  onSortChange={setMembersSortDescriptor}
-                  className={isMobile ? "text-xs" : ""}
-                  classNames={{
-                    table: isMobile ? "min-w-full" : "",
-                    th: isMobile ? "px-2 py-3 text-xs" : "",
-                    td: isMobile ? "px-2 py-3" : "",
-                  }}
-                  bottomContent={
-                    membersPagination && membersPagination.totalPages > 1 ? (
-                      <div className="flex w-full justify-center">
-                        <Pagination
-                          isCompact
-                          showControls
-                          showShadow
-                          color="primary"
-                          page={membersPage}
-                          total={membersPagination.totalPages}
-                          onChange={(page) => setMembersPage(page)}
-                        />
-                      </div>
-                    ) : null
-                  }
-                >
-                  <TableHeader columns={membersColumns}>
-                    {(column) => (
-                      <TableColumn key={column.key} allowsSorting={column.key !== "actions"}>
-                        {column.label}
-                      </TableColumn>
-                    )}
-                  </TableHeader>
-                  <TableBody
-                    items={membersLoading && (!members || members.length === 0) ? [] : members}
-                    isLoading={membersLoading && (!members || members.length === 0)}
-                    loadingContent={<Spinner size="lg" label="Loading members..." />}
-                    emptyContent={
-                      membersLoading ? (
-                        <div className="flex justify-center items-center py-10">
-                          <Spinner size="lg" />
-                        </div>
-                      ) : (
-                        "No team members found"
-                      )
-                    }
-                  >
-                    {(member: MembershipWithUser) => (
-                      <TableRow
-                        key={member._id}
-                        className="hover:bg-gray-50/50 odd:bg-gray-50/25 dark:odd:bg-gray-800/25 dark:hover:bg-gray-800/50"
-                      >
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <div className={isMobile ? "min-w-0" : ""}>
-                              <div className={`font-medium ${isMobile ? "text-xs" : ""} flex items-center gap-2`}>
-                                <span>{member.user?.displayName || member.user?.email}</span>
-                                {member.user?.email === profile.data?.user?.email && (
-                                  <Chip size="sm" color="primary" variant="flat" className="text-xs">
-                                    me
-                                  </Chip>
-                                )}
-                              </div>
-                              {!isMobile && <div className="text-sm text-gray-500">{member.user?.email}</div>}
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            color={roleColors[member.role]}
-                            size={isMobile ? "sm" : "sm"}
-                            className={isMobile ? "text-xs" : ""}
-                          >
-                            {isMobile ? member.role.charAt(0).toUpperCase() : member.role}
-                          </Chip>
-                        </TableCell>
-                        <TableCell className={isMobile ? "text-xs" : ""}>
-                          {new Date(member?.acceptedAt || member?.createdAt).toLocaleDateString(
-                            undefined,
-                            isMobile ? { month: "short", day: "numeric" } : undefined
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <PermissionWrapper permissions={["teams.roles", "teams.permissions", "teams.remove.members"]}>
-                              <Dropdown>
-                                <DropdownTrigger>
-                                  <Button isIconOnly size={isMobile ? "sm" : "sm"} variant="light">
-                                    <EllipsisVerticalIcon className={"w-4 h-4"} />
-                                  </Button>
-                                </DropdownTrigger>
-                                <DropdownMenu>
-                                  <DropdownItem
-                                    key="permissions"
-                                    onClick={() => openPermissionsModal(member)}
-                                    className={isMobile ? "text-xs" : ""}
-                                  >
-                                    Edit Permissions
-                                  </DropdownItem>
-                                  <DropdownItem
-                                    key="role"
-                                    onClick={() => openChangeRoleModal(member)}
-                                    className={isMobile ? "text-xs" : ""}
-                                  >
-                                    Change Role
-                                  </DropdownItem>
-                                  <DropdownItem
-                                    key="remove"
-                                    className={`text-danger ${isMobile ? "text-xs" : ""}`}
-                                    color="danger"
-                                    onClick={() => handleRemoveMember(member._id)}
-                                    isDisabled={membersDeletingId === member._id}
-                                  >
-                                    {membersDeletingId === member._id ? "Removing..." : "Remove Member"}
-                                  </DropdownItem>
-                                </DropdownMenu>
-                              </Dropdown>
-                            </PermissionWrapper>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </Tab>
-
-            <Tab key="invites" title={`Invited Members (${invitesPagination?.total || 0})`}>
-              <PermissionWrapper
-                permissions={["invites.view"]}
-                fallback={
-                  <div className="flex flex-col items-center justify-center py-12 space-y-4">
-                    <Icon icon="lucide:shield-x" className="w-16 h-16 text-default-300" />
-                    <div className="text-center">
-                      <h3 className="text-lg font-semibold text-default-700">Access Denied</h3>
-                      <p className="text-default-500 mt-2">You don't have permission to view invitations.</p>
-                    </div>
-                  </div>
-                }
-              >
-                <div className="space-y-4">
-                {revokeError && (
-                  <div className="p-4 rounded-lg bg-red-50 border border-red-200 flex items-start gap-3">
-                    <div className="flex-shrink-0 mt-0.5">
-                      <svg className="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
-                        <path
-                          fillRule="evenodd"
-                          d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-red-800 text-sm font-medium">{revokeError}</p>
-                    </div>
-                  </div>
-                )}
-                {invitesLoading && (!invites || invites.length === 0) ? (
+            <TableHeader columns={membersColumns}>
+              {(column) => (
+                <TableColumn key={column.key} allowsSorting={column.key !== "actions"}>
+                  {column.label}
+                </TableColumn>
+              )}
+            </TableHeader>
+            <TableBody
+              items={membersLoading && (!members || members.length === 0) ? [] : members}
+              isLoading={membersLoading && (!members || members.length === 0)}
+              loadingContent={<Spinner size="lg" label="Loading members..." />}
+              emptyContent={
+                membersLoading ? (
                   <div className="flex justify-center items-center py-10">
-                    <Spinner size="lg" label="Loading invites..." />
+                    <Spinner size="lg" />
                   </div>
-                ) : invites && invites.length > 0 ? (
-                  (() => {
-                    const { pending, accepted, others } = categorizeInvites(invites);
-                    return (
-                      <Accordion
-                        variant="splitted"
-                        defaultExpandedKeys={["pending"]}
-                        className={isMobile ? "px-0" : ""}
-                      >
-                        {/* Pending Invites - Always on top */}
-                        <AccordionItem
-                          key="pending"
-                          aria-label="Pending Invites"
-                          title={
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">Pending Invites</span>
-                              <Chip size="sm" color="primary" variant="flat">
-                                {pending.length}
-                              </Chip>
-                            </div>
-                          }
-                          className={isMobile ? "text-sm" : ""}
-                        >
-                          <InviteTable
-                            invites={pending}
-                            isMobile={isMobile}
-                            handleRevokeInvite={handleRevokeInvite}
-                            showActions={true}
-                            revokingId={invitesRevokingId}
-                            currentUserEmail={profile.data?.user?.email}
-                          />
-                        </AccordionItem>
-
-                        {/* Accepted Invites */}
-                        <AccordionItem
-                          key="accepted"
-                          aria-label="Accepted Invites"
-                          title={
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">Accepted Invites</span>
-                              <Chip size="sm" color="success" variant="flat">
-                                {accepted.length}
-                              </Chip>
-                            </div>
-                          }
-                          className={isMobile ? "text-sm" : ""}
-                        >
-                          <InviteTable
-                            invites={accepted}
-                            isMobile={isMobile}
-                            handleRevokeInvite={handleRevokeInvite}
-                            showActions={false}
-                            revokingId={invitesRevokingId}
-                            currentUserEmail={profile.data?.user?.email}
-                          />
-                        </AccordionItem>
-
-                        {/* Other Statuses (Declined, Expired, Revoked, etc.) */}
-                        <AccordionItem
-                          key="others"
-                          aria-label="Other Invites"
-                          title={
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">Declined/Expired/Revoked</span>
-                              <Chip size="sm" color="default" variant="flat">
-                                {others.length}
-                              </Chip>
-                            </div>
-                          }
-                          className={isMobile ? "text-sm" : ""}
-                        >
-                          <InviteTable
-                            invites={others}
-                            isMobile={isMobile}
-                            handleRevokeInvite={handleRevokeInvite}
-                            showActions={false}
-                            revokingId={invitesRevokingId}
-                            currentUserEmail={profile.data?.user?.email}
-                          />
-                        </AccordionItem>
-                      </Accordion>
-                    );
-                  })()
                 ) : (
-                  <div className="flex justify-center items-center py-10 text-gray-500">No invitations found</div>
-                )}
+                  "No team members found"
+                )
+              }
+            >
+              {(member: MembershipWithUser) => (
+                <TableRow key={member._id}>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <div className={isMobile ? "min-w-0" : ""}>
+                        <div className={`font-medium ${isMobile ? "text-xs" : ""} flex items-center gap-2`}>
+                          <span>{member.user?.displayName || member.user?.email}</span>
+                          {member.user?.email === profile.data?.user?.email && (
+                            <Chip size="sm" color="primary" variant="flat" className="text-xs">
+                              me
+                            </Chip>
+                          )}
+                        </div>
+                        {!isMobile && <div className="text-sm text-gray-500">{member.user?.email}</div>}
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      color={roleColors[member.role]}
+                      size={isMobile ? "sm" : "sm"}
+                      className={isMobile ? "text-xs" : ""}
+                    >
+                      {isMobile ? member.role.charAt(0).toUpperCase() : member.role}
+                    </Chip>
+                  </TableCell>
+                  <TableCell className={isMobile ? "text-xs" : ""}>
+                    {new Date(member?.acceptedAt || member?.createdAt).toLocaleDateString(
+                      undefined,
+                      isMobile ? { month: "short", day: "numeric" } : undefined
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <PermissionWrapper permissions={["teams.roles", "teams.permissions", "teams.remove.members"]}>
+                        <Dropdown>
+                          <DropdownTrigger>
+                            <Button isIconOnly size={isMobile ? "sm" : "sm"} variant="light">
+                              <EllipsisVerticalIcon className={"w-4 h-4"} />
+                            </Button>
+                          </DropdownTrigger>
+                          <DropdownMenu>
+                            <DropdownItem
+                              key="permissions"
+                              onClick={() => openPermissionsModal(member)}
+                              className={isMobile ? "text-xs" : ""}
+                            >
+                              Edit Permissions
+                            </DropdownItem>
+                            <DropdownItem
+                              key="role"
+                              onClick={() => openChangeRoleModal(member)}
+                              className={isMobile ? "text-xs" : ""}
+                            >
+                              Change Role
+                            </DropdownItem>
+                            <DropdownItem
+                              key="remove"
+                              className={`text-danger ${isMobile ? "text-xs" : ""}`}
+                              color="danger"
+                              onClick={() => handleRemoveMember(member._id)}
+                              isDisabled={membersDeletingId === member._id}
+                            >
+                              {membersDeletingId === member._id ? "Removing..." : "Remove Member"}
+                            </DropdownItem>
+                          </DropdownMenu>
+                        </Dropdown>
+                      </PermissionWrapper>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
-                {/* Pagination */}
-                {invitesPagination && invitesPagination.totalPages > 1 && (
-                  <div className="flex w-full justify-center">
-                    <Pagination
-                      isCompact
-                      showControls
-                      showShadow
-                      color="primary"
-                      page={invitesPage}
-                      total={invitesPagination.totalPages}
-                      onChange={(page) => setInvitesPage(page)}
-                    />
-                  </div>
-                )}
+      {activeTab === "invites" && (
+        <PermissionWrapper
+          permissions={["invites.view"]}
+          fallback={
+            <div className="flex flex-col items-center justify-center py-12 space-y-4">
+              <Icon icon="lucide:shield-x" className="w-16 h-16 text-default-300" />
+              <div className="text-center">
+                <h3 className="text-lg font-semibold text-default-700">Access Denied</h3>
+                <p className="text-default-500 mt-2">You don't have permission to view invitations.</p>
               </div>
-              </PermissionWrapper>
-            </Tab>
-          </Tabs>
-        </CardBody>
-      </Card>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            {revokeError && (
+              <div className="p-4 rounded-lg bg-red-50 border border-red-200 flex items-start gap-3">
+                <div className="flex-shrink-0 mt-0.5">
+                  <svg className="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="text-red-800 text-sm font-medium">{revokeError}</p>
+                </div>
+              </div>
+            )}
+            {invitesLoading && (!invites || invites.length === 0) ? (
+              <div className="flex justify-center items-center py-10">
+                <Spinner size="lg" label="Loading invites..." />
+              </div>
+            ) : invites && invites.length > 0 ? (
+              (() => {
+                const { pending, accepted, others } = categorizeInvites(invites);
+                return (
+                  <Accordion 
+                    variant="light" 
+                    defaultExpandedKeys={["pending"]} 
+                    className={`${isMobile ? "px-0" : ""} bg-transparent`}
+                    itemClasses={{
+                      base: "bg-transparent shadow-none",
+                      title: "font-medium",
+                      trigger: "px-0 py-2",
+                      content: "px-0 pt-0",
+                    }}
+                  >
+                    {/* Pending Invites - Always on top */}
+                    <AccordionItem
+                      key="pending"
+                      aria-label="Pending Invites"
+                      title={
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">Pending Invites</span>
+                          <Chip size="sm" color="primary" variant="flat">
+                            {pending.length}
+                          </Chip>
+                        </div>
+                      }
+                      classNames={{
+                        base: "bg-transparent shadow-none",
+                        content: "pt-2",
+                      }}
+                    >
+                      <InviteTable
+                        invites={pending}
+                        isMobile={isMobile}
+                        handleRevokeInvite={handleRevokeInvite}
+                        showActions={true}
+                        revokingId={invitesRevokingId}
+                        currentUserEmail={profile.data?.user?.email}
+                      />
+                    </AccordionItem>
+
+                    {/* Accepted Invites */}
+                    <AccordionItem
+                      key="accepted"
+                      aria-label="Accepted Invites"
+                      title={
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">Accepted Invites</span>
+                          <Chip size="sm" color="success" variant="flat">
+                            {accepted.length}
+                          </Chip>
+                        </div>
+                      }
+                      classNames={{
+                        base: "bg-transparent shadow-none",
+                        content: "pt-2",
+                      }}
+                    >
+                      <InviteTable
+                        invites={accepted}
+                        isMobile={isMobile}
+                        handleRevokeInvite={handleRevokeInvite}
+                        showActions={false}
+                        revokingId={invitesRevokingId}
+                        currentUserEmail={profile.data?.user?.email}
+                      />
+                    </AccordionItem>
+
+                    {/* Other Statuses (Declined, Expired, Revoked, etc.) */}
+                    <AccordionItem
+                      key="others"
+                      aria-label="Other Invites"
+                      title={
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">Declined/Expired/Revoked</span>
+                          <Chip size="sm" color="default" variant="flat">
+                            {others.length}
+                          </Chip>
+                        </div>
+                      }
+                      classNames={{
+                        base: "bg-transparent shadow-none",
+                        content: "pt-2",
+                      }}
+                    >
+                      <InviteTable
+                        invites={others}
+                        isMobile={isMobile}
+                        handleRevokeInvite={handleRevokeInvite}
+                        showActions={false}
+                        revokingId={invitesRevokingId}
+                        currentUserEmail={profile.data?.user?.email}
+                      />
+                    </AccordionItem>
+                  </Accordion>
+                );
+              })()
+            ) : (
+              <div className="flex justify-center items-center py-10 text-gray-500">No invitations found</div>
+            )}
+
+            {/* Pagination */}
+            {invitesPagination && invitesPagination.totalPages > 1 && (
+              <div className="flex w-full justify-center">
+                <Pagination
+                  isCompact
+                  showControls
+                  showShadow
+                  color="primary"
+                  page={invitesPage}
+                  total={invitesPagination.totalPages}
+                  onChange={(page) => setInvitesPage(page)}
+                />
+              </div>
+            )}
+          </div>
+        </PermissionWrapper>
+      )}
+
+      {activeTab === "myinvitations" && (
+        <div className="space-y-4">
+          {acceptDeclineError && (
+            <div className="p-4 rounded-lg bg-red-50 border border-red-200 flex items-start gap-3">
+              <div className="flex-shrink-0 mt-0.5">
+                <svg className="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className="text-red-800 text-sm font-medium">{acceptDeclineError}</p>
+              </div>
+            </div>
+          )}
+          {myInvitationsLoading && (!myInvitations || myInvitations.length === 0) ? (
+            <div className="flex justify-center items-center py-10">
+              <Spinner size="lg" label="Loading your invitations..." />
+            </div>
+          ) : myInvitations && myInvitations.length > 0 ? (
+            (() => {
+              const { pending, processed, expired } = categorizeMyInvitations(myInvitations);
+
+              // Build accordion items array
+              const accordionItems = [];
+
+              if (pending.length > 0) {
+                accordionItems.push(
+                  <AccordionItem
+                    key="pending"
+                    aria-label="Pending Invitations"
+                    title={
+                      <div className="flex items-center gap-2">
+                        <Icon icon="lucide:clock" width={18} className="text-warning-500" />
+                        <span className="font-medium">Pending Invitations</span>
+                        <Chip size="sm" color="warning" variant="flat">
+                          {pending.length}
+                        </Chip>
+                      </div>
+                    }
+                    classNames={{
+                      base: "bg-transparent shadow-none",
+                      content: "pt-2",
+                    }}
+                  >
+                    <MyInvitationsTable
+                      invitations={pending}
+                      isMobile={isMobile}
+                      handleInvitationDetails={handleInvitationDetails}
+                      currentUserEmail={profile.data?.user?.email}
+                    />
+                  </AccordionItem>
+                );
+              }
+
+              if (processed.length > 0) {
+                accordionItems.push(
+                  <AccordionItem
+                    key="processed"
+                    aria-label="Processed Invitations"
+                    title={
+                      <div className="flex items-center gap-2">
+                        <Icon icon="lucide:check-circle" width={18} className="text-success-500" />
+                        <span className="font-medium">Processed Invitations</span>
+                        <Chip size="sm" color="default" variant="flat">
+                          {processed.length}
+                        </Chip>
+                      </div>
+                    }
+                    classNames={{
+                      base: "bg-transparent shadow-none",
+                      content: "pt-2",
+                    }}
+                  >
+                    <MyInvitationsTable
+                      invitations={processed}
+                      isMobile={isMobile}
+                      handleInvitationDetails={handleInvitationDetails}
+                      currentUserEmail={profile.data?.user?.email}
+                    />
+                  </AccordionItem>
+                );
+              }
+
+              if (expired.length > 0) {
+                accordionItems.push(
+                  <AccordionItem
+                    key="expired"
+                    aria-label="Expired/Revoked Invitations"
+                    title={
+                      <div className="flex items-center gap-2">
+                        <Icon icon="lucide:x-circle" width={18} className="text-default-500" />
+                        <span className="font-medium">Expired/Revoked</span>
+                        <Chip size="sm" color="default" variant="flat">
+                          {expired.length}
+                        </Chip>
+                      </div>
+                    }
+                    classNames={{
+                      base: "bg-transparent shadow-none",
+                      content: "pt-2",
+                    }}
+                  >
+                    <MyInvitationsTable
+                      invitations={expired}
+                      isMobile={isMobile}
+                      handleInvitationDetails={handleInvitationDetails}
+                      currentUserEmail={profile.data?.user?.email}
+                    />
+                  </AccordionItem>
+                );
+              }
+
+              return (
+                <Accordion 
+                  variant="light" 
+                  defaultExpandedKeys={["pending"]} 
+                  className={`${isMobile ? "px-0" : ""} bg-transparent`}
+                  itemClasses={{
+                    base: "bg-transparent shadow-none",
+                    title: "font-medium",
+                    trigger: "px-0 py-2",
+                    content: "px-0 pt-0",
+                  }}
+                >
+                  {accordionItems}
+                </Accordion>
+              );
+            })()
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12 space-y-4">
+              <Icon icon="lucide:mail" className="w-16 h-16 text-default-300" />
+              <div className="text-center">
+                <h3 className="text-lg font-semibold text-default-700">No invitations yet</h3>
+                <p className="text-default-500 mt-2">You haven't received any organization invitations yet.</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Invite Modal */}
       <Modal

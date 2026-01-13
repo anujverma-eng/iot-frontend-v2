@@ -73,15 +73,10 @@ export const DashboardSidebar = ({ isOpen, onToggle, className }: DashboardSideb
     //   path: "/dashboard/reports",
     // },
     {
-      name: "My Invitations",
-      icon: "lucide:mail",
-      path: "/dashboard/invitations",
-      badge: pendingMyInvitationsCount > 0 ? pendingMyInvitationsCount.toString() : undefined,
-    },
-    {
       name: "Team",
       icon: "lucide:users",
       path: "/dashboard/team",
+      badge: pendingMyInvitationsCount > 0 ? pendingMyInvitationsCount.toString() : undefined,
     },
     {
       name: "Settings",

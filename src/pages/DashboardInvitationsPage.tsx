@@ -1,6 +1,6 @@
 // src/pages/DashboardInvitationsPage.tsx
-import React, { useEffect, useState } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   Card,
   CardBody,
@@ -22,28 +22,29 @@ import {
   ModalFooter,
   Breadcrumbs,
   BreadcrumbItem,
-} from '@heroui/react';
-import { Icon } from '@iconify/react';
-import { useAppDispatch, useAppSelector } from '../hooks/useAppDispatch';
-import { 
-  fetchMyInvitations, 
-  acceptInvite, 
+} from "@heroui/react";
+import { Icon } from "@iconify/react";
+import { useAppDispatch, useAppSelector } from "../hooks/useAppDispatch";
+import {
+  fetchMyInvitations,
+  acceptInvite,
   declineInvite,
   selectMyInvitations,
   selectMyInvitationsLoading,
   selectMyInvitationsError,
   selectMyInvitationsAcceptingToken,
   selectMyInvitationsDecliningToken,
-  selectPendingMyInvitationsCount
-} from '../store/invitesSlice';
-import { fetchProfile } from '../store/profileSlice';
-import { resolveInitialActiveOrg } from '../store/activeOrgSlice';
-import { InviteStatus } from '../api/types';
-import { UserRole } from '../types/User';
-import { format } from 'date-fns';
-import type { Invite } from '../api/types';
-import { useBreakpoints } from '../hooks/use-media-query';
-import { canUserCreateOrganization } from '../utils/organizationUtils';
+  selectPendingMyInvitationsCount,
+} from "../store/invitesSlice";
+import { fetchProfile } from "../store/profileSlice";
+import { resolveInitialActiveOrg } from "../store/activeOrgSlice";
+import { InviteStatus } from "../api/types";
+import { UserRole } from "../types/User";
+import { format } from "date-fns";
+import type { Invite } from "../api/types";
+import { useBreakpoints } from "../hooks/use-media-query";
+import { canUserCreateOrganization } from "../utils/organizationUtils";
+import { motion } from "framer-motion";
 
 // Helper function to get user-friendly status for my invitations
 const getMyInvitationStatus = (invitation: Invite) => {
@@ -52,50 +53,46 @@ const getMyInvitationStatus = (invitation: Invite) => {
   const isExpired = expiresAt < now;
 
   if (isExpired) {
-    return { status: 'Expired', color: 'default' as const };
+    return { status: "Expired", color: "default" as const };
   }
 
   switch (invitation.status) {
     case InviteStatus.CREATED:
     case InviteStatus.SENT:
     case InviteStatus.DELIVERED:
-      return { status: 'Pending', color: 'warning' as const };
+      return { status: "Pending", color: "warning" as const };
     case InviteStatus.ACCEPTED:
-      return { status: 'Accepted', color: 'success' as const };
+      return { status: "Accepted", color: "success" as const };
     case InviteStatus.DECLINED:
-      return { status: 'Declined', color: 'danger' as const };
+      return { status: "Declined", color: "danger" as const };
     case InviteStatus.REVOKED:
-      return { status: 'Revoked', color: 'danger' as const };
+      return { status: "Revoked", color: "danger" as const };
     default:
-      return { status: 'Unknown', color: 'default' as const };
+      return { status: "Unknown", color: "default" as const };
   }
 };
 
 // Helper function to categorize my invitations
 const categorizeMyInvitations = (invitations: Invite[]) => {
   const now = new Date();
-  
-  const pending = invitations.filter(inv => {
+
+  const pending = invitations.filter((inv) => {
     const isExpired = new Date(inv.expiresAt) < now;
     return !isExpired && [InviteStatus.CREATED, InviteStatus.SENT, InviteStatus.DELIVERED].includes(inv.status);
   });
-  
-  const processed = invitations.filter(inv => 
-    [InviteStatus.ACCEPTED, InviteStatus.DECLINED].includes(inv.status)
-  );
-  
-  const expired = invitations.filter(inv => 
-    new Date(inv.expiresAt) < now || inv.status === InviteStatus.REVOKED
-  );
+
+  const processed = invitations.filter((inv) => [InviteStatus.ACCEPTED, InviteStatus.DECLINED].includes(inv.status));
+
+  const expired = invitations.filter((inv) => new Date(inv.expiresAt) < now || inv.status === InviteStatus.REVOKED);
 
   return { pending, processed, expired };
 };
 
 const roleColors = {
-  [UserRole.OWNER]: 'danger' as const,
-  [UserRole.ADMIN]: 'danger' as const,
-  [UserRole.MEMBER]: 'primary' as const,
-  [UserRole.VIEWER]: 'default' as const,
+  [UserRole.OWNER]: "danger" as const,
+  [UserRole.ADMIN]: "danger" as const,
+  [UserRole.MEMBER]: "primary" as const,
+  [UserRole.VIEWER]: "default" as const,
 };
 
 // Component for rendering my invitations table
@@ -194,7 +191,7 @@ export default function DashboardInvitationsPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { isMobile } = useBreakpoints();
-  
+
   // Redux state
   const myInvitations = useAppSelector(selectMyInvitations);
   const myInvitationsLoading = useAppSelector(selectMyInvitationsLoading);
@@ -215,8 +212,8 @@ export default function DashboardInvitationsPage() {
 
   // Handle URL parameters (token for auto-opening modal)
   useEffect(() => {
-    const token = searchParams.get('token');
-    
+    const token = searchParams.get("token");
+
     if (token && myInvitations && myInvitations.length > 0) {
       // Find the invitation with this token and open details modal
       const invitation = myInvitations.find((inv: Invite) => inv.token === token);
@@ -236,45 +233,45 @@ export default function DashboardInvitationsPage() {
   const parseError = (err: any): string => {
     if (err?.response?.data?.message) {
       const backendError = err.response.data.message;
-      
-      if (typeof backendError === 'object' && backendError.code) {
+
+      if (typeof backendError === "object" && backendError.code) {
         switch (backendError.code) {
-          case 'INVITE_EXPIRED':
-            return 'This invitation has expired.';
-          case 'INVITE_NOT_FOUND':
-            return 'Invitation not found.';
-          case 'INVITE_ALREADY_ACCEPTED':
-            return 'This invitation has already been accepted.';
-          case 'INVITE_REVOKED':
-            return 'This invitation has been revoked.';
-          case 'USER_ALREADY_MEMBER':
-            return 'You are already a member of this organization.';
+          case "INVITE_EXPIRED":
+            return "This invitation has expired.";
+          case "INVITE_NOT_FOUND":
+            return "Invitation not found.";
+          case "INVITE_ALREADY_ACCEPTED":
+            return "This invitation has already been accepted.";
+          case "INVITE_REVOKED":
+            return "This invitation has been revoked.";
+          case "USER_ALREADY_MEMBER":
+            return "You are already a member of this organization.";
           default:
-            return backendError.message || 'An error occurred';
+            return backendError.message || "An error occurred";
         }
-      } else if (typeof backendError === 'string') {
+      } else if (typeof backendError === "string") {
         return backendError;
       }
     }
-    return err?.message || 'An unexpected error occurred';
+    return err?.message || "An unexpected error occurred";
   };
 
   const handleAcceptInvite = async (token: string) => {
     setActionError(null);
     try {
       await dispatch(acceptInvite(token)).unwrap();
-      
+
       // Refresh profile to get updated memberships
       await dispatch(fetchProfile()).unwrap();
-      
+
       // Resolve active organization with updated profile
       await dispatch(resolveInitialActiveOrg()).unwrap();
-      
+
       // Close modal and navigate to dashboard
       setIsInvitationDetailsModalOpen(false);
-      navigate('/dashboard/home');
+      navigate("/dashboard/home");
     } catch (error) {
-      console.error('Failed to accept invitation:', error);
+      console.error("Failed to accept invitation:", error);
       setActionError(parseError(error));
     }
   };
@@ -288,7 +285,7 @@ export default function DashboardInvitationsPage() {
       // Close modal
       setIsInvitationDetailsModalOpen(false);
     } catch (error) {
-      console.error('Failed to decline invitation:', error);
+      console.error("Failed to decline invitation:", error);
       setActionError(parseError(error));
     }
   };
@@ -331,7 +328,7 @@ export default function DashboardInvitationsPage() {
                 <Icon icon="lucide:arrow-left" width={20} />
               </Button>
               <Breadcrumbs>
-                <BreadcrumbItem onClick={() => navigate('/dashboard/home')}>Dashboard</BreadcrumbItem>
+                <BreadcrumbItem onClick={() => navigate("/dashboard/home")}>Dashboard</BreadcrumbItem>
                 <BreadcrumbItem>My Invitations</BreadcrumbItem>
               </Breadcrumbs>
             </div>
@@ -341,10 +338,18 @@ export default function DashboardInvitationsPage() {
               </Chip>
             )}
           </div>
-          <h1 className="text-2xl font-bold text-foreground">My Invitations</h1>
-          <p className="text-default-600 mt-1">
-            View and manage invitations to join organizations
-          </p>
+          <motion.h1
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`text-2xl sm:text-3xl font-bold ${
+              isMobile
+                ? "mb-3 px-1" // Mobile: reduced margin and padding
+                : "mb-4 sm:mb-6 px-2 sm:px-0" // Desktop: normal spacing
+            }`}
+          >
+            My Invitations
+          </motion.h1>
+          <p className="text-default-600 mt-1">View and manage invitations to join organizations</p>
         </div>
       </div>
 
@@ -367,9 +372,7 @@ export default function DashboardInvitationsPage() {
               <div className="text-center py-12">
                 <Icon icon="lucide:mail" width={64} className="mx-auto text-default-300 mb-4" />
                 <h3 className="text-lg font-semibold text-foreground mb-2">No invitations yet</h3>
-                <p className="text-default-600 mb-6">
-                  You haven't received any organization invitations yet.
-                </p>
+                <p className="text-default-600 mb-6">You haven't received any organization invitations yet.</p>
                 {!userCanCreateOrg && (
                   <p className="text-sm text-default-500">
                     You're already a member of an organization. Check your existing organizations in the sidebar.
@@ -409,7 +412,10 @@ export default function DashboardInvitationsPage() {
                                 </Chip>
                               </div>
                               <p className="text-sm text-default-600 mt-2">
-                                Invited by: {typeof invitation.invitedBy === "string" ? invitation.invitedBy : invitation.invitedBy.email}
+                                Invited by:{" "}
+                                {typeof invitation.invitedBy === "string"
+                                  ? invitation.invitedBy
+                                  : invitation.invitedBy.email}
                               </p>
                             </div>
                             <Button
@@ -466,7 +472,10 @@ export default function DashboardInvitationsPage() {
                                   </Chip>
                                 </div>
                                 <p className="text-sm text-default-600 mt-2">
-                                  Invited by: {typeof invitation.invitedBy === "string" ? invitation.invitedBy : invitation.invitedBy.email}
+                                  Invited by:{" "}
+                                  {typeof invitation.invitedBy === "string"
+                                    ? invitation.invitedBy
+                                    : invitation.invitedBy.email}
                                 </p>
                               </div>
                               <Button
@@ -524,7 +533,10 @@ export default function DashboardInvitationsPage() {
                                   </Chip>
                                 </div>
                                 <p className="text-sm text-default-600 mt-2">
-                                  Invited by: {typeof invitation.invitedBy === "string" ? invitation.invitedBy : invitation.invitedBy.email}
+                                  Invited by:{" "}
+                                  {typeof invitation.invitedBy === "string"
+                                    ? invitation.invitedBy
+                                    : invitation.invitedBy.email}
                                 </p>
                               </div>
                               <Button
@@ -558,8 +570,8 @@ export default function DashboardInvitationsPage() {
       </div>
 
       {/* Invitation Details Modal */}
-      <Modal 
-        isOpen={isInvitationDetailsModalOpen} 
+      <Modal
+        isOpen={isInvitationDetailsModalOpen}
         onClose={() => {
           setIsInvitationDetailsModalOpen(false);
           setActionError(null);
@@ -571,9 +583,7 @@ export default function DashboardInvitationsPage() {
             <>
               <ModalHeader className="flex flex-col gap-1">
                 <h3>Invitation Details</h3>
-                <p className="text-sm text-default-600 font-normal">
-                  Organization: {selectedInvitation.orgId.name}
-                </p>
+                <p className="text-sm text-default-600 font-normal">Organization: {selectedInvitation.orgId.name}</p>
               </ModalHeader>
               <ModalBody>
                 {actionError && (
@@ -586,7 +596,7 @@ export default function DashboardInvitationsPage() {
                     </CardBody>
                   </Card>
                 )}
-                
+
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -613,22 +623,18 @@ export default function DashboardInvitationsPage() {
                     <div>
                       <p className="text-sm text-default-600">Invited By</p>
                       <p className="font-medium">
-                        {typeof selectedInvitation.invitedBy === "string" 
-                          ? selectedInvitation.invitedBy 
+                        {typeof selectedInvitation.invitedBy === "string"
+                          ? selectedInvitation.invitedBy
                           : selectedInvitation.invitedBy.email}
                       </p>
                     </div>
                     <div>
                       <p className="text-sm text-default-600">Invited Date</p>
-                      <p className="font-medium">
-                        {format(new Date(selectedInvitation.createdAt), 'MMM dd, yyyy')}
-                      </p>
+                      <p className="font-medium">{format(new Date(selectedInvitation.createdAt), "MMM dd, yyyy")}</p>
                     </div>
                     <div>
                       <p className="text-sm text-default-600">Expires</p>
-                      <p className="font-medium">
-                        {format(new Date(selectedInvitation.expiresAt), 'MMM dd, yyyy')}
-                      </p>
+                      <p className="font-medium">{format(new Date(selectedInvitation.expiresAt), "MMM dd, yyyy")}</p>
                     </div>
                   </div>
                 </div>
@@ -637,7 +643,7 @@ export default function DashboardInvitationsPage() {
                 <Button variant="light" onPress={() => setIsInvitationDetailsModalOpen(false)}>
                   Close
                 </Button>
-                {getMyInvitationStatus(selectedInvitation).status === 'Pending' && (
+                {getMyInvitationStatus(selectedInvitation).status === "Pending" && (
                   <>
                     <Button
                       color="danger"

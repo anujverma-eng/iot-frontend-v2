@@ -10,6 +10,7 @@ export interface UserDTO {
   fullName?: string;
   phoneNumber?: string;
   countryCode?: string;
+  companyName?: string;
   cognitoSub: string;
 }
 
@@ -43,6 +44,7 @@ export interface UpdateUserRequest {
   fullName?: string;
   phoneNumber?: string;
   countryCode?: string;
+  companyName?: string;
 }
 
 export interface UpdateUserResponse {

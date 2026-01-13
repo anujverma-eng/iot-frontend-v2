@@ -354,15 +354,15 @@ export const AddAlertModal: React.FC<AddAlertModalProps> = ({ isOpen, onClose, o
             <ModalHeader className="flex flex-col gap-1">
               <div className="flex items-center gap-3">
                 <Icon icon="lucide:bell" className="w-6 h-6 text-primary" />
-                <span>{editingAlert ? 'Edit Alert' : 'Add Alert'}</span>
+                <span>{editingAlert ? 'Edit Notification' : 'Add Notification'}</span>
               </div>
             </ModalHeader>
             <ModalBody className="overflow-y-auto max-h-[calc(90vh-180px)]">
               <div className="space-y-4">
                 {/* Alert Name */}
                 <Input
-                  label="Alert Name"
-                  placeholder="Enter alert name"
+                  label="Notification Name"
+                  placeholder="Enter notification name"
                   value={alertName}
                   onValueChange={setAlertName}
                   variant="bordered"
@@ -581,7 +581,7 @@ export const AddAlertModal: React.FC<AddAlertModalProps> = ({ isOpen, onClose, o
                 isLoading={isLoading}
                 isDisabled={isLoading}
               >
-                {editingAlert ? 'Update Alert' : 'Add Alert'}
+                {editingAlert ? 'Update Notification' : 'Add Notification'}
               </Button>
             </ModalFooter>
           </motion.div>

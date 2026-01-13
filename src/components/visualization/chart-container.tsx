@@ -427,7 +427,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       // Reset modal state and open it
       setExportEstimation(null);
       setExportError(null);
-      setExportStatus('estimating');
+      setExportStatus("estimating");
       setIsExportModalOpen(true);
 
       // Get export estimation
@@ -438,15 +438,14 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
 
       if (estimationResponse.success) {
         setExportEstimation(estimationResponse);
-        setExportStatus('confirming');
+        setExportStatus("confirming");
       } else {
-        throw new Error(estimationResponse.error || 'Failed to estimate export size');
+        throw new Error(estimationResponse.error || "Failed to estimate export size");
       }
-
     } catch (error) {
-      console.error('Export estimation failed:', error);
-      setExportError(error instanceof Error ? error.message : 'Failed to estimate export');
-      setExportStatus('error');
+      console.error("Export estimation failed:", error);
+      setExportError(error instanceof Error ? error.message : "Failed to estimate export");
+      setExportStatus("error");
     }
   };
 
@@ -459,7 +458,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
 
     try {
       setIsExportLoading(true);
-      setExportStatus('downloading');
+      setExportStatus("downloading");
 
       const sensorIds = [sensor.mac];
       const exportTimeRange = {
@@ -468,9 +467,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       };
 
       // Generate filename
-      const filename = sensor.displayName 
-        ? `${sensor.displayName}_data.csv`
-        : `${sensor.mac}_data.csv`;
+      const filename = sensor.displayName ? `${sensor.displayName}_data.csv` : `${sensor.mac}_data.csv`;
 
       // Reset progress tracking
       setExportProgress(0);
@@ -481,22 +478,28 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       const estimatedDurationMs = parseEstimatedDuration(exportEstimation.data.estimatedDuration);
 
       // Stream export with real progress tracking
-      const blob = await TelemetryService.streamExport({
-        sensorIds,
-        timeRange: exportTimeRange,
-        format: 'csv',
-        filename,
-        batchSize: exportEstimation.data.recommendedBatchSize,
-        maxRecords: 500000, // Safety limit
-        includeMetadata: false,
-      }, (progress, loaded, total) => {
-        // Update real progress
-        setExportProgress(progress);
-        setDownloadedBytes(loaded);
-        if (total) {
-          setTotalBytes(total);
-        }
-      }, exportEstimation.data.estimatedSizeKB, estimatedDurationMs, abortController.signal);
+      const blob = await TelemetryService.streamExport(
+        {
+          sensorIds,
+          timeRange: exportTimeRange,
+          format: "csv",
+          filename,
+          batchSize: exportEstimation.data.recommendedBatchSize,
+          maxRecords: 500000, // Safety limit
+          includeMetadata: false,
+        },
+        (progress, loaded, total) => {
+          // Update real progress
+          setExportProgress(progress);
+          setDownloadedBytes(loaded);
+          if (total) {
+            setTotalBytes(total);
+          }
+        },
+        exportEstimation.data.estimatedSizeKB,
+        estimatedDurationMs,
+        abortController.signal
+      );
 
       // Create download link
       const url = URL.createObjectURL(blob);
@@ -509,20 +512,19 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      setExportStatus('completed');
-      
+      setExportStatus("completed");
+
       addToast({
         title: "CSV Downloaded",
         description: `${exportEstimation.data.totalRecords.toLocaleString()} records downloaded successfully`,
       });
-
     } catch (error) {
-      console.error('Export failed:', error);
-      if (error instanceof Error && error.name === 'CanceledError') {
-        setExportStatus('cancelled');
+      console.error("Export failed:", error);
+      if (error instanceof Error && error.name === "CanceledError") {
+        setExportStatus("cancelled");
       } else {
-        setExportError(error instanceof Error ? error.message : 'Export failed');
-        setExportStatus('error');
+        setExportError(error instanceof Error ? error.message : "Export failed");
+        setExportStatus("error");
       }
     } finally {
       setIsExportLoading(false);
@@ -533,17 +535,17 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   const handleCancelExport = () => {
     if (exportAbortController) {
       exportAbortController.abort();
-      console.log('🚫 Export cancelled by user');
+      console.log("🚫 Export cancelled by user");
     }
   };
 
   const handleCloseExportModal = () => {
     // Only allow closing if not currently downloading
-    if (exportStatus !== 'downloading') {
+    if (exportStatus !== "downloading") {
       setIsExportModalOpen(false);
       setExportEstimation(null);
       setExportError(null);
-      setExportStatus('estimating');
+      setExportStatus("estimating");
       setIsExportLoading(false);
       setExportProgress(0);
       setDownloadedBytes(0);
@@ -667,14 +669,16 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const [activeTab, setActiveTab] = React.useState("chart");
   const [isFullscreen, setIsFullscreen] = React.useState(false);
-  
+
   // Table controls state for rendering in header
   const [tableControls, setTableControls] = React.useState<TableControlsState | null>(null);
 
   // Export modal state variables
   const [isExportModalOpen, setIsExportModalOpen] = React.useState(false);
   const [exportEstimation, setExportEstimation] = React.useState<EstimateExportResponse | null>(null);
-  const [exportStatus, setExportStatus] = React.useState<'estimating' | 'confirming' | 'downloading' | 'completed' | 'error' | 'cancelled'>('estimating');
+  const [exportStatus, setExportStatus] = React.useState<
+    "estimating" | "confirming" | "downloading" | "completed" | "error" | "cancelled"
+  >("estimating");
   const [exportError, setExportError] = React.useState<string | null>(null);
   const [isExportLoading, setIsExportLoading] = React.useState(false);
   const [exportProgress, setExportProgress] = React.useState(0);
@@ -686,15 +690,19 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   const parseEstimatedDuration = (duration: string): number => {
     const match = duration.match(/(\d+)([smh])/);
     if (!match) return 30000; // Default 30 seconds
-    
+
     const value = parseInt(match[1]);
     const unit = match[2];
-    
+
     switch (unit) {
-      case 's': return value * 1000;
-      case 'm': return value * 60 * 1000;
-      case 'h': return value * 60 * 60 * 1000;
-      default: return 30000;
+      case "s":
+        return value * 1000;
+      case "m":
+        return value * 60 * 1000;
+      case "h":
+        return value * 60 * 60 * 1000;
+      default:
+        return 30000;
     }
   };
 
@@ -937,13 +945,11 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       <div className="flex flex-col flex-1 min-h-0">
         {/* Tab headers with table controls - hide on mobile fullscreen to save space */}
         {!(isFullscreen && isMobile) && (
-          <div className={`flex items-center justify-between ${
-            isMobileLandscapeShort
-              ? "px-2 mb-1"
-              : isSmallScreen
-                ? "px-3 mb-2"
-                : "px-4 mb-4"
-          }`}>
+          <div
+            className={`flex items-center justify-between ${
+              isMobileLandscapeShort ? "px-2 mb-1" : isSmallScreen ? "px-3 mb-2" : "px-4 mb-4"
+            }`}
+          >
             <Tabs
               selectedKey={activeTab}
               onSelectionChange={setActiveTab as any}
@@ -956,11 +962,11 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
               <Tab key="chart" title={isSmallScreen ? "Chart" : "Chart View"} />
               <Tab key="table" title={isSmallScreen ? "Table" : "Table View"} />
             </Tabs>
-            
+
             {/* Table controls - only show when table tab is active */}
             {activeTab === "table" && tableControls && (
               <div className="flex items-center gap-2">
-                <Input
+                {/* <Input
                   placeholder="Search data..."
                   value={tableControls.searchQuery}
                   onValueChange={tableControls.onSearchChange}
@@ -968,8 +974,8 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                   size="sm"
                   className="w-32 md:w-48"
                   isClearable
-                />
-                
+                /> */}
+
                 <Dropdown>
                   <DropdownTrigger>
                     <Button
@@ -978,26 +984,23 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                       size="sm"
                       endContent={<Icon icon="lucide:chevron-down" width={16} />}
                     >
-                      {tableControls.groupBy === 'none'
+                      {tableControls.groupBy === "none"
                         ? "No Grouping"
-                        : tableControls.groupBy === 'hourly'
+                        : tableControls.groupBy === "hourly"
                           ? "Group by Hour"
-                          : tableControls.groupBy === 'daily'
+                          : tableControls.groupBy === "daily"
                             ? "Group by Day"
                             : "Group by Week"}
                     </Button>
                   </DropdownTrigger>
-                  <DropdownMenu
-                    aria-label="Group By Options"
-                    onAction={(key) => tableControls.onGroupByChange(key)}
-                  >
+                  <DropdownMenu aria-label="Group By Options" onAction={(key) => tableControls.onGroupByChange(key)}>
                     <DropdownItem key="none">No Grouping</DropdownItem>
                     <DropdownItem key="hourly">Group by Hour</DropdownItem>
                     <DropdownItem key="daily">Group by Day</DropdownItem>
                     <DropdownItem key="weekly">Group by Week</DropdownItem>
                   </DropdownMenu>
                 </Dropdown>
-                
+
                 <Dropdown>
                   <DropdownTrigger>
                     <Button
@@ -1009,14 +1012,11 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                       Rows: {tableControls.rowsPerPage}
                     </Button>
                   </DropdownTrigger>
-                  <DropdownMenu
-                    aria-label="Rows Per Page"
-                    onAction={(key) => tableControls.onRowsPerPageChange(key)}
-                  >
-                    <DropdownItem key="5">5 rows</DropdownItem>
-                    <DropdownItem key="10">10 rows</DropdownItem>
-                    <DropdownItem key="25">25 rows</DropdownItem>
-                    <DropdownItem key="50">50 rows</DropdownItem>
+                  <DropdownMenu aria-label="Rows Per Page" onAction={(key) => tableControls.onRowsPerPageChange(key)}>
+                    <DropdownItem key="100">100 rows</DropdownItem>
+                    <DropdownItem key="200">200 rows</DropdownItem>
+                    <DropdownItem key="500">500 rows</DropdownItem>
+                    <DropdownItem key="100">1000 rows</DropdownItem>
                   </DropdownMenu>
                 </Dropdown>
               </div>
@@ -1133,7 +1133,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                         })) ?? [],
                     })) ?? [],
                 }}
-                sensorId={sensor?.id || ''}
+                sensorId={sensor?.id || ""}
                 timeRange={timeRange || { start: new Date(Date.now() - 24 * 60 * 60 * 1000), end: new Date() }}
                 onDownloadCSV={onDownloadCSV}
                 onControlsReady={setTableControls}
@@ -1143,7 +1143,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
           </div>
         )}
       </div>
-      
+
       <ExportConfirmationModal
         isOpen={isExportModalOpen}
         onClose={handleCloseExportModal}
@@ -1154,13 +1154,17 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
         exportStatus={exportStatus}
         error={exportError}
         selectedSensors={sensor?.mac ? [sensor.mac] : []}
-        timeRange={timeRange ? {
-          start: timeRange.start.toISOString(),
-          end: timeRange.end.toISOString(),
-        } : {
-          start: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-          end: new Date().toISOString(),
-        }}
+        timeRange={
+          timeRange
+            ? {
+                start: timeRange.start.toISOString(),
+                end: timeRange.end.toISOString(),
+              }
+            : {
+                start: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+                end: new Date().toISOString(),
+              }
+        }
         progress={exportProgress}
         downloadedBytes={downloadedBytes}
         totalBytes={totalBytes}

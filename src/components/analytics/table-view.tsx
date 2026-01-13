@@ -6,25 +6,16 @@ import {
   DropdownItem,
   DropdownMenu,
   DropdownTrigger,
-  Input,
-  Pagination,
-  Selection,
-  SortDescriptor,
-  Table,
-  TableBody,
-  TableCell,
-  TableColumn,
-  TableHeader,
-  TableRow,
+  Pagination
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import React from "react";
 import { useDispatch, useSelector } from 'react-redux';
-import { formatNumericValue } from "../../utils/numberUtils";
-import { ChartConfig, DataPoint } from '../../types/sensor';
 import { AppDispatch } from '../../store';
-import { fetchTableData, selectTableData, selectTableLoading } from '../../store/telemetrySlice';
 import { selectIsLiveMode } from '../../store/liveDataSlice';
+import { fetchTableData, selectTableData, selectTableLoading } from '../../store/telemetrySlice';
+import { ChartConfig, DataPoint } from '../../types/sensor';
+import { formatNumericValue } from "../../utils/numberUtils";
 
 type GroupByOption = 'none' | 'hourly' | 'daily' | 'weekly';
 
@@ -79,7 +70,7 @@ export const TableView: React.FC<TableViewProps> = ({
   const [actualUnit, setActualUnit] = React.useState<string>(config.unit || '');
 
   const [page, setPage] = React.useState(1);
-  const [rowsPerPage, setRowsPerPage] = React.useState(10);
+  const [rowsPerPage, setRowsPerPage] = React.useState(100);
   const [groupBy, setGroupBy] = React.useState<GroupByOption>('none');
   const [sortDescriptor, setSortDescriptor] = React.useState({ column: 'timestamp', direction: 'descending' });
   const [searchQuery, setSearchQuery] = React.useState('');
@@ -482,9 +473,9 @@ export const TableView: React.FC<TableViewProps> = ({
   return (
     <div className="w-full h-full flex flex-col">
       {!hideInternalControls && (
-        <div className="flex justify-between items-center mb-4 bg-white dark:bg-gray-900 p-3 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="flex items-center gap-2 mb-4">
           <div className="flex items-center gap-2">
-            <Input
+            {/* <Input
               placeholder="Search data..."
               value={searchQuery}
               onValueChange={handleSearchChange}
@@ -492,7 +483,7 @@ export const TableView: React.FC<TableViewProps> = ({
               size="sm"
               className="w-48 md:w-64"
               isClearable
-            />
+            /> */}
             
             <Dropdown>
               <DropdownTrigger>
@@ -539,10 +530,10 @@ export const TableView: React.FC<TableViewProps> = ({
                 aria-label="Rows Per Page"
                 onAction={handleRowsPerPageChange}
               >
-                <DropdownItem key="5">5 rows</DropdownItem>
-                <DropdownItem key="10">10 rows</DropdownItem>
-                <DropdownItem key="25">25 rows</DropdownItem>
-                <DropdownItem key="50">50 rows</DropdownItem>
+                <DropdownItem key="100">100 rows</DropdownItem>
+                <DropdownItem key="200">200 rows</DropdownItem>
+                <DropdownItem key="500">500 rows</DropdownItem>
+                <DropdownItem key="100">1000 rows</DropdownItem>
               </DropdownMenu>
             </Dropdown>
 

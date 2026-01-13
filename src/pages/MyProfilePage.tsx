@@ -32,6 +32,7 @@ const profileSchema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
   countryCode: z.string().optional(),
   phoneNumber: z.string().optional(),
+  companyName: z.string().optional(),
 });
 
 const emailSchema = z.object({
@@ -94,6 +95,7 @@ export default function MyProfilePage() {
       fullName: '',
       countryCode: '',
       phoneNumber: '',
+      companyName: '',
     }
   });
 
@@ -168,6 +170,7 @@ export default function MyProfilePage() {
         fullName: profile.data.user.fullName || '',
         countryCode: profile.data.user.countryCode || '',
         phoneNumber: profile.data.user.phoneNumber || '',
+        companyName: profile.data.user.companyName || '',
       });
     }
   }, [profile.data?.user, resetProfile]);
@@ -206,6 +209,7 @@ export default function MyProfilePage() {
         fullName: data.fullName,
         countryCode: data.countryCode || undefined,
         phoneNumber: data.phoneNumber || undefined,
+        companyName: data.companyName || undefined,
       });
       
       if (response.success) {
@@ -470,7 +474,7 @@ export default function MyProfilePage() {
   return (
     <div className="container mx-auto max-w-8xl p-6 space-y-6">
       {/* Back Navigation */}
-      <div className="flex items-center gap-2">
+      {/* <div className="flex items-center gap-2">
         <Button
           variant="light"
           size="sm"
@@ -481,7 +485,7 @@ export default function MyProfilePage() {
         </Button>
         <Icon icon="lucide:chevron-right" className="h-4 w-4 text-default-400" />
         <span className="text-sm text-default-500">My Profile</span>
-      </div>
+      </div> */}
 
       <div className="flex items-center gap-2 mb-6">
         <Icon icon="lucide:user" className="h-6 w-6" />
@@ -493,7 +497,6 @@ export default function MyProfilePage() {
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <h2 className="text-xl font-semibold">Profile Information</h2>
-            <p className="text-sm text-default-500">Manage your personal information</p>
           </div>
         </CardHeader>
         <CardBody>
@@ -550,6 +553,22 @@ export default function MyProfilePage() {
               </div>
             </div>
 
+            <Controller
+              name="companyName"
+              control={profileControl}
+              render={({ field }) => (
+                <Input
+                  {...field}
+                  label="Company Name"
+                  placeholder="Enter your company name"
+                  variant="bordered"
+                  startContent={<Icon icon="lucide:building-2" className="text-default-400" />}
+                  isInvalid={!!profileErrors.companyName}
+                  errorMessage={profileErrors.companyName?.message}
+                />
+              )}
+            />
+
             {updateError && (
               <div className="flex items-center gap-2 text-danger text-sm">
                 <Icon icon="lucide:x-circle" className="h-4 w-4" />
@@ -581,7 +600,6 @@ export default function MyProfilePage() {
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <h2 className="text-xl font-semibold">Email Settings</h2>
-            <p className="text-sm text-default-500">Manage your email address</p>
           </div>
         </CardHeader>
         <CardBody>
@@ -664,7 +682,6 @@ export default function MyProfilePage() {
             <Icon icon="lucide:shield" className="h-5 w-5" />
             <div>
               <h2 className="text-xl font-semibold">Security</h2>
-              <p className="text-sm text-default-500">Manage your password and account security</p>
             </div>
           </div>
         </CardHeader>

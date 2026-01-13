@@ -75,11 +75,11 @@ export const OrgPickerModal: React.FC<OrgPickerModalProps> = ({ isOpen, onClose 
       <ModalContent>
         {() => (
           <>
-            <ModalHeader className="flex flex-col gap-1">Select an Organization</ModalHeader>
+            <ModalHeader className="flex flex-col">Select an Organization</ModalHeader>
             <ModalBody>
-              <p className="text-sm text-default-500 mb-4">Choose which organization you want to access:</p>
+              <p className="text-sm text-default-500">Choose which organization you want to access:</p>
 
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2">
                 {memberships.map((membership: any) => {
                   const isSelected = selectedOrgId === membership.orgId;
 

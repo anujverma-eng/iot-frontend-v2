@@ -535,7 +535,7 @@ export const DashboardHome: React.FC = () => {
     <div className={`container ${
       isMobile 
         ? "p-0 space-y-3 m-0" // Mobile: reduced padding and spacing
-        : "p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6" // Desktop: normal spacing
+        : "p-0 sm:p-4 lg:p-6 space-y-4 sm:space-y-6" // Desktop: normal spacing
     }`}>
       {/* <DebugActiveOrg /> */}
       <motion.h1
@@ -547,7 +547,7 @@ export const DashboardHome: React.FC = () => {
             : "mb-4 sm:mb-6 px-2 sm:px-0" // Desktop: normal spacing
         }`}
       >
-        Dashboard Overview
+        Home
       </motion.h1>
 
       <div className={`grid grid-cols-2 lg:grid-cols-4 ${
@@ -557,13 +557,13 @@ export const DashboardHome: React.FC = () => {
       }`}>
         <StatsCard title="Total Gateways" value={stats.totalGateways.toString()} icon="lucide:cpu" color="primary" />
         <StatsCard
-          title="Active Gateways"
+          title="Live Gateways"
           value={stats.activeGateways.toString()}
           icon="lucide:activity"
           color="success"
         />
         <StatsCard title="Total Sensors" value={stats.totalSensors.toString()} icon="lucide:radio" color="secondary" />
-        <StatsCard title="Active Sensors" value={stats.activeSensors.toString()} icon="lucide:signal" color="warning" />
+        <StatsCard title="Live Sensors" value={stats.activeSensors.toString()} icon="lucide:signal" color="warning" />
       </div>
 
       <div className={`grid grid-cols-1 ${

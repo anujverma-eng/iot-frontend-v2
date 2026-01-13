@@ -17,7 +17,6 @@ import { DashboardLayout } from "./layouts/dashboard-layout";
 import RootLayout from "./layouts/RootLayout";
 import OnboardingPage from "./pages/OnboardingPage";
 import MyInvitationsPage from "./pages/MyInvitationsPage";
-import DashboardInvitationsPage from "./pages/DashboardInvitationsPage";
 import { GatewaysPage } from "./pages/GatewayPage";
 import { SensorsPage } from "./pages/SensorsPage";
 import { AnalyticsPage } from "./pages/analytics";
@@ -126,7 +125,6 @@ export function AppRouter() {
 
               {/* Routes that don't require specific permissions */}
               <Route path="panel" element={<PanelPage />} />
-              <Route path="invitations" element={<DashboardInvitationsPage />} />
               <Route path="profile" element={<MyProfilePage />} />
               <Route path="notifications" element={<ManageAlertsPage />} />
             </Route>

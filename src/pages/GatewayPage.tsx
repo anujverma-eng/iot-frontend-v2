@@ -31,13 +31,14 @@ import {
   selectGatewayPagination,
   selectGateways,
   selectGatewayStats,
-  setPage
+  setPage,
 } from "../store/gatewaySlice";
 import { selectActiveOrgReady } from "../store/activeOrgSlice";
 import type { Gateway } from "../types/gateway";
 import { PermissionWrapper } from "../components/PermissionWrapper";
 import { PermissionButton } from "../components/PermissionButton";
 import { usePermissions } from "../hooks/usePermissions";
+import { useBreakpoints } from "../hooks/use-media-query";
 
 // Helper function to determine gateway online status
 const getGatewayOnlineStatus = (gateway: Gateway) => {
@@ -84,16 +85,16 @@ export const GatewaysPage: React.FC = () => {
     if (!orgReady) {
       return;
     }
-    
-    try {
-      await dispatch(refreshGatewayData({
-        page: pagination.page,
-        limit: 20,
-        search: ""
-      })).unwrap();
-    } catch (error) {
 
-    }
+    try {
+      await dispatch(
+        refreshGatewayData({
+          page: pagination.page,
+          limit: 20,
+          search: "",
+        })
+      ).unwrap();
+    } catch (error) {}
   }, [dispatch, pagination.page, orgReady]);
 
   React.useEffect(() => {
@@ -133,7 +134,7 @@ export const GatewaysPage: React.FC = () => {
   // Add function to apply sorting client-side
   const sortedGateways = React.useMemo(() => {
     if (!gateways) return [];
-    
+
     let sorted = [...gateways];
 
     // Apply sorting
@@ -156,6 +157,17 @@ export const GatewaysPage: React.FC = () => {
 
     return sorted;
   }, [gateways, sortColumn, sortDirection]);
+
+  const {
+    isMobile,
+    isSmallScreen,
+    isLandscape,
+    isShortHeight,
+    isVeryShortHeight,
+    isIPhone14Pro,
+    isIPhoneLandscape,
+    isPixelLandscape,
+  } = useBreakpoints();
 
   const handleSort = (column: string) => {
     if (sortColumn === column) {
@@ -195,7 +207,7 @@ export const GatewaysPage: React.FC = () => {
       });
       onDeleteClose();
       setGatewayToDelete(null);
-      
+
       // Refresh data to ensure UI is in sync with backend
       setTimeout(() => {
         fetchData();
@@ -214,76 +226,86 @@ export const GatewaysPage: React.FC = () => {
     setGatewayToDelete(null);
   };
 
-  const renderCell = React.useCallback((gateway: Gateway, columnKey: string) => {
-    switch (columnKey) {
-      case "mac":
-        return (
-          <div className="flex flex-col">
-            <p className="text-bold text-small capitalize">{gateway.label || gateway.mac}</p>
-            <p className="text-bold text-tiny text-default-400">{gateway.mac}</p>
-          </div>
-        );
-      case "location":
-        return (
-          <div className="flex items-center gap-2">
-            <Icon icon="lucide:map-pin" className="w-4 h-4 text-default-400" />
-            <span className="text-small">{gateway.location || "-"}</span>
-          </div>
-        );
-      case "status":
-        const isOnline = getGatewayOnlineStatus(gateway);
-        return (
-          <Chip
-            className="capitalize"
-            color={getStatusColor(isOnline)}
-            size="sm"
-            variant="flat"
-            startContent={
-              <Icon 
-                icon={isOnline ? "lucide:wifi" : "lucide:wifi-off"} 
-                className="w-3 h-3" 
-              />
-            }
-          >
-            {getStatusText(isOnline)}
-          </Chip>
-        );
-      case "lastSeen":
-        return gateway.lastSeen ? formatDistanceToNow(new Date(gateway.lastSeen), { addSuffix: true }) : "Never";
-      case "sensors":
-        const claimed = gateway.sensorCounts?.find((c) => c._id === true)?.c || 0;
-        const unclaimed = gateway.sensorCounts?.find((c) => c._id === false)?.c || 0;
-        const total = claimed + unclaimed;
-
-        return (
-          <Chip size="sm" variant="flat" color="primary">
-            {claimed} / {total}
-          </Chip>
-        );
-      case "actions":
-        const isDeleting = deleteLoadingIds.includes(gateway._id);
-        return (
-          <div className="flex items-center gap-2">
-            <PermissionButton
-              permissions={["gateways.delete"]}
-              isIconOnly
+  const renderCell = React.useCallback(
+    (gateway: Gateway, columnKey: string) => {
+      switch (columnKey) {
+        case "mac":
+          return (
+            <div className="flex flex-col">
+              <p className="text-bold text-small capitalize">{gateway.label || gateway.mac}</p>
+              <p className="text-bold text-tiny text-default-400">{gateway.mac}</p>
+            </div>
+          );
+        case "location":
+          return (
+            <div className="flex items-center gap-2">
+              <Icon icon="lucide:map-pin" className="w-4 h-4 text-default-400" />
+              <span className="text-small">{gateway.location || "-"}</span>
+            </div>
+          );
+        case "status":
+          const isOnline = getGatewayOnlineStatus(gateway);
+          return (
+            <Chip
+              className="capitalize"
+              color={getStatusColor(isOnline)}
               size="sm"
-              variant="light"
-              color="danger"
-              onPress={() => handleDeleteClick(gateway)}
-              isLoading={isDeleting}
-              isDisabled={isDeleting}
-              className="min-w-unit-8 w-unit-8 h-unit-8"
-              lockedTooltip="You don't have permission to delete gateways"
+              variant="flat"
+              startContent={<Icon icon={isOnline ? "lucide:wifi" : "lucide:wifi-off"} className="w-3 h-3" />}
             >
-              {!isDeleting && <Icon icon="lucide:trash-2" className="w-4 h-4" />}
-            </PermissionButton>
-          </div>
-        );
-      default:
-        return String(gateway[columnKey as keyof Gateway] || "");
-    }
-  }, [deleteLoadingIds, handleDeleteClick]);
+              {getStatusText(isOnline)}
+            </Chip>
+          );
+        case "lastSeen":
+          return gateway.lastSeen ? formatDistanceToNow(new Date(gateway.lastSeen), { addSuffix: true }) : "Never";
+        case "sensors":
+          const claimed = gateway.sensorCounts?.find((c) => c._id === true)?.c || 0;
+          const unclaimed = gateway.sensorCounts?.find((c) => c._id === false)?.c || 0;
+          const total = claimed + unclaimed;
+
+          return (
+            <Chip size="sm" variant="flat" color="primary">
+              {claimed} / {total}
+            </Chip>
+          );
+        case "actions":
+          const isDeleting = deleteLoadingIds.includes(gateway._id);
+          return (
+            <div className="flex items-center justify-center gap-2">
+              <PermissionButton
+                permissions={["gateways.details"]}
+                isIconOnly
+                size="sm"
+                variant="light"
+                color="primary"
+                onPress={() => handleGatewayClick(gateway._id)}
+                className="min-w-unit-8 w-unit-8 h-unit-8"
+                lockedTooltip="You don't have permission to view gateway details"
+              >
+                <Icon icon="lucide:edit" className="w-4 h-4" />
+              </PermissionButton>
+              <PermissionButton
+                permissions={["gateways.delete"]}
+                isIconOnly
+                size="sm"
+                variant="light"
+                color="danger"
+                onPress={() => handleDeleteClick(gateway)}
+                isLoading={isDeleting}
+                isDisabled={isDeleting}
+                className="min-w-unit-8 w-unit-8 h-unit-8"
+                lockedTooltip="You don't have permission to delete gateways"
+              >
+                {!isDeleting && <Icon icon="lucide:trash-2" className="w-4 h-4" />}
+              </PermissionButton>
+            </div>
+          );
+        default:
+          return String(gateway[columnKey as keyof Gateway] || "");
+      }
+    },
+    [deleteLoadingIds, handleDeleteClick]
+  );
 
   return (
     <motion.div
@@ -292,7 +314,17 @@ export const GatewaysPage: React.FC = () => {
       className="container mx-auto max-w-7xl p-4 space-y-6"
     >
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-semibold">Gateways</h1>
+        <motion.h1
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`text-2xl sm:text-3xl font-bold ${
+            isMobile
+              ? "mb-3 px-1" // Mobile: reduced margin and padding
+              : "mb-4 sm:mb-6 px-2 sm:px-0" // Desktop: normal spacing
+          }`}
+        >
+          Gateways
+        </motion.h1>
       </div>
 
       {/* Enhanced stats cards */}
@@ -304,8 +336,18 @@ export const GatewaysPage: React.FC = () => {
           </div>
         ) : (
           <>
-            <StatsCard title="Total Gateways" value={String(stats?.totalGateways ?? 0)} icon="lucide:cpu" color="primary" />
-            <StatsCard title="Live Gateways" value={String(stats?.liveGateways ?? 0)} icon="lucide:activity" color="success" />
+            <StatsCard
+              title="Total Gateways"
+              value={String(stats?.totalGateways ?? 0)}
+              icon="lucide:cpu"
+              color="primary"
+            />
+            <StatsCard
+              title="Live Gateways"
+              value={String(stats?.liveGateways ?? 0)}
+              icon="lucide:activity"
+              color="success"
+            />
             <StatsCard
               title="Avg. Sensors per Gateway"
               value={gateways.length > 0 ? Math.ceil(avgSensorsPerGateway).toString() : "0"}
@@ -314,7 +356,14 @@ export const GatewaysPage: React.FC = () => {
             />
             <StatsCard
               title="Last Heartbeat"
-              value={lastHeartbeat ? formatDistanceToNow(lastHeartbeat, { addSuffix: true }) : "N/A"}
+              value={
+                lastHeartbeat
+                  ? (() => {
+                      const text = formatDistanceToNow(lastHeartbeat, { addSuffix: true })?.toString();
+                      return text.charAt(0).toUpperCase() + text.slice(1);
+                    })()
+                  : "N/A"
+              }
               icon="lucide:clock"
               color="warning"
             />
@@ -322,111 +371,136 @@ export const GatewaysPage: React.FC = () => {
         )}
       </div>
 
-      <Card>
-        <CardBody>
-          {isLoading ? (
-            <div className="flex justify-center items-center h-64">
-              <Spinner size="lg" />
-            </div>
-          ) : sortedGateways.length > 0 ? (
-            <div className="space-y-4 overflow-x-auto">
-              <Table removeWrapper aria-label="Gateways table" selectionMode="none" isStriped>
-                <TableHeader>
-                  <TableColumn key="mac" onClick={() => handleSort("mac")} className="cursor-pointer">
-                    <div className="flex items-center gap-2">
+      <div>
+        {isLoading ? (
+          <div className="flex justify-center items-center h-64">
+            <Spinner size="lg" />
+          </div>
+        ) : sortedGateways.length > 0 ? (
+          <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm">
+            <table className="w-full min-w-full table-auto border-collapse">
+              <thead>
+                <tr className="bg-gray-100 dark:bg-gray-100/20">
+                  <th
+                    className="px-4 py-3 text-left text-sm font-medium text-dark cursor-pointer"
+                    onClick={() => handleSort("mac")}
+                  >
+                    <div className="flex items-center gap-1">
                       GATEWAY
                       {sortColumn === "mac" && (
                         <Icon
-                          icon={sortDirection === "asc" ? "lucide:chevron-up" : "lucide:chevron-down"}
-                          className="text-default-500"
-                          width={16}
+                          icon={sortDirection === "asc" ? "lucide:arrow-up" : "lucide:arrow-down"}
+                          width={14}
+                          className="text-primary-500"
                         />
                       )}
                     </div>
-                  </TableColumn>
-                  <TableColumn key="location" onClick={() => handleSort("location")} className="cursor-pointer">
-                    <div className="flex items-center gap-2">
+                  </th>
+                  <th
+                    className="px-4 py-3 text-left text-sm font-medium text-dark cursor-pointer"
+                    onClick={() => handleSort("location")}
+                  >
+                    <div className="flex items-center gap-1">
                       LOCATION
                       {sortColumn === "location" && (
                         <Icon
-                          icon={sortDirection === "asc" ? "lucide:chevron-up" : "lucide:chevron-down"}
-                          className="text-default-500"
-                          width={16}
+                          icon={sortDirection === "asc" ? "lucide:arrow-up" : "lucide:arrow-down"}
+                          width={14}
+                          className="text-primary-500"
                         />
                       )}
                     </div>
-                  </TableColumn>
-                  <TableColumn key="status" onClick={() => handleSort("status")} className="cursor-pointer">
-                    <div className="flex items-center gap-2">
+                  </th>
+                  <th
+                    className="px-4 py-3 text-left text-sm font-medium text-dark cursor-pointer"
+                    onClick={() => handleSort("status")}
+                  >
+                    <div className="flex items-center gap-1">
                       STATUS
                       {sortColumn === "status" && (
                         <Icon
-                          icon={sortDirection === "asc" ? "lucide:chevron-up" : "lucide:chevron-down"}
-                          className="text-default-500"
-                          width={16}
+                          icon={sortDirection === "asc" ? "lucide:arrow-up" : "lucide:arrow-down"}
+                          width={14}
+                          className="text-primary-500"
                         />
                       )}
                     </div>
-                  </TableColumn>
-                  <TableColumn key="lastSeen" onClick={() => handleSort("lastSeen")} className="cursor-pointer">
-                    <div className="flex items-center gap-2">
+                  </th>
+                  <th
+                    className="px-4 py-3 text-left text-sm font-medium text-dark cursor-pointer"
+                    onClick={() => handleSort("lastSeen")}
+                  >
+                    <div className="flex items-center gap-1">
                       LAST SEEN
                       {sortColumn === "lastSeen" && (
                         <Icon
-                          icon={sortDirection === "asc" ? "lucide:chevron-up" : "lucide:chevron-down"}
-                          className="text-default-500"
-                          width={16}
+                          icon={sortDirection === "asc" ? "lucide:arrow-up" : "lucide:arrow-down"}
+                          width={14}
+                          className="text-primary-500"
                         />
                       )}
                     </div>
-                  </TableColumn>
-                  <TableColumn key="sensors">SENSORS</TableColumn>
-                  <TableColumn key="actions" className="text-center">ACTIONS</TableColumn>
-                </TableHeader>
-                <TableBody>
-                  {sortedGateways.map((gateway: Gateway) => (
-                    <TableRow
-                      key={gateway._id}
-                      className={gateway.status === "offline" ? "opacity-60" : ""}
-                    >
-                      {(columnKey) => (
-                        <TableCell 
-                          className={columnKey === "actions" ? "" : "cursor-pointer"}
-                          onClick={columnKey === "actions" ? undefined : () => handleGatewayClick(gateway._id)}
-                        >
-                          {renderCell(gateway, columnKey.toString())}
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-dark">SENSORS</th>
+                  <th className="px-4 py-3 text-center text-sm font-medium text-dark">ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedGateways.map((gateway: Gateway) => (
+                  <tr
+                    key={gateway._id}
+                    className={`border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors ${
+                      gateway.status === "offline" ? "opacity-60" : ""
+                    }`}
+                  >
+                    <td className="px-4 py-3 text-sm cursor-pointer" onClick={() => handleGatewayClick(gateway._id)}>
+                      {renderCell(gateway, "mac")}
+                    </td>
+                    <td className="px-4 py-3 text-sm cursor-pointer" onClick={() => handleGatewayClick(gateway._id)}>
+                      {renderCell(gateway, "location")}
+                    </td>
+                    <td className="px-4 py-3 text-sm cursor-pointer" onClick={() => handleGatewayClick(gateway._id)}>
+                      {renderCell(gateway, "status")}
+                    </td>
+                    <td className="px-4 py-3 text-sm cursor-pointer" onClick={() => handleGatewayClick(gateway._id)}>
+                      {renderCell(gateway, "lastSeen")}
+                    </td>
+                    <td className="px-4 py-3 text-sm cursor-pointer" onClick={() => handleGatewayClick(gateway._id)}>
+                      {renderCell(gateway, "sensors")}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-center">{renderCell(gateway, "actions")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
 
-              {/* Only show pagination if there's more than one page */}
-              {pagination.totalPages > 1 && (
-                <div className="flex justify-center">
-                  <Pagination 
-                    total={pagination.totalPages} 
-                    page={pagination.page} 
-                    onChange={handlePageChange} 
-                    showControls 
-                  />
-                </div>
-              )}
-            </div>
-          ) : gateways.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-64 gap-4">
-              <Icon icon="lucide:database" className="w-12 h-12 text-default-400" />
-              <p className="text-default-400">No gateways found</p>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center h-64 gap-4">
-              <Icon icon="lucide:search" className="w-12 h-12 text-default-400" />
-              <p className="text-default-400">No gateways match your filters</p>
-            </div>
-          )}
-        </CardBody>
-      </Card>
+            {/* Only show pagination if there's more than one page */}
+            {pagination.totalPages > 1 && (
+              <div className="flex justify-center mt-4">
+                <Pagination
+                  isCompact
+                  showControls
+                  showShadow
+                  color="primary"
+                  total={pagination.totalPages}
+                  page={pagination.page}
+                  onChange={handlePageChange}
+                />
+              </div>
+            )}
+          </div>
+        ) : gateways.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-64 gap-4">
+            <Icon icon="lucide:database" className="w-12 h-12 text-default-400" />
+            <p className="text-default-400">No gateways found</p>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center h-64 gap-4">
+            <Icon icon="lucide:search" className="w-12 h-12 text-default-400" />
+            <p className="text-default-400">No gateways match your filters</p>
+          </div>
+        )}
+      </div>
       {selectedGateway && (
         <GatewayDetailModal isOpen={isDetailOpen} onClose={onDetailClose} gatewayId={selectedGateway} />
       )}

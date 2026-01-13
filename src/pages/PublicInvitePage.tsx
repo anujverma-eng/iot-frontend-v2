@@ -103,7 +103,7 @@ export const PublicInvitePage: React.FC = () => {
       if (hasExistingOrgs && !intent && !actionLoading && !actionSuccess) {
         // User has existing organizations and no specific intent - redirect immediately
         setShouldRedirect(true);
-        navigate(`/dashboard/invitations?token=${token}`, { replace: true });
+        navigate(`/dashboard/team?tab=myinvitations&token=${token}`, { replace: true });
         return;
       } else {
         // Logged in but either new user or has intent - show public page
@@ -259,7 +259,7 @@ export const PublicInvitePage: React.FC = () => {
       
       if (isLoggedIn) {
         // Redirect to team page with success message
-        navigate('/dashboard/invitations', {
+        navigate('/dashboard/team?tab=myinvitations', {
           state: { message: 'Invitation declined successfully' }
         });
       } else {
@@ -456,7 +456,7 @@ export const PublicInvitePage: React.FC = () => {
               {isLoggedIn ? (
                 <Button
                   color="primary"
-                  onPress={() => navigate('/dashboard/invitations')}
+                  onPress={() => navigate('/dashboard/team?tab=myinvitations')}
                 >
                   View My Invitations
                 </Button>
@@ -603,7 +603,7 @@ export const PublicInvitePage: React.FC = () => {
                   </div>
                   
                   <p className="text-xs text-gray-500 text-center">
-                    "Just Sign In" takes you to the dashboard. Find this invitation in the "My Invitations" sidebar later.
+                    "Just Sign In" takes you to the dashboard. Find this invitation in the "Team → My Invitations" tab later.
                   </p>
                 </div>
               )}

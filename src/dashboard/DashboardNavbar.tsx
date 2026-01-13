@@ -10,7 +10,6 @@ import {
   DropdownItem,
   Button,
   Avatar,
-  Chip,
   Skeleton,
   Tooltip,
   useDisclosure,
@@ -126,49 +125,37 @@ export const DashboardNavbar = ({ onMenuToggle, className, style }: DashboardNav
         {/* Organization Selector */}
         <OrgSelector />
 
-        {/* Real-time mode indicator */}
         {/* Live mode controls - Hidden in compare mode */}
         {!isCompareMode && (
-          <>
-            <Tooltip
-              content={
-                isConnecting
-                  ? "Connecting to live data..."
-                  : isLiveMode
-                    ? "Live mode is active - Click to disable"
-                    : "Live mode is disabled - Click to enable"
-              }
-            >
-              <PermissionButton
-                permission={getPermissionValue('SENSORS', 'LIVE')}
-                isIconOnly
-                size="sm"
-                variant="flat"
-                color={isLiveMode ? "success" : "default"}
-                onPress={handleLiveModeToggle}
-                isLoading={isConnecting}
-                className={cn("transition-all duration-200", isLiveMode && "animate-pulse")}
-                lockedTooltip="You need 'sensors.live' permission to control live mode"
-              >
-                {isConnecting ? (
-                  <Icon icon="lucide:loader-2" className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Icon icon={isLiveMode ? "lucide:radio" : "lucide:wifi-off"} className="h-4 w-4" />
-                )}
-              </PermissionButton>
-            </Tooltip>
-
-            {/* Live mode status chip */}
-            <Chip
+          <Tooltip
+            content={
+              isConnecting
+                ? "Connecting to live data..."
+                : isLiveMode
+                  ? "Live mode is active - Click to disable"
+                  : "Live mode is disabled - Click to enable"
+            }
+          >
+            <PermissionButton
+              permission={getPermissionValue('SENSORS', 'LIVE')}
               size="sm"
               variant="flat"
               color={isLiveMode ? "success" : "default"}
-              startContent={<Icon icon={isLiveMode ? "lucide:activity" : "lucide:pause"} className="h-3 w-3" />}
+              onPress={handleLiveModeToggle}
+              isLoading={isConnecting}
               className={cn("transition-all duration-200", isLiveMode && "animate-pulse")}
+              lockedTooltip="You need 'sensors.live' permission to control live mode"
+              startContent={
+                isConnecting ? (
+                  <Icon icon="" className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Icon icon={isLiveMode ? "lucide:radio" : "lucide:wifi-off"} className="h-4 w-4" />
+                )
+              }
             >
-              {isConnecting ? "Connecting..." : isLiveMode ? "LIVE" : "OFFLINE"}
-            </Chip>
-          </>
+              {isConnecting ? "Connecting..." : isLiveMode ? "Live" : "Offline"}
+            </PermissionButton>
+          </Tooltip>
         )}
         {/* <Button isIconOnly variant="light" size="sm" className="text-default-500">
           <Icon icon="lucide:type" className="h-5 w-5" />
