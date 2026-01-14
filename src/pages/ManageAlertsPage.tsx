@@ -551,7 +551,7 @@ export const ManageAlertsPage: React.FC = () => {
           }}
           onConfirm={handleDeleteConfirm}
           title="Delete Alert"
-          message={`"${deletingAlert.name}"`}
+          message={`Are you sure you want to delete the alert "${deletingAlert.name}"?`}
           confirmText="Delete"
           cancelText="Cancel"
           confirmColor="danger"

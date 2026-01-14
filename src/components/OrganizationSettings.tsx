@@ -222,18 +222,14 @@ export const OrganizationSettings: React.FC<OrganizationSettingsProps> = ({
   }
 
   return (
-    <div className="space-y-6">
-      {/* Organization Name Section */}
-      <div className="">
-        <div className="flex items-center justify-between p-4 border border-default-200 rounded-lg">
+    <div className="space-y-4">
+      {/* Organization Name and Role Section */}
+      <div className="border border-default-200 rounded-lg divide-y divide-default-200">
+        {/* Organization Name */}
+        <div className="flex items-center justify-between p-4">
           <div className="flex items-center gap-3">
-            <Icon icon="lucide:building" className="h-5 w-5 text-default-400" />
-            <div>
-              <p className="font-medium">
-                {currentOrgName} <span className="text-primary-600 text-sm">({currentRole?.toString().toLocaleUpperCase()})</span>{" "} 
-              </p>
-              <p className="text-xs text-default-500">Current organization details</p>
-            </div>
+            <Icon icon="lucide:building" className="h-5 w-5 text-primary" />
+            <p className="font-medium">{currentOrgName}</p>
           </div>
           <PermissionWrapper permissions={[getPermissionValue("SETTINGS", "RENAME_ORG")]}>
             <PermissionButton
@@ -250,6 +246,15 @@ export const OrganizationSettings: React.FC<OrganizationSettingsProps> = ({
               Rename
             </PermissionButton>
           </PermissionWrapper>
+        </div>
+
+        {/* Role */}
+        <div className="flex items-center gap-3 p-4">
+          <Icon icon="lucide:user-check" className="h-5 w-5 text-primary" />
+          <div>
+            <p className="font-medium capitalize">{currentRole || "Member"}</p>
+            <p className="text-sm text-default-500">Your role in this organization. Roles can be updated on the Team page</p>
+          </div>
         </div>
       </div>
 
@@ -275,136 +280,63 @@ export const OrganizationSettings: React.FC<OrganizationSettingsProps> = ({
       )}
 
       {/* Sensor Monitoring Settings */}
-      {/* <CardHeader className="pb-3">
-          <div className="flex items-center justify-between w-full">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <Icon icon="lucide:activity" className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold text-foreground">Sensor Monitoring</h2>
-                <p className="text-xs text-default-500">
-                  Configure how sensors are monitored and when they're marked as offline
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              {isLoading && (
-                <div className="flex items-center gap-2 text-default-500">
-                  <Spinner size="sm" />
-                  <span className="text-sm">Syncing...</span>
-                </div>
-              )}
-              
-              {hasBackendSettings && !isLoading && (
-                <Chip size="sm" variant="flat" color="success" startContent={<Icon icon="lucide:cloud-upload" className="w-3 h-3" />}>
-                  Cloud Synced
-                </Chip>
-              )}
-              
-              {!hasBackendSettings && !isLoading && errorType !== 'SETTINGS_NOT_FOUND' && (
-                <Chip size="sm" variant="flat" color="warning" startContent={<Icon icon="lucide:hard-drive" className="w-3 h-3" />}>
-                  Local Storage
-                </Chip>
-              )}
-
-              {!hasBackendSettings && !isLoading && errorType === 'SETTINGS_NOT_FOUND' && (
-                <Chip size="sm" variant="flat" color="default" startContent={<Icon icon="lucide:cloud-off" className="w-3 h-3" />}>
-                  Not Created Yet
-                </Chip>
-              )}
-              
-              {hasChanges && canUpdateOfflineTime && (
-                <PermissionButton
-                  permission={getPermissionValue('SETTINGS', 'UPDATE_SENSOR_OFFLINE_TIME')}
-                  variant="flat"
-                  onPress={handleResetSettings}
-                  size="sm"
-                  startContent={<Icon icon="lucide:rotate-ccw" className="w-4 h-4" />}
-                  lockedTooltip="You need 'settings.update_sensor_offline_time' permission to reset settings"
-                >
-                  Reset
-                </PermissionButton>
-              )}
-            </div>
-          </div>
-        </CardHeader> */}
-      {/* Offline Timeout Setting */}
-      <div className="flex flex-col gap-4 border border-default-200 p-4 rounded-lg">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-medium text-foreground">Offline Detection</h3>
-              <Tooltip
-                content={
-                  <div className="px-2 py-2 max-w-xs">
-                    <h4 className="font-medium text-sm mb-2">How offline detection works</h4>
-                    <ul className="text-xs space-y-1">
-                      <li>• Sensors are marked offline if no data is received within the timeout period</li>
-                      <li>• Gateway disconnections immediately mark dependent sensors offline</li>
-                      <li>• Multi-gateway sensors stay online if at least one gateway is connected</li>
-                      <li>• Changes apply immediately to all monitoring processes</li>
-                    </ul>
-                  </div>
-                }
-                placement="right"
-                showArrow
+      <div className="space-y-3">
+        <h2 className="text-lg font-semibold text-foreground">Sensors</h2>
+        
+        <div className="flex flex-col gap-4 border border-default-200 p-4 rounded-lg">
+          <div>
+            <h3 className="font-semibold text-foreground mb-3">Offline detection after:</h3>
+            
+            <PermissionWrapper permissions={[getPermissionValue("SETTINGS", "UPDATE_SENSOR_OFFLINE_TIME")]}>
+              <Select
+                placeholder="Select timeout duration"
+                selectedKeys={[sensorSettings.offlineTimeoutMinutes.toString()]}
+                onSelectionChange={(keys) => {
+                  const value = Array.from(keys)[0] as string;
+                  if (value && canUpdateOfflineTime) handleSensorTimeoutChange(value);
+                }}
+                className="w-full"
+                size="md"
+                isDisabled={!canUpdateOfflineTime}
+                renderValue={() => {
+                  if (selectedTimeoutOption) {
+                    return `${selectedTimeoutOption.label}`;
+                  }
+                  return "Select timeout duration";
+                }}
               >
-                <Icon icon="lucide:info" className="w-4 h-4 text-default-400 cursor-help" />
-              </Tooltip>
-            </div>
-            <p className="text-xs text-default-500 mt-1">
-              Mark sensors as offline if no data is received for the selected duration
-            </p>
+                {TIMEOUT_OPTIONS.map((option) => (
+                  <SelectItem key={option.value.toString()}>{option.label}</SelectItem>
+                ))}
+              </Select>
+            </PermissionWrapper>
           </div>
-          <Chip
-            size="sm"
-            variant="flat"
-            color="primary"
-            startContent={<Icon icon="lucide:clock" className="w-3 h-3" />}
-          >
-            Current: {selectedTimeoutOption?.label}
-          </Chip>
-        </div>
 
-        <PermissionWrapper permissions={[getPermissionValue("SETTINGS", "UPDATE_SENSOR_OFFLINE_TIME")]}>
-          <Select
-            label="Offline Timeout"
-            placeholder="Select timeout duration"
-            selectedKeys={[sensorSettings.offlineTimeoutMinutes.toString()]}
-            onSelectionChange={(keys) => {
-              const value = Array.from(keys)[0] as string;
-              if (value && canUpdateOfflineTime) handleSensorTimeoutChange(value);
-            }}
-            className="max-w-md"
-            size="sm"
-            isDisabled={!canUpdateOfflineTime}
-            renderValue={() => {
-              if (selectedTimeoutOption) {
-                return `${selectedTimeoutOption.label}`;
-              }
-              return "Select timeout duration";
-            }}
-          >
-            {TIMEOUT_OPTIONS.map((option) => (
-              <SelectItem key={option.value.toString()}>{option.label}</SelectItem>
-            ))}
-          </Select>
-        </PermissionWrapper>
+          <ul className="text-sm text-default-600 space-y-1">
+            <li className="flex items-start gap-2">
+              <span className="text-default-400">•</span>
+              <span>Mark sensors as offline if no data is received for the selected duration</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-default-400">•</span>
+              <span>Sensors connected to multiple gateways stay online if connected to at least one gateway</span>
+            </li>
+          </ul>
 
-        {!canUpdateOfflineTime && (
-          <div className="bg-warning/10 border border-warning/20 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <Icon icon="lucide:lock" className="w-5 h-5 text-warning mt-0.5" />
-              <div className="flex-1">
-                <h4 className="font-medium text-warning mb-1">Permission Required</h4>
-                <p className="text-sm text-warning/80">
-                  You need 'settings.update_sensor_offline_time' permission to modify offline detection settings.
-                </p>
+          {!canUpdateOfflineTime && (
+            <div className="bg-warning/10 border border-warning/20 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <Icon icon="lucide:lock" className="w-5 h-5 text-warning mt-0.5" />
+                <div className="flex-1">
+                  <h4 className="font-medium text-warning mb-1">Permission Required</h4>
+                  <p className="text-sm text-warning/80">
+                    You need 'settings.update_sensor_offline_time' permission to modify offline detection settings.
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Rename Organization Modal */}

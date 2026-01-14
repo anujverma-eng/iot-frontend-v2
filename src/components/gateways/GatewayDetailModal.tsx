@@ -358,7 +358,6 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
       isOpen={isOpen} 
       onClose={onClose} 
       size="3xl" 
-      backdrop="blur" 
       scrollBehavior="inside"
       classNames={{
         base: "h-[95vh] max-h-[95vh] sm:h-auto sm:max-h-[90vh]",
@@ -392,7 +391,7 @@ export const GatewayDetailModal: React.FC<GatewayDetailModalProps> = ({ isOpen, 
                             </Button>
                           </PermissionWrapper>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 mr-5">
                           <Tooltip content="Copy Gateway Id">
                             <Button isIconOnly size="sm" variant="light" onPress={() => copyToClipboard(gateway?._id)}>
                               <Icon icon="lucide:copy" width={16} height={16} />

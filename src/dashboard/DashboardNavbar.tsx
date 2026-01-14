@@ -214,9 +214,9 @@ export const DashboardNavbar = ({ onMenuToggle, className, style }: DashboardNav
             <DropdownItem key="profile_page" startContent={<Icon icon="lucide:user" />}>
               My Profile
             </DropdownItem>
-            <DropdownItem key="settings" startContent={<Icon icon="lucide:settings" />}>
+            {/* <DropdownItem key="settings" startContent={<Icon icon="lucide:settings" />}>
               Settings
-            </DropdownItem>
+            </DropdownItem> */}
             <DropdownItem key="billing" startContent={<Icon icon="lucide:credit-card" />}>
               Billing
             </DropdownItem>

@@ -386,7 +386,7 @@ export const GatewaysPage: React.FC = () => {
                     onClick={() => handleSort("mac")}
                   >
                     <div className="flex items-center gap-1">
-                      GATEWAY
+                      Gateway
                       {sortColumn === "mac" && (
                         <Icon
                           icon={sortDirection === "asc" ? "lucide:arrow-up" : "lucide:arrow-down"}
@@ -401,7 +401,7 @@ export const GatewaysPage: React.FC = () => {
                     onClick={() => handleSort("location")}
                   >
                     <div className="flex items-center gap-1">
-                      LOCATION
+                      Location
                       {sortColumn === "location" && (
                         <Icon
                           icon={sortDirection === "asc" ? "lucide:arrow-up" : "lucide:arrow-down"}
@@ -416,7 +416,7 @@ export const GatewaysPage: React.FC = () => {
                     onClick={() => handleSort("status")}
                   >
                     <div className="flex items-center gap-1">
-                      STATUS
+                      Status
                       {sortColumn === "status" && (
                         <Icon
                           icon={sortDirection === "asc" ? "lucide:arrow-up" : "lucide:arrow-down"}
@@ -431,7 +431,7 @@ export const GatewaysPage: React.FC = () => {
                     onClick={() => handleSort("lastSeen")}
                   >
                     <div className="flex items-center gap-1">
-                      LAST SEEN
+                      Last Seen
                       {sortColumn === "lastSeen" && (
                         <Icon
                           icon={sortDirection === "asc" ? "lucide:arrow-up" : "lucide:arrow-down"}
@@ -441,8 +441,8 @@ export const GatewaysPage: React.FC = () => {
                       )}
                     </div>
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-dark">SENSORS</th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-dark">ACTIONS</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-dark">Sensors</th>
+                  <th className="px-4 py-3 text-center text-sm font-medium text-dark">Actions</th>
                 </tr>
               </thead>
               <tbody>

@@ -143,11 +143,9 @@ export const SettingsPage: React.FC = () => {
 
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-2">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <Icon icon="lucide:building" className="w-5 h-5 text-primary" />
-            </div>
             <div>
-              <h2 className="text-lg font-semibold text-foreground">Organization Preferences</h2>
+              <h2 className="text-lg font-semibold text-foreground">Organization</h2>
+              <p className="text-sm text-default-500">To manage a different organization, use the organization selector in the top navigation bar</p>
             </div>
           </div>
           <Chip size="sm" variant="flat" color="primary">
@@ -217,7 +215,7 @@ export const SettingsPage: React.FC = () => {
             <OrganizationPreferences />
           </CardBody>
         </Card> */}
-        <OrganizationPreferences />
+        {/* <OrganizationPreferences /> */}
         {/* Permission Notice */}
         {!canRenameOrg && (
           <Card className="shadow-sm border border-warning/20">
@@ -237,7 +235,7 @@ export const SettingsPage: React.FC = () => {
         )}
 
         {/* Future Settings Sections */}
-        <Card className="shadow-sm opacity-60">
+        {/* <Card className="shadow-sm opacity-60">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-default-100 rounded-lg">
@@ -269,7 +267,7 @@ export const SettingsPage: React.FC = () => {
               </Chip>
             </div>
           </CardHeader>
-        </Card>
+        </Card> */}
       </div>
     </div>
   );

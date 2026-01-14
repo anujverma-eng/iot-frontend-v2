@@ -120,10 +120,10 @@ export const OrgPickerModal: React.FC<OrgPickerModalProps> = ({ isOpen, onClose 
                 })}
               </div>
 
-              <div className="mt-4">
-                <Checkbox isSelected={rememberChoice} onValueChange={setRememberChoice}>
+              <div className="mt-1">
+                {/* <Checkbox isSelected={rememberChoice} onValueChange={setRememberChoice}>
                   Remember my choice
-                </Checkbox>
+                </Checkbox> */}
               </div>
             </ModalBody>
             <ModalFooter>

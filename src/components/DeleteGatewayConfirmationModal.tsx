@@ -42,7 +42,7 @@ export const DeleteGatewayConfirmationModal: React.FC<ConfirmationModalProps> = 
           </div>
         </ModalHeader>
         <ModalBody>
-          <h1 className="font-medium">Are you sure you want to delete the alert?</h1>
+          <h1 className="font-medium">{message}</h1>
           {/* <p className="mb-3">{message}</p> */}
           {/* <p className="mb-2">This action will:</p>
           <ul className="list-disc pl-6 space-y-1 text-sm">

@@ -75,6 +75,8 @@ export const resolveInitialActiveOrg = createAsyncThunk(
       
       return { type: 'single-org' as const, orgId, orgName };
     } else {
+      // Ask user Everytime of multiple memberships ( No more remember choice  )
+      return { type: 'needs-picker' as const };
       // Multiple memberships
       // Handle case where backend returns defaultOrgId as object instead of string
       const defaultOrgId = typeof userSettings.defaultOrgId === 'string' 

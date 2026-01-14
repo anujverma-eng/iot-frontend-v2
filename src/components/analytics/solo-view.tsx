@@ -9,7 +9,7 @@ import {
   DropdownTrigger,
   Spinner,
   Tab,
-  Tabs
+  Tabs,
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { saveAs } from "file-saver";
@@ -38,7 +38,7 @@ import {
   selectMaxLiveReadings,
   selectTelemetryData,
   selectTelemetryLoading,
-  setTimeRange
+  setTimeRange,
 } from "../../store/telemetrySlice";
 import { ChartConfig, SensorType } from "../../types/sensor";
 import { formatNumericValue } from "../../utils/numberUtils";
@@ -59,7 +59,6 @@ import { createOptimizedChartConfig, useOptimizedChartData } from "../../hooks/u
 import { LiveReadingsSelector } from "./live-readings-selector";
 import { TableView } from "./table-view";
 import { TimeRangeSelector } from "./time-range-selector";
-
 
 // Fix the interface to satisfy the Record<string, string | undefined> constraint
 interface SoloViewParams {
@@ -84,7 +83,7 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
   // Capture inherited mode from URL only once on mount
   const [inheritedMode, setInheritedMode] = React.useState<string | null>(null);
   const [hasInheritedMode, setHasInheritedMode] = React.useState(false);
-  
+
   // Read URL parameters only once on component mount
   React.useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -126,15 +125,13 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
   const [starLoading, setStarLoading] = React.useState(false);
   const chartRef = React.useRef<HTMLDivElement>(null);
 
-
-
   // Live mode state - use centralized Redux state directly (no local state)
   const isLiveMode = useSelector(selectIsLiveMode);
   const isConnecting = useSelector(selectIsConnecting);
   const maxLiveReadings = useSelector(selectMaxLiveReadings);
-  
+
   // Derive live status from centralized state
-  const liveStatus = isConnecting ? 'connecting' : isLiveMode ? 'connected' : 'disconnected';
+  const liveStatus = isConnecting ? "connecting" : isLiveMode ? "connected" : "disconnected";
 
   // Use optimized data fetch hook for efficient live data updates
   const { fetchData: fetchOptimizedData, cancelPendingRequests } = useOptimizedDataFetch();
@@ -146,29 +143,35 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
     () => {
       // Skip when embedded - parent handles data refresh
       if (isEmbedded) return;
-      
+
       if (sensorId) {
         // Force re-fetch data with current time range when switching to offline
-        fetchOptimizedData({
-          sensorIds: [sensorId],
-          timeRange: filters.timeRange,
-          pageContext: 'solo-view'
-        }, true); // Force immediate execution
+        fetchOptimizedData(
+          {
+            sensorIds: [sensorId],
+            timeRange: filters.timeRange,
+            pageContext: "solo-view",
+          },
+          true
+        ); // Force immediate execution
       }
     },
     // onOfflineToLive - fetch fresh historical data to fill any gap, then MQTT will append new readings
     () => {
       // Skip when embedded - parent handles data refresh
       if (isEmbedded) return;
-      
+
       if (sensorId) {
         // useOptimizedDataFetch hook automatically adds +1 minute buffer to end time when in live mode
         // and adds liveMode: { enabled: true, maxReadings } for backend to return raw readings
-        fetchOptimizedData({
-          sensorIds: [sensorId],
-          timeRange: filters.timeRange,
-          pageContext: 'solo-view'
-        }, true); // Force immediate execution
+        fetchOptimizedData(
+          {
+            sensorIds: [sensorId],
+            timeRange: filters.timeRange,
+            pageContext: "solo-view",
+          },
+          true
+        ); // Force immediate execution
       }
     }
   );
@@ -196,11 +199,11 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
   // Add enhanced loading state similar to analytics page
   // When embedded, start with false since parent already has data
   const [isInitiallyLoading, setIsInitiallyLoading] = React.useState(!isEmbedded);
-  
+
   // Add state to track auto-enable attempt completion
   // When embedded, consider it already attempted since parent handles mode
   const [hasAttemptedAutoEnable, setHasAttemptedAutoEnable] = React.useState(isEmbedded);
-  
+
   // Add state to track if we've applied inherited mode from URL (only apply once)
   // When embedded, consider it already applied since parent handles mode
   const [hasAppliedInheritedMode, setHasAppliedInheritedMode] = React.useState(isEmbedded);
@@ -209,7 +212,7 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
   // Skip when embedded - parent already has data loaded
   React.useEffect(() => {
     if (isEmbedded) return; // Skip when embedded
-    
+
     const timer = setTimeout(() => {
       setIsInitiallyLoading(false);
     }, 1000);
@@ -225,11 +228,13 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
 
     const sensorData = telemetryData[sensorId];
     const currentSeries = sensorData.series;
-    
+
     // Apply dynamic reading limit in live mode based on user's selection
     const shouldLimitToLatest = isLiveMode;
-    const displaySeries = shouldLimitToLatest && currentSeries.length > maxLiveReadings ? 
-      currentSeries.slice(-maxLiveReadings) : currentSeries;
+    const displaySeries =
+      shouldLimitToLatest && currentSeries.length > maxLiveReadings
+        ? currentSeries.slice(-maxLiveReadings)
+        : currentSeries;
 
     return {
       type: sensorData.type,
@@ -246,7 +251,6 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
   // Live mode cleanup is handled centrally, no need for component-specific cleanup
   React.useEffect(() => {
     return () => {
-
       cancelPendingRequests();
     };
   }, [cancelPendingRequests]);
@@ -271,10 +275,11 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
     /* search */
     if (filters?.search?.trim()) {
       const q = filters.search.toLowerCase();
-      list = list.filter((s) => 
-        s.mac.toLowerCase().includes(q) || 
-        (s.displayName ?? "").toLowerCase().includes(q) ||
-        (s.name ?? "").toLowerCase().includes(q)
+      list = list.filter(
+        (s) =>
+          s.mac.toLowerCase().includes(q) ||
+          (s.displayName ?? "").toLowerCase().includes(q) ||
+          (s.name ?? "").toLowerCase().includes(q)
       );
     }
 
@@ -296,13 +301,13 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
     if (filters.sort) {
       const { field, direction } = filters.sort;
       list = [...list].sort((a: any, b: any) => {
-        if(field === "starred" || field === "favorite") {
+        if (field === "starred" || field === "favorite") {
           const af = a.favorite ? 1 : 0;
           const bf = b.favorite ? 1 : 0;
           if (af === bf) return 0;
           return (af > bf ? 1 : -1) * (direction === "asc" ? 1 : -1);
         }
-        
+
         if (field === "lastSeen") {
           const av = new Date(a[field]).getTime();
           const bv = new Date(b[field]).getTime();
@@ -311,21 +316,21 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
           if (isNaN(bv)) return -1;
           return (av - bv) * (direction === "asc" ? 1 : -1);
         }
-        
+
         if (field === "displayName" || field === "name") {
           const av = (a.displayName || a.name || a.mac || "").toString().toLowerCase();
           const bv = (b.displayName || b.name || b.mac || "").toString().toLowerCase();
           if (av === bv) return 0;
           return av.localeCompare(bv) * (direction === "asc" ? 1 : -1);
         }
-        
+
         if (field === "battery") {
-          const av = typeof a[field] === 'number' ? a[field] : -1;
-          const bv = typeof b[field] === 'number' ? b[field] : -1;
+          const av = typeof a[field] === "number" ? a[field] : -1;
+          const bv = typeof b[field] === "number" ? b[field] : -1;
           if (av === bv) return 0;
           return (av - bv) * (direction === "asc" ? 1 : -1);
         }
-        
+
         const av = a[field];
         const bv = b[field];
         if (av === bv) return 0;
@@ -349,7 +354,9 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
   // Export modal state variables
   const [isExportModalOpen, setIsExportModalOpen] = React.useState(false);
   const [exportEstimation, setExportEstimation] = React.useState<EstimateExportResponse | null>(null);
-  const [exportStatus, setExportStatus] = React.useState<'estimating' | 'confirming' | 'downloading' | 'completed' | 'error' | 'cancelled'>('estimating');
+  const [exportStatus, setExportStatus] = React.useState<
+    "estimating" | "confirming" | "downloading" | "completed" | "error" | "cancelled"
+  >("estimating");
   const [exportError, setExportError] = React.useState<string | null>(null);
   const [isExportLoading, setIsExportLoading] = React.useState(false);
   const [exportProgress, setExportProgress] = React.useState(0);
@@ -361,15 +368,19 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
   const parseEstimatedDuration = (duration: string): number => {
     const match = duration.match(/(\d+)([smh])/);
     if (!match) return 30000; // Default 30 seconds
-    
+
     const value = parseInt(match[1]);
     const unit = match[2];
-    
+
     switch (unit) {
-      case 's': return value * 1000;
-      case 'm': return value * 60 * 1000;
-      case 'h': return value * 60 * 60 * 1000;
-      default: return 30000;
+      case "s":
+        return value * 1000;
+      case "m":
+        return value * 60 * 1000;
+      case "h":
+        return value * 60 * 60 * 1000;
+      default:
+        return 30000;
     }
   };
 
@@ -399,7 +410,7 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
   // Fetch gateways for live mode functionality
   React.useEffect(() => {
     // Only fetch gateways when organization context is ready
-    if (activeOrgStatus === 'ready' && activeOrgId) {
+    if (activeOrgStatus === "ready" && activeOrgId) {
       dispatch(fetchGateways({ page: 1, limit: 1000, search: "" }));
     }
   }, [dispatch, activeOrgStatus, activeOrgId]);
@@ -415,19 +426,16 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
     }
 
     let autoEnableTimer: NodeJS.Timeout;
-    
+
     // Wait for gateways to be loaded and component to be initialized
     if (gateways.length > 0 && !isLiveMode && !initialLoading && !hasAppliedInheritedMode) {
       // Apply inherited mode from URL only once
       if (hasInheritedMode) {
-        
         // If inherited mode is "live", enable live mode
         if (inheritedMode === "live") {
           autoEnableTimer = setTimeout(async () => {
             try {
-              const gatewayIds = gateways
-                .map(gateway => gateway._id)
-                .slice(0, 10); // Limit to prevent too many subscriptions
+              const gatewayIds = gateways.map((gateway) => gateway._id).slice(0, 10); // Limit to prevent too many subscriptions
 
               if (gatewayIds.length > 0) {
                 await dispatch(toggleLiveMode({ enable: true })).unwrap();
@@ -449,9 +457,7 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
         // Default behavior: auto-enable live mode if no inherited state
         autoEnableTimer = setTimeout(async () => {
           try {
-            const gatewayIds = gateways
-              .map(gateway => gateway._id)
-              .slice(0, 10); // Limit to prevent too many subscriptions
+            const gatewayIds = gateways.map((gateway) => gateway._id).slice(0, 10); // Limit to prevent too many subscriptions
 
             if (gatewayIds.length > 0) {
               await dispatch(toggleLiveMode({ enable: true })).unwrap();
@@ -479,12 +485,12 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
    *****************************************************************************/
   const filteredIds = React.useMemo(() => {
     return filteredSensors.map((s) => s.id).join("|");
-  }, [filteredSensors.length, filteredSensors.map(s => s.id).join("|")]);
+  }, [filteredSensors.length, filteredSensors.map((s) => s.id).join("|")]);
 
   React.useEffect(() => {
     // Skip sensor selection when embedded - parent handles this
     if (isEmbedded) return;
-    
+
     if (!sensorsLoaded) return; // wait for list
 
     /* a) we have an id in the URL ----------------------------------------- */
@@ -492,10 +498,8 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
       // Only fetch if we don't have the sensor data OR if the sensor ID is different
       // Use stable selectedSensorId to prevent re-fetches on lastSeen/status updates
       if (!selectedSensorId || selectedSensorId !== sensorId) {
-
         dispatch(fetchSensorById(sensorId));
       } else {
-
       }
       return;
     }
@@ -517,12 +521,12 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
     }
 
     if (initialLoading) return; // wait until list call finished
-    
+
     // Wait for auto-enable attempt to complete before fetching data
     if (!hasAttemptedAutoEnable) {
       return;
     }
-    
+
     // Add a small delay after auto-enable to let the live connection attempt start
     // This prevents fetching historical data immediately after enabling live mode
     const fetchTimer = setTimeout(() => {
@@ -530,23 +534,31 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
       if (!liveDataReadiness.shouldFetchApiData) {
         return;
       }
-      
-      if (sensorId && !initialLoading) {
 
-        
+      if (sensorId && !initialLoading) {
         // Use optimized data fetch for better performance and live mode support
         // Note: fetchOptimizedData internally uses isLiveMode from Redux to set liveMode parameter
         fetchOptimizedData({
           sensorIds: [sensorId],
           timeRange: filters.timeRange,
-          pageContext: 'solo-view'
+          pageContext: "solo-view",
         });
       }
     }, 500); // Small delay to let live connection attempt start
-    
+
     return () => clearTimeout(fetchTimer);
-  // IMPORTANT: Include isLiveMode in dependencies to re-fetch with correct liveMode parameter when mode changes
-  }, [sensorId, filters.timeRange.start, filters.timeRange.end, initialLoading, fetchOptimizedData, liveDataReadiness.shouldFetchApiData, hasAttemptedAutoEnable, isLiveMode, isEmbedded]);
+    // IMPORTANT: Include isLiveMode in dependencies to re-fetch with correct liveMode parameter when mode changes
+  }, [
+    sensorId,
+    filters.timeRange.start,
+    filters.timeRange.end,
+    initialLoading,
+    fetchOptimizedData,
+    liveDataReadiness.shouldFetchApiData,
+    hasAttemptedAutoEnable,
+    isLiveMode,
+    isEmbedded,
+  ]);
 
   // Create optimized chart config using centralized optimization (for charts only)
   const chartConfig: ChartConfig | null = React.useMemo(() => {
@@ -558,18 +570,15 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
   // Create separate config for table that uses FULL API data (not optimized)
   const tableConfig: ChartConfig | null = React.useMemo(() => {
     if (!baseChartConfig) return null;
-    
+
     // Use the baseChartConfig which contains full API data
     return baseChartConfig;
   }, [baseChartConfig]);
 
-
-
   // Check if sensor is offline - only show offline state when we have sensor data and it's actually offline
   // AND we're not waiting for live data (give live connection a chance to update the status)
-  const isSensorOffline = selectedSensorData?.data && 
-                         selectedSensorData.data.isOnline === false && 
-                         !liveDataReadiness.shouldWaitForLiveData;
+  const isSensorOffline =
+    selectedSensorData?.data && selectedSensorData.data.isOnline === false && !liveDataReadiness.shouldWaitForLiveData;
 
   // Prepare table data with grouping
   // const tableData = React.useMemo(() => {
@@ -671,27 +680,29 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
 
     const sensorData = telemetryData[sensorId];
     const currentSeries = sensorData.series;
-    
+
     // Apply same dynamic reading limit as chart for consistency
     const shouldLimitToLatest = isLiveMode;
-    const displaySeries = shouldLimitToLatest && currentSeries.length > maxLiveReadings ? 
-      currentSeries.slice(-maxLiveReadings) : currentSeries;
-    
+    const displaySeries =
+      shouldLimitToLatest && currentSeries.length > maxLiveReadings
+        ? currentSeries.slice(-maxLiveReadings)
+        : currentSeries;
+
     if (!displaySeries.length) return null;
 
     // Convert string values to numbers for calculations
     const values = displaySeries.map((point) => {
-      const numValue = typeof point.value === 'string' ? parseFloat(point.value) : point.value;
+      const numValue = typeof point.value === "string" ? parseFloat(point.value) : point.value;
       return isNaN(numValue) ? 0 : numValue;
     });
-    
+
     const min = Math.min(...values);
     const max = Math.max(...values);
     const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
-    
+
     // Ensure latest is also converted to number
     const latestValue = displaySeries[displaySeries.length - 1].value;
-    const latest = typeof latestValue === 'string' ? parseFloat(latestValue) : latestValue;
+    const latest = typeof latestValue === "string" ? parseFloat(latestValue) : latestValue;
 
     // Calculate standard deviation
     const variance = values.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) / values.length;
@@ -743,34 +754,28 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
     try {
       // Use centralized toggle - it handles all gateway discovery and connection logic
       await dispatch(toggleLiveMode({ enable: isLive })).unwrap();
-      
+
       // Update URL parameter to reflect user's choice (optional - keeps URL in sync)
       const currentUrl = new URL(window.location.href);
-      currentUrl.searchParams.set('mode', isLive ? 'live' : 'offline');
-      window.history.replaceState({}, '', currentUrl.toString());
+      currentUrl.searchParams.set("mode", isLive ? "live" : "offline");
+      window.history.replaceState({}, "", currentUrl.toString());
     } catch (error) {
       // Error handled silently
     }
   };
 
   const handleRetryConnection = async () => {
-
     try {
       // Simply disable and re-enable using centralized logic
       await dispatch(toggleLiveMode({ enable: false })).unwrap();
-      
+
       // Small delay before reconnecting
       setTimeout(async () => {
         try {
           await dispatch(toggleLiveMode({ enable: true })).unwrap();
-
-        } catch (retryError) {
-
-        }
+        } catch (retryError) {}
       }, 1000);
-    } catch (error) {
-
-    }
+    } catch (error) {}
   };
 
   const handleDownloadCSV = async () => {
@@ -794,7 +799,7 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
       // Reset modal state and open it
       setExportEstimation(null);
       setExportError(null);
-      setExportStatus('estimating');
+      setExportStatus("estimating");
       setIsExportModalOpen(true);
 
       // Get export estimation
@@ -805,15 +810,14 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
 
       if (estimationResponse.success) {
         setExportEstimation(estimationResponse);
-        setExportStatus('confirming');
+        setExportStatus("confirming");
       } else {
-        throw new Error(estimationResponse.error || 'Failed to estimate export size');
+        throw new Error(estimationResponse.error || "Failed to estimate export size");
       }
-
     } catch (error) {
-      console.error('Export estimation failed:', error);
-      setExportError(error instanceof Error ? error.message : 'Failed to estimate export');
-      setExportStatus('error');
+      console.error("Export estimation failed:", error);
+      setExportError(error instanceof Error ? error.message : "Failed to estimate export");
+      setExportStatus("error");
     }
   };
 
@@ -826,7 +830,7 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
 
     try {
       setIsExportLoading(true);
-      setExportStatus('downloading');
+      setExportStatus("downloading");
 
       const sensorIds = [currentSensor.mac];
       const timeRange = {
@@ -835,7 +839,7 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
       };
 
       // Generate filename
-      const filename = currentSensor.displayName 
+      const filename = currentSensor.displayName
         ? `${currentSensor.displayName}_data.csv`
         : `${currentSensor.mac}_data.csv`;
 
@@ -848,22 +852,28 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
       const estimatedDurationMs = parseEstimatedDuration(exportEstimation.data.estimatedDuration);
 
       // Stream export with real progress tracking
-      const blob = await TelemetryService.streamExport({
-        sensorIds,
-        timeRange,
-        format: 'csv',
-        filename,
-        batchSize: exportEstimation.data.recommendedBatchSize,
-        maxRecords: 500000, // Safety limit
-        includeMetadata: false,
-      }, (progress, loaded, total) => {
-        // Update real progress
-        setExportProgress(progress);
-        setDownloadedBytes(loaded);
-        if (total) {
-          setTotalBytes(total);
-        }
-      }, exportEstimation.data.estimatedSizeKB, estimatedDurationMs, abortController.signal);
+      const blob = await TelemetryService.streamExport(
+        {
+          sensorIds,
+          timeRange,
+          format: "csv",
+          filename,
+          batchSize: exportEstimation.data.recommendedBatchSize,
+          maxRecords: 500000, // Safety limit
+          includeMetadata: false,
+        },
+        (progress, loaded, total) => {
+          // Update real progress
+          setExportProgress(progress);
+          setDownloadedBytes(loaded);
+          if (total) {
+            setTotalBytes(total);
+          }
+        },
+        exportEstimation.data.estimatedSizeKB,
+        estimatedDurationMs,
+        abortController.signal
+      );
 
       // Create download link
       const url = URL.createObjectURL(blob);
@@ -876,20 +886,19 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      setExportStatus('completed');
-      
+      setExportStatus("completed");
+
       addToast({
         title: "CSV Downloaded",
         description: `${exportEstimation.data.totalRecords.toLocaleString()} records downloaded successfully`,
       });
-
     } catch (error) {
-      console.error('Export failed:', error);
-      if (error instanceof Error && error.name === 'CanceledError') {
-        setExportStatus('cancelled');
+      console.error("Export failed:", error);
+      if (error instanceof Error && error.name === "CanceledError") {
+        setExportStatus("cancelled");
       } else {
-        setExportError(error instanceof Error ? error.message : 'Export failed');
-        setExportStatus('error');
+        setExportError(error instanceof Error ? error.message : "Export failed");
+        setExportStatus("error");
       }
     } finally {
       setIsExportLoading(false);
@@ -900,17 +909,17 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
   const handleCancelExport = () => {
     if (exportAbortController) {
       exportAbortController.abort();
-      console.log('🚫 Export cancelled by user');
+      console.log("🚫 Export cancelled by user");
     }
   };
 
   const handleCloseExportModal = () => {
     // Only allow closing if not currently downloading
-    if (exportStatus !== 'downloading') {
+    if (exportStatus !== "downloading") {
       setIsExportModalOpen(false);
       setExportEstimation(null);
       setExportError(null);
-      setExportStatus('estimating');
+      setExportStatus("estimating");
       setIsExportLoading(false);
       setExportProgress(0);
       setDownloadedBytes(0);
@@ -946,7 +955,6 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
         }, "image/png");
       }
     } catch (error) {
-
       addToast({
         title: "Download Failed",
         description: "Failed to download chart image",
@@ -981,7 +989,6 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
   const handleToggleStar = async () => {
     setStarLoading(true);
     try {
-
       if (currentSensor?.mac) {
         await dispatch(toggleSensorStar(currentSensor.mac)).unwrap();
       }
@@ -1064,88 +1071,83 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
           <div className="h-full flex flex-col">
             {/* Sensor info header - only show when not embedded (embedded shows info in breadcrumbs) */}
             {!isEmbedded && (
-            <div className="mb-4">
-              <Card className="w-full">
-                <CardBody>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex flex-col gap-1">
-                        <h2 className="text-xl font-semibold">{currentSensor.displayName || currentSensor.mac}</h2>
-                        {/* Online/Offline status indicator */}
-                        <div className="flex items-center gap-2">
-                          <div 
-                            className={`w-2 h-2 rounded-full ${
-                              isSensorOffline ? 'bg-danger animate-pulse' : 'bg-success'
-                            }`}
-                          />
-                          <span className={`text-sm font-medium ${
-                            isSensorOffline ? 'text-danger' : 'text-success'
-                          }`}>
-                            {isSensorOffline ? 'OFFLINE' : 'ONLINE'}
-                          </span>
+              <div className="mb-4">
+                <Card className="w-full">
+                  <CardBody>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="flex flex-col gap-1">
+                          <h2 className="text-xl font-semibold">{currentSensor.displayName || currentSensor.mac}</h2>
+                          {/* Online/Offline status indicator */}
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`w-2 h-2 rounded-full ${
+                                isSensorOffline ? "bg-danger animate-pulse" : "bg-success"
+                              }`}
+                            />
+                            <span className={`text-sm font-medium ${isSensorOffline ? "text-danger" : "text-success"}`}>
+                              {isSensorOffline ? "OFFLINE" : "ONLINE"}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="flex items-center gap-2">
-                      {/* Time Range Selector */}
-                      <TimeRangeSelector
-                        timeRange={filters.timeRange}
-                        onTimeRangeChange={handleTimeRangeChange}
-                        showApplyButtons={true}
-                        isMobile={false}
-                        isLiveMode={isLiveMode}
-                        onLiveModeChange={handleLiveModeChange}
-                        liveStatus={liveStatus}
-                        onRetryConnection={handleRetryConnection}
-                        gatewayIds={gateways.map(g => g._id)}
-                      />
-                      
-                      {/* Live Readings Selector */}
-                      <LiveReadingsSelector 
-                        isLiveMode={isLiveMode}
-                        className="flex-shrink-0"
-                      />
-                      
-                      {starLoading ? (
-                        <Spinner size="sm" />
-                      ) : (
-                        <Icon
-                          icon={currentSensor.favorite ? "mdi:star" : "mdi:star-outline"}
-                          className={`cursor-pointer ${currentSensor.favorite ? "text-warning" : "text-default-400"}`}
-                          style={currentSensor.favorite ? { color: "#fbbf24" } : {}}
-                          onClick={handleToggleStar}
+                      <div className="flex items-center gap-2">
+                        {/* Time Range Selector */}
+                        <TimeRangeSelector
+                          timeRange={filters.timeRange}
+                          onTimeRangeChange={handleTimeRangeChange}
+                          showApplyButtons={true}
+                          isMobile={false}
+                          isLiveMode={isLiveMode}
+                          onLiveModeChange={handleLiveModeChange}
+                          liveStatus={liveStatus}
+                          onRetryConnection={handleRetryConnection}
+                          gatewayIds={gateways.map((g) => g._id)}
                         />
-                      )}
-                      <Dropdown>
-                        <DropdownTrigger>
-                          <Button size="sm" variant="light" color="primary" isIconOnly>
-                            <Icon icon="lucide:download" width={16} />
-                          </Button>
-                        </DropdownTrigger>
-                        <DropdownMenu aria-label="Download options">
-                          <DropdownItem
-                            key="csv"
-                            startContent={<Icon icon="lucide:download" width={16} />}
-                            onPress={() => handleDownload("csv")}
-                          >
-                            Download as CSV
-                          </DropdownItem>
-                          {/* <DropdownItem
+
+                        {/* Live Readings Selector */}
+                        <LiveReadingsSelector isLiveMode={isLiveMode} className="flex-shrink-0" />
+
+                        {starLoading ? (
+                          <Spinner size="sm" />
+                        ) : (
+                          <Icon
+                            icon={currentSensor.favorite ? "mdi:star" : "mdi:star-outline"}
+                            className={`cursor-pointer ${currentSensor.favorite ? "text-warning" : "text-default-400"}`}
+                            style={currentSensor.favorite ? { color: "#fbbf24" } : {}}
+                            onClick={handleToggleStar}
+                          />
+                        )}
+                        <Dropdown>
+                          <DropdownTrigger>
+                            <Button size="sm" variant="light" color="primary" isIconOnly>
+                              <Icon icon="lucide:download" width={16} />
+                            </Button>
+                          </DropdownTrigger>
+                          <DropdownMenu aria-label="Download options">
+                            <DropdownItem
+                              key="csv"
+                              startContent={<Icon icon="lucide:download" width={16} />}
+                              onPress={() => handleDownload("csv")}
+                            >
+                              Download as CSV
+                            </DropdownItem>
+                            {/* <DropdownItem
                             key="png"
                             startContent={<Icon icon="lucide:image" width={16} />}
                             onPress={() => handleDownload("png")}
                           >
                             Download as PNG
                           </DropdownItem> */}
-                        </DropdownMenu>
-                      </Dropdown>
+                          </DropdownMenu>
+                        </Dropdown>
+                      </div>
                     </div>
-                  </div>
-                  <p className="text-small text-default-500 mt-1">{currentSensor.mac}</p>
-                </CardBody>
-              </Card>
-            </div>
+                    <p className="text-small text-default-500 mt-1">{currentSensor.mac}</p>
+                  </CardBody>
+                </Card>
+              </div>
             )}
 
             {/* Stats cards */}
@@ -1200,16 +1202,16 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
             {isFullscreen ? (
               <div className="fixed inset-0 z-50 bg-background overflow-auto">
                 {/* Fullscreen header */}
-                <div className="sticky top-0 z-10 bg-content1 border-b border-divider px-4 py-3 flex items-center justify-between">
+                <div className="sticky top-0 z-10 border-b border-divider px-4 py-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-foreground">
-                      {selectedTab === 'chart' && 'Chart View'}
-                      {selectedTab === 'table' && 'Table View'}
-                      {selectedTab === 'distribution' && 'Distribution'}
-                      {selectedTab === 'trend' && 'Trend Analysis'}
-                      {selectedTab === 'anomaly' && 'Anomaly Detection'}
-                      {selectedTab === 'correlation' && 'Correlation'}
-                      {selectedTab === 'multichart' && 'Multi-Chart View'}
+                      {selectedTab === "chart" && "Chart View"}
+                      {selectedTab === "table" && "Table View"}
+                      {selectedTab === "distribution" && "Distribution"}
+                      {selectedTab === "trend" && "Trend Analysis"}
+                      {selectedTab === "anomaly" && "Anomaly Detection"}
+                      {selectedTab === "correlation" && "Correlation"}
+                      {selectedTab === "multichart" && "Multi-Chart View"}
                     </span>
                   </div>
                   <Button
@@ -1221,14 +1223,19 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
                     Exit Fullscreen
                   </Button>
                 </div>
-                
+
                 {/* Fullscreen content */}
                 <div className="p-4 h-[calc(100vh-60px)]">
-                  {selectedTab === 'chart' && (
+                  {selectedTab === "chart" && (
                     <div className="w-full h-full rounded-lg bg-white dark:bg-content1 p-4" ref={chartRef}>
                       {isSensorOffline && isLiveMode ? (
                         <div className="h-full flex flex-col items-center justify-center text-center">
-                          <Icon icon="lucide:wifi-off" className="text-danger-400 animate-pulse" width={64} height={64} />
+                          <Icon
+                            icon="lucide:wifi-off"
+                            className="text-danger-400 animate-pulse"
+                            width={64}
+                            height={64}
+                          />
                           <h3 className="text-lg font-semibold text-danger-600 mt-4">Sensor Offline</h3>
                           <p className="text-default-600 text-sm">Waiting for sensor to come back online</p>
                         </div>
@@ -1241,10 +1248,15 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
                       )}
                     </div>
                   )}
-                  {selectedTab === 'table' && (
+                  {selectedTab === "table" && (
                     <div className="h-full overflow-auto">
                       {tableConfig ? (
-                        <TableView config={tableConfig} sensorId={sensorId || ''} timeRange={filters.timeRange} onDownloadCSV={handleDownloadCSV} />
+                        <TableView
+                          config={tableConfig}
+                          sensorId={sensorId || ""}
+                          timeRange={filters.timeRange}
+                          onDownloadCSV={handleDownloadCSV}
+                        />
                       ) : (
                         <div className="h-full flex items-center justify-center">
                           <Spinner size="lg" color="primary" />
@@ -1252,7 +1264,7 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
                       )}
                     </div>
                   )}
-                  {selectedTab === 'distribution' && (
+                  {selectedTab === "distribution" && (
                     <div className="h-full">
                       {chartConfig ? (
                         <DistributionChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />
@@ -1263,7 +1275,7 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
                       )}
                     </div>
                   )}
-                  {selectedTab === 'trend' && (
+                  {selectedTab === "trend" && (
                     <div className="h-full">
                       {chartConfig ? (
                         <TrendAnalysisChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />
@@ -1274,7 +1286,7 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
                       )}
                     </div>
                   )}
-                  {selectedTab === 'anomaly' && (
+                  {selectedTab === "anomaly" && (
                     <div className="h-full">
                       {chartConfig ? (
                         <AnomalyDetectionChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />
@@ -1285,7 +1297,7 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
                       )}
                     </div>
                   )}
-                  {selectedTab === 'correlation' && (
+                  {selectedTab === "correlation" && (
                     <div className="h-full">
                       {chartConfig ? (
                         <CorrelationAnalysisChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />
@@ -1296,13 +1308,17 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
                       )}
                     </div>
                   )}
-                  {selectedTab === 'multichart' && (
+                  {selectedTab === "multichart" && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-full">
                       <Card className="shadow-sm">
                         <CardBody className="p-3">
                           <h3 className="text-sm font-medium mb-2 text-primary-600">Value Distribution</h3>
                           <div className="h-[calc(50vh-100px)]">
-                            {chartConfig ? <DistributionChart config={chartConfig} showChart isLiveMode={isLiveMode} /> : <Spinner />}
+                            {chartConfig ? (
+                              <DistributionChart config={chartConfig} showChart isLiveMode={isLiveMode} />
+                            ) : (
+                              <Spinner />
+                            )}
                           </div>
                         </CardBody>
                       </Card>
@@ -1310,7 +1326,11 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
                         <CardBody className="p-3">
                           <h3 className="text-sm font-medium mb-2 text-secondary-600">Trend Analysis</h3>
                           <div className="h-[calc(50vh-100px)]">
-                            {chartConfig ? <TrendAnalysisChart config={chartConfig} showChart isLiveMode={isLiveMode} /> : <Spinner />}
+                            {chartConfig ? (
+                              <TrendAnalysisChart config={chartConfig} showChart isLiveMode={isLiveMode} />
+                            ) : (
+                              <Spinner />
+                            )}
                           </div>
                         </CardBody>
                       </Card>
@@ -1318,7 +1338,11 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
                         <CardBody className="p-3">
                           <h3 className="text-sm font-medium mb-2 text-danger-600">Anomaly Detection</h3>
                           <div className="h-[calc(50vh-100px)]">
-                            {chartConfig ? <AnomalyDetectionChart config={chartConfig} showChart isLiveMode={isLiveMode} /> : <Spinner />}
+                            {chartConfig ? (
+                              <AnomalyDetectionChart config={chartConfig} showChart isLiveMode={isLiveMode} />
+                            ) : (
+                              <Spinner />
+                            )}
                           </div>
                         </CardBody>
                       </Card>
@@ -1326,7 +1350,11 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
                         <CardBody className="p-3">
                           <h3 className="text-sm font-medium mb-2 text-success-600">Correlation Analysis</h3>
                           <div className="h-[calc(50vh-100px)]">
-                            {chartConfig ? <CorrelationAnalysisChart config={chartConfig} showChart isLiveMode={isLiveMode} /> : <Spinner />}
+                            {chartConfig ? (
+                              <CorrelationAnalysisChart config={chartConfig} showChart isLiveMode={isLiveMode} />
+                            ) : (
+                              <Spinner />
+                            )}
                           </div>
                         </CardBody>
                       </Card>
@@ -1335,36 +1363,39 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
                 </div>
               </div>
             ) : (
-            <>
-            {/* Tabs - responsive */}
-            <Tabs 
-              selectedKey={selectedTab} 
-              onSelectionChange={setSelectedTab as any} 
-              className={`mb-${isSmallScreen ? '2' : '4'}`}
-              size={isSmallScreen ? 'sm' : 'md'}
-            >
-              <Tab key="chart" title={isSmallScreen ? "Chart" : "Chart View"}>
-                <div 
-                  className={`w-full rounded-lg bg-white dark:bg-content1 p-${isSmallScreen ? '2' : '4'} ${
-                    isMobileDevice 
-                      ? (isMobileLandscape ? 'h-[400px]' : 'h-[350px]') 
-                      : 'h-[500px]'
-                  }`} 
-                  ref={chartRef}
+              <>
+                {/* Tabs - responsive */}
+                <Tabs
+                  selectedKey={selectedTab}
+                  onSelectionChange={setSelectedTab as any}
+                  className={`mb-${isSmallScreen ? "2" : "4"}`}
+                  size={isSmallScreen ? "sm" : "md"}
+                  variant="underlined"
+                  classNames={{
+                    cursor: "bg-primary",
+                  }}
+                  color="primary"
                 >
-                  {/* Show offline sensor waiting state - only in live mode and when we're not loading chart data */}
-                  {isSensorOffline && isLiveMode ? (
-                      <div className="h-full flex flex-col items-center justify-center text-center">
-                        <div className="flex flex-col items-center gap-4 max-w-md">
-                          {/* Animated loading icon */}
-                          <div className="relative">
-                            <Icon 
-                              icon="lucide:wifi-off" 
-                              className="text-danger-400 animate-pulse" 
-                              width={64} 
-                              height={64} 
-                            />
-                            {/* <div className="absolute -bottom-2 -right-2 bg-danger-500 rounded-full p-1">
+                  <Tab key="chart" title={isSmallScreen ? "Chart" : "Chart View"}>
+                    <div
+                      className={`w-full rounded-l p-${isSmallScreen ? "2" : "4"} ${
+                        isMobileDevice ? (isMobileLandscape ? "h-[400px]" : "h-[350px]") : "h-[500px]"
+                      }`}
+                      ref={chartRef}
+                    >
+                      {/* Show offline sensor waiting state - only in live mode and when we're not loading chart data */}
+                      {isSensorOffline && isLiveMode ? (
+                        <div className="h-full flex flex-col items-center justify-center text-center">
+                          <div className="flex flex-col items-center gap-4 max-w-md">
+                            {/* Animated loading icon */}
+                            <div className="relative">
+                              <Icon
+                                icon="lucide:wifi-off"
+                                className="text-danger-400 animate-pulse"
+                                width={64}
+                                height={64}
+                              />
+                              {/* <div className="absolute -bottom-2 -right-2 bg-danger-500 rounded-full p-1">
                               <Icon 
                                 icon="lucide:loader-2" 
                                 className="text-white animate-spin" 
@@ -1372,393 +1403,380 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
                                 height={16} 
                               />
                             </div> */}
-                          </div>
-                          
-                          {/* Status message */}
-                          <div className="space-y-2">
-                            <h3 className="text-lg font-semibold text-danger-600">
-                              Sensor Offline
-                            </h3>
-                            <p className="text-default-600 text-sm leading-relaxed">
-                              Waiting for <span className="font-medium text-primary-600">{selectedSensorData?.data?.displayName || selectedSensorData?.data?.mac}</span> to come back online
-                            </p>
-                            <p className="text-default-500 text-xs">
-                              Chart will update automatically once the sensor becomes live
-                            </p>
-                          </div>
-                          
-                          {/* View Old Readings Button */}
-                          <div className="flex flex-col gap-2 mt-4">
-                            <Button
-                              color="primary"
-                              variant="flat"
-                              size="sm"
-                              onPress={() => {
-                                handleLiveModeChange(false);
-                              }}
-                              startContent={<Icon icon="lucide:history" width={16} />}
-                            >
-                              View Old Readings Instead
-                            </Button>
-                            <p className="text-xs text-default-400">
-                              Switch to historical data view
-                            </p>
-                          </div>
-                          
-                          {/* Optional retry indicator */}
-                          <div className="flex items-center gap-2 text-xs text-default-400 mt-2">
-                            <Icon icon="lucide:refresh-cw" className="animate-spin" width={12} />
-                            <span>Monitoring sensor status...</span>
+                            </div>
+
+                            {/* Status message */}
+                            <div className="space-y-2">
+                              <h3 className="text-lg font-semibold text-danger-600">Sensor Offline</h3>
+                              <p className="text-default-600 text-sm leading-relaxed">
+                                Waiting for{" "}
+                                <span className="font-medium text-primary-600">
+                                  {selectedSensorData?.data?.displayName || selectedSensorData?.data?.mac}
+                                </span>{" "}
+                                to come back online
+                              </p>
+                              <p className="text-default-500 text-xs">
+                                Chart will update automatically once the sensor becomes live
+                              </p>
+                            </div>
+
+                            {/* View Old Readings Button */}
+                            <div className="flex flex-col gap-2 mt-4">
+                              <Button
+                                color="primary"
+                                variant="flat"
+                                size="sm"
+                                onPress={() => {
+                                  handleLiveModeChange(false);
+                                }}
+                                startContent={<Icon icon="lucide:history" width={16} />}
+                              >
+                                View Old Readings Instead
+                              </Button>
+                              <p className="text-xs text-default-400">Switch to historical data view</p>
+                            </div>
+
+                            {/* Optional retry indicator */}
+                            <div className="flex items-center gap-2 text-xs text-default-400 mt-2">
+                              <Icon icon="lucide:refresh-cw" className="animate-spin" width={12} />
+                              <span>Monitoring sensor status...</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ) : chartConfig ? (
-                      <LineChart config={chartConfig} isLiveMode={isLiveMode} />
-                    ) : enhancedEffectiveIsLoading ? (
-                      <div className="h-full flex flex-col items-center justify-center text-center">
+                      ) : chartConfig ? (
+                        <LineChart config={chartConfig} isLiveMode={isLiveMode} />
+                      ) : enhancedEffectiveIsLoading ? (
+                        <div className="h-full flex flex-col items-center justify-center text-center">
+                          <div className="flex flex-col items-center gap-4 max-w-md">
+                            {isLiveMode && liveDataReadiness.shouldWaitForLiveData ? (
+                              <LiveDataLoading
+                                sensorName={selectedSensorData?.data?.displayName || selectedSensorData?.data?.mac}
+                              />
+                            ) : (
+                              <>
+                                <Spinner size="lg" color="primary" />
+                                <div className="space-y-2">
+                                  <h3 className="text-lg font-semibold text-primary-600">
+                                    {isLiveMode ? "Connecting to Live Data" : "Loading Data"}
+                                  </h3>
+                                  <p className="text-default-600 text-sm">
+                                    {isLiveMode
+                                      ? "Establishing real-time connection..."
+                                      : "Fetching sensor readings..."}
+                                  </p>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-center">
+                          <div className="flex flex-col items-center gap-4 max-w-md">
+                            <Icon
+                              icon="lucide:chart-no-axes-column"
+                              className="text-default-400"
+                              width={64}
+                              height={64}
+                            />
+                            <div className="space-y-2">
+                              <h3 className="text-lg font-semibold text-default-600">No Data Available</h3>
+                              <p className="text-default-600 text-sm">No data found for the selected time range</p>
+                              <p className="text-default-500 text-xs">
+                                Try selecting a different time range or check if the sensor was active during this
+                                period
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </Tab>
+                  <Tab key="table" title={isSmallScreen ? "Table" : "Table View"}>
+                    <div className={`${isMobileDevice ? "h-[400px] overflow-auto" : ""}`}>
+                      {/* Show offline sensor waiting state in table view too - only in live mode */}
+                      {isSensorOffline && isLiveMode ? (
+                        <div className="h-full flex flex-col items-center justify-center p-8 text-center">
+                          <div className="flex flex-col items-center gap-4 max-w-md">
+                            <Icon icon="lucide:table" className="text-danger-400" width={48} height={48} />
+                            <div className="space-y-2">
+                              <h3 className="text-lg font-semibold text-danger-600">No Data Available</h3>
+                              <p className="text-default-600 text-sm">
+                                Sensor{" "}
+                                <span className="font-medium text-primary-600">
+                                  {selectedSensorData?.data?.displayName || selectedSensorData?.data?.mac}
+                                </span>{" "}
+                                is currently offline
+                              </p>
+                              <p className="text-default-500 text-xs">
+                                Table will populate once sensor comes back online
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : tableConfig ? (
+                        <TableView
+                          config={tableConfig}
+                          sensorId={sensorId || ""}
+                          timeRange={filters.timeRange}
+                          onDownloadCSV={handleDownloadCSV}
+                        />
+                      ) : (
+                        <div className="h-full flex flex-col items-center justify-center p-8 text-center">
+                          <div className="flex flex-col items-center gap-4 max-w-md">
+                            {enhancedEffectiveIsLoading ? (
+                              <>
+                                <Spinner size="lg" color="primary" />
+                                <div className="space-y-2">
+                                  <h3 className="text-lg font-semibold text-primary-600">Loading Table Data</h3>
+                                  <p className="text-default-600 text-sm">Fetching data for selected time range...</p>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <Icon icon="lucide:table-2" className="text-default-400" width={48} height={48} />
+                                <div className="space-y-2">
+                                  <h3 className="text-lg font-semibold text-default-600">No Data Available</h3>
+                                  <p className="text-default-600 text-sm">No data found for the selected time range</p>
+                                  <p className="text-default-500 text-xs">Try selecting a different time range</p>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </Tab>
+
+                  <Tab key="distribution" title={isSmallScreen ? "Dist" : "Distribution"}>
+                    <div className={`${isMobileDevice ? "h-[500px]" : "h-[600px]"}`}>
+                      {isSensorOffline && isLiveMode ? (
+                        <div className="h-full flex flex-col items-center justify-center text-center">
+                          <div className="flex flex-col items-center gap-4 max-w-md">
+                            <Icon icon="lucide:bar-chart-4" className="text-danger-400" width={48} height={48} />
+                            <div className="space-y-2">
+                              <h3 className="text-lg font-semibold text-danger-600">Distribution Unavailable</h3>
+                              <p className="text-default-600 text-sm">Sensor is currently offline</p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : chartConfig ? (
+                        <DistributionChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />
+                      ) : enhancedEffectiveIsLoading ? (
+                        <div className="h-full flex flex-col items-center justify-center text-center">
+                          <Spinner size="lg" color="primary" />
+                          <p className="text-default-600 text-sm mt-4">Loading Distribution Data...</p>
+                        </div>
+                      ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-center">
+                          <Icon icon="lucide:bar-chart-4" className="text-default-400" width={64} height={64} />
+                          <p className="text-default-600 text-sm mt-4">No Distribution Data</p>
+                        </div>
+                      )}
+                    </div>
+                  </Tab>
+
+                  <Tab key="trend" title={isSmallScreen ? "Trend" : "Trend Analysis"}>
+                    <div className={`${isMobileDevice ? "h-[500px]" : "h-[600px]"}`}>
+                      {isSensorOffline && isLiveMode ? (
+                        <div className="h-full flex flex-col items-center justify-center text-center">
+                          <div className="flex flex-col items-center gap-4 max-w-md">
+                            <Icon icon="lucide:trending-up" className="text-danger-400" width={48} height={48} />
+                            <div className="space-y-2">
+                              <h3 className="text-lg font-semibold text-danger-600">Trend Analysis Unavailable</h3>
+                              <p className="text-default-600 text-sm">Sensor is currently offline</p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : chartConfig ? (
+                        <TrendAnalysisChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />
+                      ) : enhancedEffectiveIsLoading ? (
+                        <div className="h-full flex flex-col items-center justify-center text-center">
+                          <Spinner size="lg" color="primary" />
+                          <p className="text-default-600 text-sm mt-4">Loading Trend Data...</p>
+                        </div>
+                      ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-center">
+                          <Icon icon="lucide:trending-up" className="text-default-400" width={64} height={64} />
+                          <p className="text-default-600 text-sm mt-4">No Trend Data</p>
+                        </div>
+                      )}
+                    </div>
+                  </Tab>
+
+                  <Tab key="anomaly" title={isSmallScreen ? "Anomaly" : "Anomaly Detection"}>
+                    <div className={`${isMobileDevice ? "h-[500px]" : "h-[600px]"}`}>
+                      {isSensorOffline && isLiveMode ? (
+                        <div className="h-full flex flex-col items-center justify-center text-center">
+                          <div className="flex flex-col items-center gap-4 max-w-md">
+                            <Icon icon="lucide:alert-triangle" className="text-danger-400" width={48} height={48} />
+                            <div className="space-y-2">
+                              <h3 className="text-lg font-semibold text-danger-600">Anomaly Detection Unavailable</h3>
+                              <p className="text-default-600 text-sm">Sensor is currently offline</p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : chartConfig ? (
+                        <AnomalyDetectionChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />
+                      ) : enhancedEffectiveIsLoading ? (
+                        <div className="h-full flex flex-col items-center justify-center text-center">
+                          <Spinner size="lg" color="primary" />
+                          <p className="text-default-600 text-sm mt-4">Loading Anomaly Data...</p>
+                        </div>
+                      ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-center">
+                          <Icon icon="lucide:alert-triangle" className="text-default-400" width={64} height={64} />
+                          <p className="text-default-600 text-sm mt-4">No Anomaly Data</p>
+                        </div>
+                      )}
+                    </div>
+                  </Tab>
+
+                  <Tab key="correlation" title={isSmallScreen ? "Corr" : "Correlation"}>
+                    <div className={`${isMobileDevice ? "h-[500px]" : "h-[600px]"}`}>
+                      {isSensorOffline && isLiveMode ? (
+                        <div className="h-full flex flex-col items-center justify-center text-center">
+                          <div className="flex flex-col items-center gap-4 max-w-md">
+                            <Icon icon="lucide:git-branch" className="text-danger-400" width={48} height={48} />
+                            <div className="space-y-2">
+                              <h3 className="text-lg font-semibold text-danger-600">Correlation Unavailable</h3>
+                              <p className="text-default-600 text-sm">Sensor is currently offline</p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : chartConfig ? (
+                        <CorrelationAnalysisChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />
+                      ) : enhancedEffectiveIsLoading ? (
+                        <div className="h-full flex flex-col items-center justify-center text-center">
+                          <Spinner size="lg" color="primary" />
+                          <p className="text-default-600 text-sm mt-4">Loading Correlation Data...</p>
+                        </div>
+                      ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-center">
+                          <Icon icon="lucide:git-branch" className="text-default-400" width={64} height={64} />
+                          <p className="text-default-600 text-sm mt-4">No Correlation Data</p>
+                        </div>
+                      )}
+                    </div>
+                  </Tab>
+
+                  <Tab key="multichart" title={isMobileDevice ? "Multi" : "Multi-Chart View"}>
+                    {/* Show offline sensor waiting state in multi-chart view too - only in live mode */}
+                    {isSensorOffline && isLiveMode ? (
+                      <div className="h-full flex flex-col items-center justify-center p-8 text-center">
                         <div className="flex flex-col items-center gap-4 max-w-md">
-                          {isLiveMode && liveDataReadiness.shouldWaitForLiveData ? (
-                            <LiveDataLoading sensorName={selectedSensorData?.data?.displayName || selectedSensorData?.data?.mac} />
-                          ) : (
-                            <>
-                              <Spinner size="lg" color="primary" />
-                              <div className="space-y-2">
-                                <h3 className="text-lg font-semibold text-primary-600">
-                                  {isLiveMode ? "Connecting to Live Data" : "Loading Data"}
-                                </h3>
-                                <p className="text-default-600 text-sm">
-                                  {isLiveMode ? "Establishing real-time connection..." : "Fetching sensor readings..."}
-                                </p>
-                              </div>
-                            </>
-                          )}
+                          <Icon icon="lucide:layout-grid" className="text-danger-400" width={48} height={48} />
+                          <div className="space-y-2">
+                            <h3 className="text-lg font-semibold text-danger-600">Multi-Chart View Unavailable</h3>
+                            <p className="text-default-600 text-sm">
+                              Sensor{" "}
+                              <span className="font-medium text-primary-600">
+                                {selectedSensorData?.data?.displayName || selectedSensorData?.data?.mac}
+                              </span>{" "}
+                              is currently offline
+                            </p>
+                            <p className="text-default-500 text-xs">
+                              Multi-chart view will be available once sensor comes back online
+                            </p>
+                          </div>
                         </div>
                       </div>
                     ) : (
-                      <div className="h-full flex flex-col items-center justify-center text-center">
-                        <div className="flex flex-col items-center gap-4 max-w-md">
-                          <Icon 
-                            icon="lucide:chart-no-axes-column" 
-                            className="text-default-400" 
-                            width={64} 
-                            height={64} 
-                          />
-                          <div className="space-y-2">
-                            <h3 className="text-lg font-semibold text-default-600">
-                              No Data Available
-                            </h3>
-                            <p className="text-default-600 text-sm">
-                              No data found for the selected time range
-                            </p>
-                            <p className="text-default-500 text-xs">
-                              Try selecting a different time range or check if the sensor was active during this period
-                            </p>
-                          </div>
-                        </div>
+                      <div
+                        className={`grid ${isMobileDevice ? "grid-cols-1 gap-3" : "grid-cols-1 md:grid-cols-2 gap-4"}`}
+                      >
+                        <Card className="shadow-sm">
+                          <CardBody className="p-3">
+                            <h3 className="text-sm font-medium mb-2 text-primary-600">Value Distribution</h3>
+                            <div className={`${isMobileDevice ? "h-[300px]" : "h-[250px]"}`}>
+                              {chartConfig ? (
+                                <DistributionChart config={chartConfig} showChart isLiveMode={isLiveMode} />
+                              ) : enhancedEffectiveIsLoading ? (
+                                <div className="h-full flex flex-col items-center justify-center">
+                                  <Spinner size="md" color="primary" />
+                                  <p className="text-xs text-default-500 mt-2">Loading...</p>
+                                </div>
+                              ) : (
+                                <div className="h-full flex flex-col items-center justify-center">
+                                  <Icon icon="lucide:bar-chart-4" className="text-default-300" width={32} height={32} />
+                                  <p className="text-xs text-default-400 mt-1">No data</p>
+                                </div>
+                              )}
+                            </div>
+                          </CardBody>
+                        </Card>
+
+                        <Card className="shadow-sm">
+                          <CardBody className="p-3">
+                            <h3 className="text-sm font-medium mb-2 text-secondary-600">Trend Analysis</h3>
+                            <div className={`${isMobileDevice ? "h-[300px]" : "h-[250px]"}`}>
+                              {chartConfig ? (
+                                <TrendAnalysisChart config={chartConfig} showChart isLiveMode={isLiveMode} />
+                              ) : enhancedEffectiveIsLoading ? (
+                                <div className="h-full flex flex-col items-center justify-center">
+                                  <Spinner size="md" color="secondary" />
+                                  <p className="text-xs text-default-500 mt-2">Loading...</p>
+                                </div>
+                              ) : (
+                                <div className="h-full flex flex-col items-center justify-center">
+                                  <Icon icon="lucide:trending-up" className="text-default-300" width={32} height={32} />
+                                  <p className="text-xs text-default-400 mt-1">No data</p>
+                                </div>
+                              )}
+                            </div>
+                          </CardBody>
+                        </Card>
+
+                        <Card className="shadow-sm">
+                          <CardBody className="p-3">
+                            <h3 className="text-sm font-medium mb-2 text-danger-600">Anomaly Detection</h3>
+                            <div className={`${isMobileDevice ? "h-[300px]" : "h-[250px]"}`}>
+                              {chartConfig ? (
+                                <AnomalyDetectionChart config={chartConfig} showChart isLiveMode={isLiveMode} />
+                              ) : enhancedEffectiveIsLoading ? (
+                                <div className="h-full flex flex-col items-center justify-center">
+                                  <Spinner size="md" color="danger" />
+                                  <p className="text-xs text-default-500 mt-2">Loading...</p>
+                                </div>
+                              ) : (
+                                <div className="h-full flex flex-col items-center justify-center">
+                                  <Icon
+                                    icon="lucide:alert-triangle"
+                                    className="text-default-300"
+                                    width={32}
+                                    height={32}
+                                  />
+                                  <p className="text-xs text-default-400 mt-1">No data</p>
+                                </div>
+                              )}
+                            </div>
+                          </CardBody>
+                        </Card>
+
+                        <Card className="shadow-sm">
+                          <CardBody className="p-3">
+                            <h3 className="text-sm font-medium mb-2 text-success-600">Correlation Analysis</h3>
+                            <div className={`${isMobileDevice ? "h-[300px]" : "h-[250px]"}`}>
+                              {chartConfig ? (
+                                <CorrelationAnalysisChart config={chartConfig} showChart isLiveMode={isLiveMode} />
+                              ) : enhancedEffectiveIsLoading ? (
+                                <div className="h-full flex flex-col items-center justify-center">
+                                  <Spinner size="md" color="success" />
+                                  <p className="text-xs text-default-500 mt-2">Loading...</p>
+                                </div>
+                              ) : (
+                                <div className="h-full flex flex-col items-center justify-center">
+                                  <Icon icon="lucide:git-branch" className="text-default-300" width={32} height={32} />
+                                  <p className="text-xs text-default-400 mt-1">No data</p>
+                                </div>
+                              )}
+                            </div>
+                          </CardBody>
+                        </Card>
                       </div>
                     )}
-                </div>
-              </Tab>
-              <Tab key="table" title={isSmallScreen ? "Table" : "Table View"}>
-                <div className={`${isMobileDevice ? 'h-[400px] overflow-auto' : ''}`}>
-                  {/* Show offline sensor waiting state in table view too - only in live mode */}
-                  {isSensorOffline && isLiveMode ? (
-                    <div className="h-full flex flex-col items-center justify-center p-8 text-center">
-                      <div className="flex flex-col items-center gap-4 max-w-md">
-                        <Icon 
-                          icon="lucide:table" 
-                          className="text-danger-400" 
-                          width={48} 
-                          height={48} 
-                        />
-                        <div className="space-y-2">
-                          <h3 className="text-lg font-semibold text-danger-600">
-                            No Data Available
-                          </h3>
-                          <p className="text-default-600 text-sm">
-                            Sensor <span className="font-medium text-primary-600">{selectedSensorData?.data?.displayName || selectedSensorData?.data?.mac}</span> is currently offline
-                          </p>
-                          <p className="text-default-500 text-xs">
-                            Table will populate once sensor comes back online
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ) : tableConfig ? (
-                    <TableView 
-                      config={tableConfig} 
-                      sensorId={sensorId || ''} 
-                      timeRange={filters.timeRange}
-                      onDownloadCSV={handleDownloadCSV} 
-                    />
-                  ) : (
-                    <div className="h-full flex flex-col items-center justify-center p-8 text-center">
-                      <div className="flex flex-col items-center gap-4 max-w-md">
-                        {enhancedEffectiveIsLoading ? (
-                          <>
-                            <Spinner size="lg" color="primary" />
-                            <div className="space-y-2">
-                              <h3 className="text-lg font-semibold text-primary-600">
-                                Loading Table Data
-                              </h3>
-                              <p className="text-default-600 text-sm">
-                                Fetching data for selected time range...
-                              </p>
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <Icon 
-                              icon="lucide:table-2" 
-                              className="text-default-400" 
-                              width={48} 
-                              height={48} 
-                            />
-                            <div className="space-y-2">
-                              <h3 className="text-lg font-semibold text-default-600">
-                                No Data Available
-                              </h3>
-                              <p className="text-default-600 text-sm">
-                                No data found for the selected time range
-                              </p>
-                              <p className="text-default-500 text-xs">
-                                Try selecting a different time range
-                              </p>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </Tab>
-
-              <Tab key="distribution" title={isSmallScreen ? "Dist" : "Distribution"}>
-                <div className={`${isMobileDevice ? 'h-[500px]' : 'h-[600px]'}`}>
-                  {isSensorOffline && isLiveMode ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center">
-                      <div className="flex flex-col items-center gap-4 max-w-md">
-                        <Icon icon="lucide:bar-chart-4" className="text-danger-400" width={48} height={48} />
-                        <div className="space-y-2">
-                          <h3 className="text-lg font-semibold text-danger-600">Distribution Unavailable</h3>
-                          <p className="text-default-600 text-sm">Sensor is currently offline</p>
-                        </div>
-                      </div>
-                    </div>
-                  ) : chartConfig ? (
-                    <DistributionChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />
-                  ) : enhancedEffectiveIsLoading ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center">
-                      <Spinner size="lg" color="primary" />
-                      <p className="text-default-600 text-sm mt-4">Loading Distribution Data...</p>
-                    </div>
-                  ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-center">
-                      <Icon icon="lucide:bar-chart-4" className="text-default-400" width={64} height={64} />
-                      <p className="text-default-600 text-sm mt-4">No Distribution Data</p>
-                    </div>
-                  )}
-                </div>
-              </Tab>
-
-              <Tab key="trend" title={isSmallScreen ? "Trend" : "Trend Analysis"}>
-                <div className={`${isMobileDevice ? 'h-[500px]' : 'h-[600px]'}`}>
-                  {isSensorOffline && isLiveMode ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center">
-                      <div className="flex flex-col items-center gap-4 max-w-md">
-                        <Icon icon="lucide:trending-up" className="text-danger-400" width={48} height={48} />
-                        <div className="space-y-2">
-                          <h3 className="text-lg font-semibold text-danger-600">Trend Analysis Unavailable</h3>
-                          <p className="text-default-600 text-sm">Sensor is currently offline</p>
-                        </div>
-                      </div>
-                    </div>
-                  ) : chartConfig ? (
-                    <TrendAnalysisChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />
-                  ) : enhancedEffectiveIsLoading ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center">
-                      <Spinner size="lg" color="primary" />
-                      <p className="text-default-600 text-sm mt-4">Loading Trend Data...</p>
-                    </div>
-                  ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-center">
-                      <Icon icon="lucide:trending-up" className="text-default-400" width={64} height={64} />
-                      <p className="text-default-600 text-sm mt-4">No Trend Data</p>
-                    </div>
-                  )}
-                </div>
-              </Tab>
-
-              <Tab key="anomaly" title={isSmallScreen ? "Anomaly" : "Anomaly Detection"}>
-                <div className={`${isMobileDevice ? 'h-[500px]' : 'h-[600px]'}`}>
-                  {isSensorOffline && isLiveMode ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center">
-                      <div className="flex flex-col items-center gap-4 max-w-md">
-                        <Icon icon="lucide:alert-triangle" className="text-danger-400" width={48} height={48} />
-                        <div className="space-y-2">
-                          <h3 className="text-lg font-semibold text-danger-600">Anomaly Detection Unavailable</h3>
-                          <p className="text-default-600 text-sm">Sensor is currently offline</p>
-                        </div>
-                      </div>
-                    </div>
-                  ) : chartConfig ? (
-                    <AnomalyDetectionChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />
-                  ) : enhancedEffectiveIsLoading ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center">
-                      <Spinner size="lg" color="primary" />
-                      <p className="text-default-600 text-sm mt-4">Loading Anomaly Data...</p>
-                    </div>
-                  ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-center">
-                      <Icon icon="lucide:alert-triangle" className="text-default-400" width={64} height={64} />
-                      <p className="text-default-600 text-sm mt-4">No Anomaly Data</p>
-                    </div>
-                  )}
-                </div>
-              </Tab>
-
-              <Tab key="correlation" title={isSmallScreen ? "Corr" : "Correlation"}>
-                <div className={`${isMobileDevice ? 'h-[500px]' : 'h-[600px]'}`}>
-                  {isSensorOffline && isLiveMode ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center">
-                      <div className="flex flex-col items-center gap-4 max-w-md">
-                        <Icon icon="lucide:git-branch" className="text-danger-400" width={48} height={48} />
-                        <div className="space-y-2">
-                          <h3 className="text-lg font-semibold text-danger-600">Correlation Unavailable</h3>
-                          <p className="text-default-600 text-sm">Sensor is currently offline</p>
-                        </div>
-                      </div>
-                    </div>
-                  ) : chartConfig ? (
-                    <CorrelationAnalysisChart config={chartConfig} showCards showChart isLiveMode={isLiveMode} />
-                  ) : enhancedEffectiveIsLoading ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center">
-                      <Spinner size="lg" color="primary" />
-                      <p className="text-default-600 text-sm mt-4">Loading Correlation Data...</p>
-                    </div>
-                  ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-center">
-                      <Icon icon="lucide:git-branch" className="text-default-400" width={64} height={64} />
-                      <p className="text-default-600 text-sm mt-4">No Correlation Data</p>
-                    </div>
-                  )}
-                </div>
-              </Tab>
-
-              <Tab key="multichart" title={isMobileDevice ? "Multi" : "Multi-Chart View"}>
-                {/* Show offline sensor waiting state in multi-chart view too - only in live mode */}
-                {isSensorOffline && isLiveMode ? (
-                  <div className="h-full flex flex-col items-center justify-center p-8 text-center">
-                    <div className="flex flex-col items-center gap-4 max-w-md">
-                      <Icon 
-                        icon="lucide:layout-grid" 
-                        className="text-danger-400" 
-                        width={48} 
-                        height={48} 
-                      />
-                      <div className="space-y-2">
-                        <h3 className="text-lg font-semibold text-danger-600">
-                          Multi-Chart View Unavailable
-                        </h3>
-                        <p className="text-default-600 text-sm">
-                          Sensor <span className="font-medium text-primary-600">{selectedSensorData?.data?.displayName || selectedSensorData?.data?.mac}</span> is currently offline
-                        </p>
-                        <p className="text-default-500 text-xs">
-                          Multi-chart view will be available once sensor comes back online
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className={`grid ${isMobileDevice ? 'grid-cols-1 gap-3' : 'grid-cols-1 md:grid-cols-2 gap-4'}`}>
-                    <Card className="shadow-sm">
-                      <CardBody className="p-3">
-                        <h3 className="text-sm font-medium mb-2 text-primary-600">Value Distribution</h3>
-                        <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
-                          {chartConfig ? (
-                            <DistributionChart config={chartConfig} showChart isLiveMode={isLiveMode} />
-                          ) : enhancedEffectiveIsLoading ? (
-                            <div className="h-full flex flex-col items-center justify-center">
-                              <Spinner size="md" color="primary" />
-                              <p className="text-xs text-default-500 mt-2">Loading...</p>
-                            </div>
-                          ) : (
-                            <div className="h-full flex flex-col items-center justify-center">
-                              <Icon icon="lucide:bar-chart-4" className="text-default-300" width={32} height={32} />
-                              <p className="text-xs text-default-400 mt-1">No data</p>
-                            </div>
-                          )}
-                        </div>
-                      </CardBody>
-                    </Card>
-
-                    <Card className="shadow-sm">
-                      <CardBody className="p-3">
-                        <h3 className="text-sm font-medium mb-2 text-secondary-600">Trend Analysis</h3>
-                        <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
-                          {chartConfig ? (
-                            <TrendAnalysisChart config={chartConfig} showChart isLiveMode={isLiveMode} />
-                          ) : enhancedEffectiveIsLoading ? (
-                            <div className="h-full flex flex-col items-center justify-center">
-                              <Spinner size="md" color="secondary" />
-                              <p className="text-xs text-default-500 mt-2">Loading...</p>
-                            </div>
-                          ) : (
-                            <div className="h-full flex flex-col items-center justify-center">
-                              <Icon icon="lucide:trending-up" className="text-default-300" width={32} height={32} />
-                              <p className="text-xs text-default-400 mt-1">No data</p>
-                            </div>
-                          )}
-                        </div>
-                      </CardBody>
-                    </Card>
-
-                    <Card className="shadow-sm">
-                      <CardBody className="p-3">
-                        <h3 className="text-sm font-medium mb-2 text-danger-600">Anomaly Detection</h3>
-                        <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
-                          {chartConfig ? (
-                            <AnomalyDetectionChart config={chartConfig} showChart isLiveMode={isLiveMode} />
-                          ) : enhancedEffectiveIsLoading ? (
-                            <div className="h-full flex flex-col items-center justify-center">
-                              <Spinner size="md" color="danger" />
-                              <p className="text-xs text-default-500 mt-2">Loading...</p>
-                            </div>
-                          ) : (
-                            <div className="h-full flex flex-col items-center justify-center">
-                              <Icon icon="lucide:alert-triangle" className="text-default-300" width={32} height={32} />
-                              <p className="text-xs text-default-400 mt-1">No data</p>
-                            </div>
-                          )}
-                        </div>
-                      </CardBody>
-                    </Card>
-
-                    <Card className="shadow-sm">
-                      <CardBody className="p-3">
-                        <h3 className="text-sm font-medium mb-2 text-success-600">Correlation Analysis</h3>
-                        <div className={`${isMobileDevice ? 'h-[300px]' : 'h-[250px]'}`}>
-                          {chartConfig ? (
-                            <CorrelationAnalysisChart config={chartConfig} showChart isLiveMode={isLiveMode} />
-                          ) : enhancedEffectiveIsLoading ? (
-                            <div className="h-full flex flex-col items-center justify-center">
-                              <Spinner size="md" color="success" />
-                              <p className="text-xs text-default-500 mt-2">Loading...</p>
-                            </div>
-                          ) : (
-                            <div className="h-full flex flex-col items-center justify-center">
-                              <Icon icon="lucide:git-branch" className="text-default-300" width={32} height={32} />
-                              <p className="text-xs text-default-400 mt-1">No data</p>
-                            </div>
-                          )}
-                        </div>
-                      </CardBody>
-                    </Card>
-                  </div>
-                )}
-              </Tab>
-            </Tabs>
-            </>
+                  </Tab>
+                </Tabs>
+              </>
             )}
           </div>
         ) : (

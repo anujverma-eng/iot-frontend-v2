@@ -250,15 +250,16 @@ const InviteTable: React.FC<{
   }
 
   return (
-    <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+    <div className="border border-default-200 rounded-lg overflow-x-auto">
       <Table
         removeWrapper
-        className={isMobile ? "text-xs" : ""}
+        className={isMobile ? "text-xs min-w-[600px]" : ""}
         classNames={{
           table: isMobile ? "min-w-full" : "",
-          th: `${isMobile ? "px-2 py-3 text-xs" : "px-4 py-3"} bg-gray-100 dark:bg-gray-100/20 text-sm font-medium`,
+          thead: "[&>tr]:first:rounded-none",
+          th: `${isMobile ? "px-2 py-3 text-xs" : "px-4 py-3"} bg-default-100 text-sm font-medium first:rounded-none last:rounded-none`,
           td: isMobile ? "px-2 py-3" : "px-4 py-3",
-          tr: "hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors",
+          tr: "hover:bg-default-50 dark:hover:bg-default-100/50 transition-colors",
         }}
       >
         <TableHeader columns={invitesColumns}>
@@ -283,13 +284,12 @@ const InviteTable: React.FC<{
               </Chip>
             </TableCell>
             <TableCell>
-              <Chip
+              <span
                 color={inviteStatusColors[invite.status]}
-                size={isMobile ? "sm" : "sm"}
                 className={isMobile ? "text-xs" : ""}
               >
                 {isMobile ? invite.status.charAt(0).toUpperCase() : invite.status}
-              </Chip>
+              </span>
             </TableCell>
             <TableCell className={isMobile ? "text-xs" : ""}>
               {new Date(invite.createdAt).toLocaleDateString(
@@ -367,15 +367,16 @@ const MyInvitationsTable: React.FC<{
   }
 
   return (
-    <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+    <div className="border border-default-200 rounded-lg overflow-x-auto">
       <Table
         removeWrapper
-        className={isMobile ? "text-xs" : ""}
+        className={isMobile ? "text-xs min-w-[500px]" : ""}
         classNames={{
           table: isMobile ? "min-w-full" : "",
-          th: `${isMobile ? "px-2 py-3 text-xs" : "px-4 py-3"} bg-gray-100 dark:bg-gray-100/20 text-sm font-medium`,
+          thead: "[&>tr]:first:rounded-none",
+          th: `${isMobile ? "px-2 py-3 text-xs" : "px-4 py-3"} bg-default-100 text-sm font-medium first:rounded-none last:rounded-none`,
           td: isMobile ? "px-2 py-3" : "px-4 py-3",
-          tr: "hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors",
+          tr: "hover:bg-default-50 dark:hover:bg-default-100/50 transition-colors",
         }}
       >
         <TableHeader columns={myInvitationsColumns}>
@@ -399,9 +400,9 @@ const MyInvitationsTable: React.FC<{
               {(() => {
                 const statusInfo = getMyInvitationStatus(invitation);
                 return (
-                  <Chip color={statusInfo.color} variant="flat" size={isMobile ? "sm" : "md"}>
+                  <span>
                     {isMobile ? statusInfo.status.charAt(0) : statusInfo.status}
-                  </Chip>
+                  </span>
                 );
               })()}
             </TableCell>
@@ -1015,10 +1016,10 @@ export const TeamPage: React.FC = () => {
 
   // Members table columns
   const membersColumns = [
-    { key: "user", label: "USER" },
-    { key: "role", label: "ROLE" },
-    { key: "createdAt", label: "JOINED" },
-    { key: "actions", label: "ACTIONS" },
+    { key: "user", label: "User" },
+    { key: "role", label: "Role" },
+    { key: "createdAt", label: "Joined" },
+    { key: "actions", label: "Actions" },
   ];
 
   if (!activeOrgReady) {
@@ -1043,7 +1044,7 @@ export const TeamPage: React.FC = () => {
                   : "mb-4 sm:mb-6 px-2 sm:px-0" // Desktop: normal spacing
               }`}
             >
-              Team Management
+              Team
             </motion.h1>
             {/* {pendingMyInvitationsCount > 0 && (
               <div className="flex items-center gap-2">
@@ -1063,6 +1064,7 @@ export const TeamPage: React.FC = () => {
           onSelectionChange={(key) => setActiveTab(key as string)}
           className={isMobile ? "w-full" : ""}
           variant="underlined"
+          color="primary"
           classNames={{
             tabList: `${isMobile ? "w-full" : ""} bg-transparent`,
             tab: isMobile ? "flex-1" : "",
@@ -1104,21 +1106,22 @@ export const TeamPage: React.FC = () => {
 
       {/* Tab Content */}
       {activeTab === "members" && (
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+        <div className="border border-default-200 rounded-lg overflow-x-auto">
           <Table
             isHeaderSticky
             removeWrapper
             sortDescriptor={membersSortDescriptor}
             onSortChange={setMembersSortDescriptor}
-            className={isMobile ? "text-xs" : ""}
+            className={isMobile ? "text-xs min-w-[500px]" : ""}
             classNames={{
               table: isMobile ? "min-w-full" : "",
-              th: `${isMobile ? "px-2 py-3 text-xs" : "px-4 py-3"} bg-gray-100 dark:bg-gray-100/20 text-sm font-medium`,
+              thead: "[&>tr]:first:rounded-none",
+              th: `${isMobile ? "px-2 py-3 text-xs" : "px-4 py-3"} bg-default-100 text-sm font-medium first:rounded-none last:rounded-none`,
               td: isMobile ? "px-2 py-3" : "px-4 py-3",
-              tr: "hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors",
+              tr: "hover:bg-default-50 dark:hover:bg-default-100/50 transition-colors",
             }}
             bottomContent={
-              membersPagination && membersPagination.totalPages > 1 ? (
+              membersPagination && membersPagination.totalPages > 1 && membersPagination.total > 10 ? (
                 <div className="flex w-full justify-center">
                   <Pagination
                     isCompact
@@ -1167,7 +1170,7 @@ export const TeamPage: React.FC = () => {
                             </Chip>
                           )}
                         </div>
-                        {!isMobile && <div className="text-sm text-gray-500">{member.user?.email}</div>}
+                        {/* {!isMobile && <div className="text-sm text-gray-500">{member.user?.email}</div>} */}
                       </div>
                     </div>
                   </TableCell>
@@ -1187,40 +1190,42 @@ export const TeamPage: React.FC = () => {
                     )}
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-2">
-                      <PermissionWrapper permissions={["teams.roles", "teams.permissions", "teams.remove.members"]}>
-                        <Dropdown>
-                          <DropdownTrigger>
-                            <Button isIconOnly size={isMobile ? "sm" : "sm"} variant="light">
-                              <EllipsisVerticalIcon className={"w-4 h-4"} />
-                            </Button>
-                          </DropdownTrigger>
-                          <DropdownMenu>
-                            <DropdownItem
-                              key="permissions"
-                              onClick={() => openPermissionsModal(member)}
-                              className={isMobile ? "text-xs" : ""}
-                            >
-                              Edit Permissions
-                            </DropdownItem>
-                            <DropdownItem
-                              key="role"
-                              onClick={() => openChangeRoleModal(member)}
-                              className={isMobile ? "text-xs" : ""}
-                            >
-                              Change Role
-                            </DropdownItem>
-                            <DropdownItem
-                              key="remove"
-                              className={`text-danger ${isMobile ? "text-xs" : ""}`}
-                              color="danger"
-                              onClick={() => handleRemoveMember(member._id)}
-                              isDisabled={membersDeletingId === member._id}
-                            >
-                              {membersDeletingId === member._id ? "Removing..." : "Remove Member"}
-                            </DropdownItem>
-                          </DropdownMenu>
-                        </Dropdown>
+                    <div className="flex items-center gap-1">
+                      <PermissionWrapper permissions={["teams.permissions"]}>
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="light"
+                          onPress={() => openPermissionsModal(member)}
+                          title="Edit Permissions"
+                        >
+                          <Icon icon="lucide:shield" className="w-4 h-4 text-default-500" />
+                        </Button>
+                      </PermissionWrapper>
+                      <PermissionWrapper permissions={["teams.roles"]}>
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="light"
+                          onPress={() => openChangeRoleModal(member)}
+                          title="Change Role"
+                        >
+                          <Icon icon="lucide:user-cog" className="w-4 h-4 text-default-500" />
+                        </Button>
+                      </PermissionWrapper>
+                      <PermissionWrapper permissions={["teams.remove.members"]}>
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="light"
+                          color="danger"
+                          onPress={() => handleRemoveMember(member._id)}
+                          isLoading={membersDeletingId === member._id}
+                          isDisabled={membersDeletingId === member._id}
+                          title="Remove Member"
+                        >
+                          <Icon icon="lucide:trash-2" className="w-4 h-4" />
+                        </Button>
                       </PermissionWrapper>
                     </div>
                   </TableCell>
@@ -1274,11 +1279,13 @@ export const TeamPage: React.FC = () => {
                     defaultExpandedKeys={["pending"]} 
                     className={`${isMobile ? "px-0" : ""} bg-transparent`}
                     itemClasses={{
-                      base: "bg-transparent shadow-none",
+                      base: "bg-transparent shadow-none border-none",
                       title: "font-medium",
                       trigger: "px-0 py-2",
                       content: "px-0 pt-0",
+                      indicator: "text-default-500 rotate-180 data-[open=true]:-rotate-90",
                     }}
+                    showDivider={false}
                   >
                     {/* Pending Invites - Always on top */}
                     <AccordionItem
@@ -1293,7 +1300,7 @@ export const TeamPage: React.FC = () => {
                         </div>
                       }
                       classNames={{
-                        base: "bg-transparent shadow-none",
+                        base: "bg-transparent shadow-none border-none mb-2",
                         content: "pt-2",
                       }}
                     >
@@ -1320,7 +1327,7 @@ export const TeamPage: React.FC = () => {
                         </div>
                       }
                       classNames={{
-                        base: "bg-transparent shadow-none",
+                        base: "bg-transparent shadow-none border-none mb-2",
                         content: "pt-2",
                       }}
                     >
@@ -1347,7 +1354,7 @@ export const TeamPage: React.FC = () => {
                         </div>
                       }
                       classNames={{
-                        base: "bg-transparent shadow-none",
+                        base: "bg-transparent shadow-none border-none mb-2",
                         content: "pt-2",
                       }}
                     >
@@ -1367,10 +1374,10 @@ export const TeamPage: React.FC = () => {
               <div className="flex justify-center items-center py-10 text-gray-500">No invitations found</div>
             )}
 
-            {/* Pagination */}
-            {invitesPagination && invitesPagination.totalPages > 1 && (
+            {/* Pagination - Only show if more than 10 items */}
+            {invitesPagination && invitesPagination.totalPages > 1 && invitesPagination.total > 10 && (
               <div className="flex w-full justify-center">
-                <Pagination
+                {/* <Pagination
                   isCompact
                   showControls
                   showShadow
@@ -1378,7 +1385,7 @@ export const TeamPage: React.FC = () => {
                   page={invitesPage}
                   total={invitesPagination.totalPages}
                   onChange={(page) => setInvitesPage(page)}
-                />
+                /> */}
               </div>
             )}
           </div>
@@ -1429,7 +1436,7 @@ export const TeamPage: React.FC = () => {
                       </div>
                     }
                     classNames={{
-                      base: "bg-transparent shadow-none",
+                      base: "bg-transparent shadow-none border-none",
                       content: "pt-2",
                     }}
                   >
@@ -1458,7 +1465,7 @@ export const TeamPage: React.FC = () => {
                       </div>
                     }
                     classNames={{
-                      base: "bg-transparent shadow-none",
+                      base: "bg-transparent shadow-none border-none",
                       content: "pt-2",
                     }}
                   >
@@ -1487,7 +1494,7 @@ export const TeamPage: React.FC = () => {
                       </div>
                     }
                     classNames={{
-                      base: "bg-transparent shadow-none",
+                      base: "bg-transparent shadow-none border-none",
                       content: "pt-2",
                     }}
                   >
@@ -1501,17 +1508,24 @@ export const TeamPage: React.FC = () => {
                 );
               }
 
+              // Determine which keys to expand by default
+              const defaultKeys = accordionItems.length === 1 
+                ? [accordionItems[0].key as string] 
+                : pending.length > 0 ? ["pending"] : [];
+
               return (
                 <Accordion 
                   variant="light" 
-                  defaultExpandedKeys={["pending"]} 
+                  defaultExpandedKeys={defaultKeys} 
                   className={`${isMobile ? "px-0" : ""} bg-transparent`}
                   itemClasses={{
-                    base: "bg-transparent shadow-none",
+                    base: "bg-transparent shadow-none border-none",
                     title: "font-medium",
                     trigger: "px-0 py-2",
                     content: "px-0 pt-0",
+                    indicator: "text-default-500 rotate-180 data-[open=true]:-rotate-90",
                   }}
+                  showDivider={false}
                 >
                   {accordionItems}
                 </Accordion>
