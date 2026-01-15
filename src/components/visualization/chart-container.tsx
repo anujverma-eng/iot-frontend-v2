@@ -1138,6 +1138,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
                 onDownloadCSV={onDownloadCSV}
                 onControlsReady={setTableControls}
                 hideInternalControls={true}
+                isLiveMode={isLiveMode}
               />
             )}
           </div>

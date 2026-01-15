@@ -9,11 +9,10 @@ import { formatNumericValue } from "../utils/numberUtils";
 import { AppDispatch, RootState } from "../store";
 import { useOfflineDetectionIntegration } from "../hooks/useOfflineDetectionIntegration";
 import { useLiveDataReadiness } from "../hooks/useLiveDataReadiness";
-import { useLiveModeTransition } from "../hooks/useLiveModeTransition";
+import { useSensorModeTransition } from "../hooks/useSensorModeTransition";
 import { useBreakpoints } from "../hooks/use-media-query";
 import { LiveDataLoading } from "../components/visualization/live-data-loading";
 import { fetchGateways, fetchGatewayStats, selectGateways, selectGatewayStats } from "../store/gatewaySlice";
-import DebugActiveOrg from "../components/DebugActiveOrg";
 import {
   fetchSensors,
   fetchSensorStats,
@@ -33,38 +32,40 @@ import {
   setTimeRange,
   selectMaxLiveReadings,
   clearTelemetry,
+  setSensorHistoricalMode,
+  selectSensorHistoricalMode,
 } from "../store/telemetrySlice";
 import { createOptimizedTelemetryRequest } from "../utils/optimizationUtils";
 import { 
   selectIsLiveMode,
   selectIsConnecting,
-  toggleLiveMode 
 } from "../store/liveDataSlice";
 import { selectActiveOrgReady } from "../store/activeOrgSlice";
 import { Gateway } from "../types/gateway";
-import { Sensor } from "../types/sensor";
+import { Sensor, ChartConfig } from "../types/sensor";
 import { StatsCard } from "../components/stats-card";
-import { TimeRangeSelector } from "../components/analytics/time-range-selector";
 import { LineChart } from "../components/visualization/line-chart";
+import { TableView } from "../components/analytics/table-view";
 import {
   Card,
   CardBody,
   CardHeader,
   Button,
   Chip,
-  Table,
-  TableHeader,
-  TableColumn,
-  TableBody,
-  TableRow,
-  TableCell,
   Tooltip,
   Progress,
   Select,
   SelectItem,
   Tabs,
   Tab,
+  TableRow,
+  TableCell,
+  Table,
+  TableHeader,
+  TableColumn,
+  TableBody,
 } from "@heroui/react";
+import { TimeRangeSelector } from "../components/analytics/time-range-selector";
 
 interface Alert {
   id: string;
@@ -106,13 +107,14 @@ export const DashboardHome: React.FC = () => {
   const gatewayStats = useSelector(selectGatewayStats);
   const sensorStats = useSelector(selectEnhancedSensorStats); // Use enhanced stats for real-time calculations
   const starredSensorIds = useSelector(selectSelectedSensorIds);
-  const isLiveMode = useSelector(selectIsLiveMode);
+  const globalIsLiveMode = useSelector(selectIsLiveMode);
   const isConnecting = useSelector(selectIsConnecting);
   const telemetryData = useSelector(selectTelemetryData);
   const telemetryLoading = useSelector(selectTelemetryLoading);
   const timeRange = useSelector(selectTimeRange);
   const maxLiveReadings = useSelector(selectMaxLiveReadings);
   const activeOrgReady = useSelector(selectActiveOrgReady);
+  const sensorHistoricalMode = useSelector(selectSensorHistoricalMode);
 
   // Initialize offline detection service
   useOfflineDetectionIntegration();
@@ -123,11 +125,25 @@ export const DashboardHome: React.FC = () => {
   const [favoriteViewMode, setFavoriteViewMode] = React.useState<"chart" | "table">("chart");
   const [alerts, setAlerts] = React.useState<Alert[]>([]); // We'll need to implement an alerts API/redux slice later
   const [hasInitialLoadCompleted, setHasInitialLoadCompleted] = React.useState(false);
+  
+  // Track when we're fetching NEW data (time range change, sensor change, mode change)
+  // This forces the loader to show even if old data exists
+  const [isFetchingNewData, setIsFetchingNewData] = React.useState(false);
 
-  // Add refs for tracking requests and sensor data
+  // Add refs for tracking requests
   const lastTimeRangeRequestRef = React.useRef<string>("");
   const requestInProgressRef = React.useRef<boolean>(false);
-  const previousSensorDataRef = React.useRef<any>(null);
+
+  // Use the per-sensor mode transition hook
+  // DISABLED: We handle data fetching manually in this component with correct 'analytics' page context
+  // The hook uses 'dashboard' context which gives 200 targetPoints instead of 800
+  // We only use it for isLiveMode/isHistoricalMode state, not for auto-fetching
+  const { isLiveMode, isHistoricalMode } = useSensorModeTransition({
+    sensorId: selectedSensor,
+    pageContext: 'analytics',  // Use analytics context for consistent 800 targetPoints
+    chartType: 'line-chart',
+    disabled: true,  // Disable auto-fetch - we handle fetching manually below
+  });
 
   // Live data readiness hook for charts
   const liveDataReadiness = useLiveDataReadiness(selectedSensor, false); // false = not filtering offline sensors
@@ -135,6 +151,11 @@ export const DashboardHome: React.FC = () => {
   // Enhanced loading state that considers live data readiness and request progress
   // But excludes loading for offline sensors in live mode to show proper offline UI
   const effectiveIsLoading = React.useMemo(() => {
+    // If we're fetching new data (time range change, sensor change, mode change), always show loading
+    if (isFetchingNewData) {
+      return true;
+    }
+    
     // If we're in live mode and have a selected sensor that's offline, don't show loading
     if (isLiveMode && selectedSensor) {
       const sensor = sensors.find(s => s._id === selectedSensor);
@@ -144,7 +165,7 @@ export const DashboardHome: React.FC = () => {
     }
     
     return telemetryLoading || liveDataReadiness.shouldShowLoading || requestInProgressRef.current;
-  }, [telemetryLoading, liveDataReadiness.shouldShowLoading, requestInProgressRef.current, isLiveMode, selectedSensor, sensors]);
+  }, [telemetryLoading, liveDataReadiness.shouldShowLoading, isFetchingNewData, isLiveMode, selectedSensor, sensors]);
 
   // DEBUG: Log when telemetry data changes (only when significant changes occur)
   const prevTelemetryRef = React.useRef<any>(null);
@@ -164,69 +185,16 @@ export const DashboardHome: React.FC = () => {
       };
     }
 
-    // Reset request in progress flag when telemetry loading completes
-    // This ensures we don't show loading state after getting API response
-    if (!telemetryLoading && requestInProgressRef.current) {
+    // Reset loading flags when telemetry loading completes
+    // This ensures we show the new data after fetch completes
+    if (!telemetryLoading && (requestInProgressRef.current || isFetchingNewData)) {
       requestInProgressRef.current = false;
+      setIsFetchingNewData(false);
     }
-  }, [telemetryData, selectedSensor, telemetryLoading]);
+  }, [telemetryData, selectedSensor, telemetryLoading, isFetchingNewData]);
 
-  // Add live mode transition detection for automatic data refresh
-  useLiveModeTransition(
-    // onLiveToOffline - refresh data when switching to offline mode
-    () => {
-      if (selectedSensor) {
-        // Use current timeRange or default to last 24 hours
-        const currentTimeRange = timeRange || {
-          start: new Date(Date.now() - 24 * 60 * 60 * 1000),
-          end: new Date(),
-        };
-        
-        // Force re-fetch data with current time range when switching to offline
-        const request = createOptimizedTelemetryRequest({
-          sensorIds: [selectedSensor],
-          timeRange: {
-            start: currentTimeRange.start.toISOString(),
-            end: currentTimeRange.end.toISOString()
-          },
-          context: {
-            page: 'dashboard',
-            chartType: 'dashboard-card'
-          },
-          liveMode: false ? { enabled: true, maxReadings: maxLiveReadings } : undefined
-        });
-        
-        dispatch(fetchOptimizedTelemetry(request) as any);
-      }
-    },
-    // onOfflineToLive - fetch fresh historical data to fill any gap, then MQTT will append new readings
-    () => {
-      if (selectedSensor) {
-        // For live mode on dashboard, fetch last ~5 minutes to match live data view
-        // Add +1 minute buffer to end time to account for network latency
-        const now = new Date();
-        const fiveMinutesAgo = new Date(now.getTime() - (5 * 60 * 1000)); // Extended from 4 to 5 minutes
-        const endWithBuffer = new Date(now.getTime() + (5 * 60 * 1000)); // +5 minute buffer
-        
-        const request = createOptimizedTelemetryRequest({
-          sensorIds: [selectedSensor],
-          timeRange: {
-            start: fiveMinutesAgo.toISOString(),
-            end: endWithBuffer.toISOString() // Use current time + 1 min buffer
-          },
-          context: {
-            page: 'dashboard',
-            chartType: 'dashboard-card'
-          },
-          liveMode: { enabled: true, maxReadings: maxLiveReadings }
-        });
-        
-        dispatch(fetchOptimizedTelemetry(request) as any);
-      }
-    }
-  );
-
-
+  // Note: Mode transitions are now handled by useSensorModeTransition hook
+  // It automatically fetches appropriate data when switching between live/historical modes
 
   // Mark initial load as completed immediately - we'll fetch limited data for first load
   React.useEffect(() => {
@@ -313,6 +281,7 @@ export const DashboardHome: React.FC = () => {
     // Mark request as in progress and update request ref
     requestInProgressRef.current = true;
     lastTimeRangeRequestRef.current = currentRequest;
+    setIsFetchingNewData(true); // Force loader to show on initial load
 
     // Determine time range to use based on initial load vs normal operation
     let timeRangeToUse;
@@ -339,6 +308,7 @@ export const DashboardHome: React.FC = () => {
     }
 
     // Create optimized request for dashboard chart
+    // Use 'analytics' page context to get consistent targetPoints (800) with analytics/solo-view pages
     const optimizedRequest = createOptimizedTelemetryRequest({
       sensorIds: [selectedSensor],
       timeRange: {
@@ -346,13 +316,11 @@ export const DashboardHome: React.FC = () => {
         end: timeRangeToUse.end.toISOString(),
       },
       context: {
-        page: 'dashboard',
-        chartType: 'dashboard-card'
+        page: 'analytics',
+        chartType: 'line-chart'
       },
-      liveMode: {
-        enabled: isLiveMode,
-        maxReadings: maxLiveReadings
-      }
+      // Only pass liveMode when actually in live mode - otherwise backend uses targetPoints
+      liveMode: isLiveMode ? { enabled: true, maxReadings: maxLiveReadings } : undefined
     });
 
     dispatch(fetchOptimizedTelemetry(optimizedRequest) as any);
@@ -363,16 +331,21 @@ export const DashboardHome: React.FC = () => {
 
   // Handle time range change for favorite sensor view
   const handleTimeRangeChange = (newTimeRange: any) => {
-    // ALWAYS clear previous sensor data when changing time range to prevent stale data display
-    // This ensures we don't show data from a different time range
-    if (previousSensorDataRef.current) {
-      previousSensorDataRef.current = null;
-    }
-    
     dispatch(setTimeRange(newTimeRange));
     
-    // Fetch new data when time range changes in offline mode
-    if (!isLiveMode && selectedSensor) {
+    // ALWAYS fetch new data when time range changes, regardless of live/offline mode
+    // The user explicitly selected a time range, so we should fetch historical data for that range
+    if (selectedSensor) {
+      // Create request ID to prevent duplicate fetches from the useEffect
+      const newRequestId = `${selectedSensor}-${newTimeRange.start}-${newTimeRange.end}-${isLiveMode}`;
+      
+      // Set the ref immediately to prevent the useEffect from also firing
+      lastTimeRangeRequestRef.current = newRequestId;
+      requestInProgressRef.current = true;
+      setIsFetchingNewData(true); // Force loader to show while fetching
+      
+      // When user changes time range, we're showing historical data for that range
+      // Use 'analytics' page context to get consistent targetPoints (800) with analytics/solo-view pages
       const request = createOptimizedTelemetryRequest({
         sensorIds: [selectedSensor],
         timeRange: {
@@ -380,28 +353,67 @@ export const DashboardHome: React.FC = () => {
           end: newTimeRange.end.toISOString()
         },
         context: {
-          page: 'dashboard',
-          chartType: 'dashboard-card'
+          page: 'analytics',
+          chartType: 'line-chart'
         },
-        liveMode: false ? { enabled: true, maxReadings: maxLiveReadings } : undefined
+        // When time range is explicitly changed, we want full historical data
+        // Only use live mode limiting when streaming real-time data
+        liveMode: isLiveMode ? { enabled: true, maxReadings: maxLiveReadings } : undefined
       });
       
       dispatch(fetchOptimizedTelemetry(request) as any);
     }
   };
 
-  // Handle live mode change
+  // Handle live mode change for current sensor
   const handleLiveModeChange = (enable: boolean) => {
-    // Clear previous sensor data when switching modes to prevent stale data display
-    previousSensorDataRef.current = null;
+    if (!selectedSensor) return;
     
-    // When switching to live mode, clear all telemetry data to prevent showing historical data
-    // for sensors that might be offline in live mode
+    // Update mode state first
+    dispatch(setSensorHistoricalMode({
+      sensorId: selectedSensor,
+      isHistorical: !enable,
+      timeRange: !enable ? timeRange : undefined
+    }));
+    
+    // Immediately fetch appropriate data for the new mode
+    // This prevents the delay from waiting for useEffect to trigger
+    requestInProgressRef.current = true;
+    setIsFetchingNewData(true); // Force loader to show while fetching
+    
+    let fetchTimeRange;
     if (enable) {
-      dispatch(clearTelemetry());
+      // Switching to LIVE mode - fetch recent data with buffer
+      const now = new Date();
+      const fiveMinutesAgo = new Date(now.getTime() - (5 * 60 * 1000));
+      const endWithBuffer = new Date(now.getTime() + (5 * 60 * 1000));
+      fetchTimeRange = { start: fiveMinutesAgo, end: endWithBuffer };
+    } else {
+      // Switching to HISTORICAL mode - use selected time range
+      fetchTimeRange = timeRange || {
+        start: new Date(Date.now() - 24 * 60 * 60 * 1000),
+        end: new Date(),
+      };
     }
     
-    dispatch(toggleLiveMode({ enable }) as any);
+    // Update last request ref to prevent duplicate fetch from useEffect
+    lastTimeRangeRequestRef.current = `${selectedSensor}-${fetchTimeRange.start}-${fetchTimeRange.end}-${enable}`;
+    
+    const request = createOptimizedTelemetryRequest({
+      sensorIds: [selectedSensor],
+      timeRange: {
+        start: fetchTimeRange.start.toISOString(),
+        end: fetchTimeRange.end.toISOString(),
+      },
+      context: {
+        page: 'analytics',
+        chartType: 'line-chart'
+      },
+      // Only use liveMode for live mode, otherwise let backend use targetPoints (800)
+      liveMode: enable ? { enabled: true, maxReadings: maxLiveReadings } : undefined
+    });
+    
+    dispatch(fetchOptimizedTelemetry(request) as any);
   };
 
   // Ensure time range is always set - fallback to default if not provided
@@ -415,10 +427,10 @@ export const DashboardHome: React.FC = () => {
     }
   }, [timeRange, dispatch]);
 
-  // Get chart data for selected favorite sensor - preserve previous data during loading
-  const selectedSensorData = React.useMemo(() => {
+  // Get chart data for selected favorite sensor
+  // Simplified to match analytics/solo-view behavior - directly use telemetry data without caching stale data
+  const selectedSensorData: ChartConfig | null = React.useMemo(() => {
     if (!selectedSensor) {
-      previousSensorDataRef.current = null;
       return null;
     }
 
@@ -431,60 +443,26 @@ export const DashboardHome: React.FC = () => {
       return null;
     }
     
-    // Check if we have valid current data
-    const hasValidCurrentData = data && data.series && data.series.length > 0;
-    
-    if (hasValidCurrentData) {
-      // We have valid current data - process and store it
-      const currentSeries = data.series;
-      
-      // Apply dynamic reading limit in live mode based on user's selection
-      // In offline mode, show all data for proper historical analysis
-      const shouldLimitToLatest = isLiveMode; // Only limit in live mode
-      const displaySeries = shouldLimitToLatest && currentSeries.length > maxLiveReadings ? 
-        currentSeries.slice(-maxLiveReadings) : currentSeries;
-
-      const result = {
-        type: data.type,
-        unit: data.unit,
-        series: displaySeries,
-        color: "#006FEE", // Primary color
-      };
-
-      // Store this data for future use during empty states (only in offline mode)
-      if (!isLiveMode) {
-        previousSensorDataRef.current = result;
-      }
-      return result;
-    } else {
-      // If we're actively loading, keep previous data to prevent flickering
-      // But if we have a definitive empty response (data exists but series is empty), don't use previous data
-      if (telemetryLoading) {
-        // We're loading - keep previous data if available (only in offline mode)
-        if (previousSensorDataRef.current && !isLiveMode && !isSensorOffline) {
-          return previousSensorDataRef.current;
-        }
-        // If no previous data but we're loading, return null to show loading state
-        return null;
-      }
-      
-      // We're not loading - check if we have a definitive response
-      if (data && data.series !== undefined) {
-        // We have a response but no data for this time range - clear previous data and show no data
-        if (previousSensorDataRef.current) {
-          previousSensorDataRef.current = null;
-        }
-        return null;
-      }
-      
-      // We don't have any response yet - keep previous data if available (only in offline mode)
-      if (previousSensorDataRef.current && !isLiveMode && !isSensorOffline) {
-        return previousSensorDataRef.current;
-      }
-      
+    // Check if we have valid current data - same logic as analytics/solo-view
+    if (!data || !data.series || data.series.length === 0) {
       return null;
     }
-  }, [selectedSensor, telemetryData, isLiveMode, maxLiveReadings, telemetryLoading, sensors]);
+
+    const currentSeries = data.series;
+    
+    // Apply dynamic reading limit in live mode based on user's selection
+    // In offline mode, show all data for proper historical analysis
+    const shouldLimitToLatest = isLiveMode;
+    const displaySeries = shouldLimitToLatest && currentSeries.length > maxLiveReadings ? 
+      currentSeries.slice(-maxLiveReadings) : currentSeries;
+
+    return {
+      type: data.type,
+      unit: data.unit,
+      series: displaySeries,
+      color: "#006FEE", // Primary color
+    };
+  }, [selectedSensor, telemetryData, isLiveMode, maxLiveReadings, sensors]);
 
   // DEBUG: Log chart render decision variables (only when decision changes)
   const prevRenderDecisionRef = React.useRef<string>("");
@@ -746,8 +724,51 @@ export const DashboardHome: React.FC = () => {
                       selectedKeys={selectedSensor ? [selectedSensor] : []}
                       onSelectionChange={(keys) => {
                         const selectedKey = Array.from(keys)[0] as string;
-
+                        if (!selectedKey || selectedKey === selectedSensor) return;
+                        
                         setSelectedSensor(selectedKey);
+                        
+                        // Immediately fetch data for the new sensor to avoid delays
+                        // Reset refs to allow the fetch
+                        requestInProgressRef.current = true;
+                        setIsFetchingNewData(true); // Force loader to show while fetching
+                        
+                        // Check what mode this sensor should be in
+                        const sensorMode = sensorHistoricalMode[selectedKey];
+                        const sensorIsLive = globalIsLiveMode && !sensorMode;
+                        
+                        let fetchTimeRange;
+                        if (sensorIsLive) {
+                          // Live mode - fetch recent data with buffer
+                          const now = new Date();
+                          const fiveMinutesAgo = new Date(now.getTime() - (5 * 60 * 1000));
+                          const endWithBuffer = new Date(now.getTime() + (5 * 60 * 1000));
+                          fetchTimeRange = { start: fiveMinutesAgo, end: endWithBuffer };
+                        } else {
+                          // Historical mode - use selected time range
+                          fetchTimeRange = timeRange || {
+                            start: new Date(Date.now() - 24 * 60 * 60 * 1000),
+                            end: new Date(),
+                          };
+                        }
+                        
+                        // Update ref to prevent duplicate from useEffect
+                        lastTimeRangeRequestRef.current = `${selectedKey}-${fetchTimeRange.start}-${fetchTimeRange.end}-${sensorIsLive}`;
+                        
+                        const request = createOptimizedTelemetryRequest({
+                          sensorIds: [selectedKey],
+                          timeRange: {
+                            start: fetchTimeRange.start.toISOString(),
+                            end: fetchTimeRange.end.toISOString(),
+                          },
+                          context: {
+                            page: 'analytics',
+                            chartType: 'line-chart'
+                          },
+                          liveMode: sensorIsLive ? { enabled: true, maxReadings: maxLiveReadings } : undefined
+                        });
+                        
+                        dispatch(fetchOptimizedTelemetry(request) as any);
                       }}
                       className="w-full"
                       size="sm"
@@ -923,15 +944,15 @@ export const DashboardHome: React.FC = () => {
               })()}
 
               {/* Chart/Table View */}
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full">
                 {favoriteViewMode === "chart" ? (
                   <div className="w-full">
-                    {/* Chart Container - Mobile optimized heights */}
-                    <div className={`bg-default-50 rounded-lg border border-default-200 ${
-                      isMobile 
-                        ? "h-[250px] min-h-[250px]" // Mobile: shorter height
-                        : "h-[300px] sm:h-[350px] lg:h-[400px] min-h-[300px]" // Desktop: normal height
-                    }`}>
+                    {/* Chart Container - Using explicit height for proper Recharts ResponsiveContainer */}
+                    <div 
+                      className={`bg-default-50 rounded-lg border border-default-200 w-full ${
+                        isMobile ? 'h-[400px]' : 'h-[500px]'
+                      }`}
+                    >
                       {(() => {
                         // First priority: Check if sensor is offline and we're in live mode
                         const sensor = favoriteSensors.find((s) => s._id === selectedSensor);
@@ -975,11 +996,16 @@ export const DashboardHome: React.FC = () => {
                                     size="sm"
                                     startContent={<Icon icon="lucide:history" className="w-4 h-4" />}
                                     onPress={() => {
-                                      dispatch(
-                                        toggleLiveMode({
-                                          enable: false
-                                        }) as any
-                                      );
+                                      // Switch to historical mode for this sensor only
+                                      if (selectedSensor) {
+                                        dispatch(
+                                          setSensorHistoricalMode({
+                                            sensorId: selectedSensor,
+                                            isHistorical: true,
+                                            timeRange: timeRange
+                                          })
+                                        );
+                                      }
                                     }}
                                   >
                                     View Historical Data
@@ -990,12 +1016,28 @@ export const DashboardHome: React.FC = () => {
                           );
                         }
 
-                        // Second priority: Show chart if we have data
+                        // Second priority: Show loading when fetching NEW data
+                        // This MUST be before showing old chart data to prevent stale data display
+                        if (isFetchingNewData) {
+                          return (
+                            <div className="flex items-center justify-center h-full">
+                              <div className="text-center">
+                                <Progress
+                                  size="sm"
+                                  isIndeterminate
+                                  aria-label="Loading chart data..."
+                                  className="max-w-md mb-3"
+                                />
+                                <p className="text-default-600 text-sm">Loading new data...</p>
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        // Third priority: Show chart if we have data
                         if (selectedSensor && selectedSensorData) {
                           return (
-                            <div className={`h-full w-full ${
-                              isMobile ? "p-1" : "p-2" // Mobile: reduced padding
-                            }`}>
+                            <div className="h-full w-full flex flex-col">
                               <LineChart
                                 config={selectedSensorData}
                                 isLiveMode={isLiveMode}
@@ -1004,7 +1046,7 @@ export const DashboardHome: React.FC = () => {
                           );
                         }
 
-                        // Third priority: Show loading states
+                        // Fourth priority: Show loading states
                         if (effectiveIsLoading || isLoading || sensorsLoading || (!selectedSensor && sensors.length > 0)) {
                           return (
                             <div className="flex items-center justify-center h-full">
@@ -1021,7 +1063,7 @@ export const DashboardHome: React.FC = () => {
                           );
                         }
 
-                        // Fourth priority: Show live data loading
+                        // Fifth priority: Show live data loading
                         if (isLiveMode && liveDataReadiness.shouldShowLoading) {
                           return (
                             <div className="flex items-center justify-center h-full">
@@ -1032,7 +1074,7 @@ export const DashboardHome: React.FC = () => {
                           );
                         }
 
-                        // Last priority: Show no data state
+                        // Sixth priority: Show no data state
                         return (
                           <div className="flex items-center justify-center h-full">
                             <div className="text-center">
@@ -1056,134 +1098,114 @@ export const DashboardHome: React.FC = () => {
                   </div>
                 ) : (
                   <div className="w-full">
-                    <div className="overflow-x-auto rounded-lg border border-default-200">
-                      <Table removeWrapper aria-label="Sensor Data Table" className="min-w-full">
-                        <TableHeader>
-                          <TableColumn className="text-xs sm:text-sm font-medium px-2 sm:px-4 py-2">
-                            TIMESTAMP
-                          </TableColumn>
-                          <TableColumn className="text-xs sm:text-sm font-medium px-2 sm:px-4 py-2 text-right">
-                            VALUE
-                          </TableColumn>
-                        </TableHeader>
-                        <TableBody>
-                          {selectedSensor && selectedSensorData && selectedSensorData.series.length > 0 ? (
-                            selectedSensorData.series
-                              .slice(-10)
-                              .reverse()
-                              .map((point: any, idx: number) => (
-                                <TableRow key={idx} className="hover:bg-default-50">
-                                  <TableCell className={`text-xs sm:text-sm font-mono ${
-                                    isMobile ? "px-1 py-1" : "px-2 sm:px-4 py-2" // Mobile: reduced padding
-                                  }`}>
-                                    <div className="max-w-[140px] sm:max-w-none">
-                                      <div className="hidden sm:block">
-                                        {new Date(point.timestamp).toLocaleString()}
-                                      </div>
-                                      <div className="sm:hidden">
-                                        <div className="text-xs">{new Date(point.timestamp).toLocaleDateString()}</div>
-                                        <div className="text-xs text-default-500">
-                                          {new Date(point.timestamp).toLocaleTimeString()}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className={`text-xs sm:text-sm font-bold text-right ${
-                                    isMobile ? "px-1 py-1" : "px-2 sm:px-4 py-2" // Mobile: reduced padding
-                                  }`}>
-                                    <span className="text-primary">{point.value}</span>
-                                    <span className="text-default-500 ml-1">
-                                      {telemetryData[selectedSensor].unit}
-                                    </span>
-                                  </TableCell>
-                                </TableRow>
-                              ))
-                          ) : effectiveIsLoading || isLoading || sensorsLoading || (!selectedSensor && sensors.length > 0) ? (
-                            <TableRow>
-                              <TableCell colSpan={2} className="text-center py-8">
-                                <Progress
-                                  size="sm"
-                                  isIndeterminate
-                                  aria-label="Loading table data..."
-                                  className="max-w-md mb-3 mx-auto"
+                    {/* Use the same TableView component as analytics page for consistent UI/UX */}
+                    {/* Check isFetchingNewData FIRST to show loader when fetching new data */}
+                    {isFetchingNewData ? (
+                      <div className="flex items-center justify-center py-12">
+                        <div className="text-center">
+                          <Progress
+                            size="sm"
+                            isIndeterminate
+                            aria-label="Loading table data..."
+                            className="max-w-md mb-3 mx-auto"
+                          />
+                          <p className="text-default-600 text-sm">Loading new data...</p>
+                        </div>
+                      </div>
+                    ) : selectedSensor && selectedSensorData && timeRange ? (
+                      <div className={`rounded-lg overflow-hidden ${isMobile ? 'max-h-[400px]' : 'max-h-[500px]'} overflow-y-auto`}>
+                        <TableView
+                          config={selectedSensorData as ChartConfig}
+                          sensorId={selectedSensor}
+                          timeRange={timeRange}
+                          isLiveMode={isLiveMode}
+                          hideInternalControls={false}
+                        />
+                      </div>
+                    ) : effectiveIsLoading || isLoading || sensorsLoading ? (
+                      <div className="flex items-center justify-center py-12">
+                        <div className="text-center">
+                          <Progress
+                            size="sm"
+                            isIndeterminate
+                            aria-label="Loading table data..."
+                            className="max-w-md mb-3 mx-auto"
+                          />
+                          <p className="text-default-600 text-sm">Loading table data...</p>
+                        </div>
+                      </div>
+                    ) : (() => {
+                      // Check if sensor is offline and we're in live mode for table view
+                      const sensor = favoriteSensors.find((s) => s._id === selectedSensor);
+                      const isSensorOffline = sensor?.isOnline === false;
+                      const shouldShowOfflineFallback = isLiveMode && isSensorOffline;
+
+                      if (shouldShowOfflineFallback) {
+                        return (
+                          <div className="flex items-center justify-center py-12">
+                            <div className="flex flex-col items-center gap-4 max-w-md">
+                              <div className="relative">
+                                <Icon
+                                  icon="lucide:wifi-off"
+                                  className="text-danger-400"
+                                  width={32}
+                                  height={32}
                                 />
-                                <p className="text-default-600 text-sm">Loading table data...</p>
-                              </TableCell>
-                            </TableRow>
-                          ) : (
-                            (() => {
-                              // Check if sensor is offline and we're in live mode for table view
-                              const sensor = favoriteSensors.find((s) => s._id === selectedSensor);
-                              const isSensorOffline = sensor?.isOnline === false;
-                              const shouldShowOfflineFallback = isLiveMode && isSensorOffline;
+                                <div className="absolute inset-0 rounded-full bg-danger-200 animate-ping opacity-20"></div>
+                              </div>
+                              <div className="space-y-2 text-center">
+                                <h4 className="font-semibold text-danger-600">Sensor Offline</h4>
+                                <p className="text-default-600 text-sm">
+                                  <span className="font-medium text-primary-600">
+                                    {sensor?.displayName || sensor?.mac}
+                                  </span>{" "}
+                                  is currently offline
+                                </p>
+                                <Button
+                                  color="primary"
+                                  variant="flat"
+                                  size="sm"
+                                  startContent={<Icon icon="lucide:history" className="w-4 h-4" />}
+                                  onPress={() => {
+                                    // Switch to historical mode for this sensor only
+                                    if (selectedSensor) {
+                                      dispatch(
+                                        setSensorHistoricalMode({
+                                          sensorId: selectedSensor,
+                                          isHistorical: true,
+                                          timeRange: timeRange
+                                        })
+                                      );
+                                    }
+                                  }}
+                                >
+                                  View Historical Data
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
 
-                              if (shouldShowOfflineFallback) {
-                                return (
-                                  <TableRow>
-                                    <TableCell colSpan={2} className="text-center py-12">
-                                      <div className="flex flex-col items-center gap-4 max-w-md mx-auto">
-                                        <div className="relative">
-                                          <Icon
-                                            icon="lucide:wifi-off"
-                                            className="text-danger-400"
-                                            width={32}
-                                            height={32}
-                                          />
-                                          <div className="absolute inset-0 rounded-full bg-danger-200 animate-ping opacity-20"></div>
-                                        </div>
-                                        <div className="space-y-2 text-center">
-                                          <h4 className="font-semibold text-danger-600">Sensor Offline</h4>
-                                          <p className="text-default-600 text-sm">
-                                            <span className="font-medium text-primary-600">
-                                              {sensor?.displayName || sensor?.mac}
-                                            </span>{" "}
-                                            is currently offline
-                                          </p>
-                                          <Button
-                                            color="primary"
-                                            variant="flat"
-                                            size="sm"
-                                            startContent={<Icon icon="lucide:history" className="w-4 h-4" />}
-                                            onPress={() => {
-                                              dispatch(
-                                                toggleLiveMode({
-                                                  enable: false
-                                                }) as any
-                                              );
-                                            }}
-                                          >
-                                            View Historical Data
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    </TableCell>
-                                  </TableRow>
-                                );
-                              }
-
-                              // Normal no data state
-                              return (
-                                <TableRow>
-                                  <TableCell colSpan={2} className="text-center py-8">
-                                    <Icon icon="lucide:database" className="w-8 h-8 text-default-300 mb-2 mx-auto" />
-                                    <p className="text-default-600 text-sm sm:text-base">
-                                      {selectedSensor
-                                        ? "No table data available"
-                                        : "Select a sensor to view data"}
-                                    </p>
-                                    <p className="text-xs sm:text-sm text-default-500 mt-1">
-                                      {isLiveMode
-                                        ? "Live data will appear here once sensor starts transmitting"
-                                        : "Historical data will load for the selected time range"}
-                                    </p>
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })()
-                          )}
-                        </TableBody>
-                      </Table>
-                    </div>
+                      // Normal no data state
+                      return (
+                        <div className="flex items-center justify-center py-12">
+                          <div className="text-center">
+                            <Icon icon="lucide:database" className="w-8 h-8 text-default-300 mb-2 mx-auto" />
+                            <p className="text-default-600 text-sm sm:text-base">
+                              {selectedSensor
+                                ? "No table data available"
+                                : "Select a sensor to view data"}
+                            </p>
+                            <p className="text-xs sm:text-sm text-default-500 mt-1">
+                              {isLiveMode
+                                ? "Live data will appear here once sensor starts transmitting"
+                                : "Historical data will load for the selected time range"}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
               </motion.div>

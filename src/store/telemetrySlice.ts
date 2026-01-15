@@ -330,6 +330,12 @@ interface State {
   
   // UI state
   isCompareMode: boolean; // Track if user is in sensor comparison mode
+  compareSensorIds: string[]; // Sensor IDs currently being compared (synced from sensorsSlice)
+  
+  // Per-sensor historical mode - when a sensor is set to historical, it shows historical data
+  // instead of live data, even though MQTT connection stays active
+  sensorHistoricalMode: Record<string, boolean>; // sensorId -> isHistorical
+  sensorTimeRanges: Record<string, { start: Date; end: Date }>; // Per-sensor time ranges for historical mode
   
   // Table data specific state
   tableData: Record<string, PaginatedTelemetryResponse>;
@@ -350,6 +356,11 @@ const initialState: State = {
   maxLiveReadings: 100, // Default matches first LIVE_READINGS_OPTIONS value
   unknownSensors: [], // Track MACs that need auto-discovery
   isCompareMode: false, // Default to single sensor mode
+  compareSensorIds: [], // No sensors being compared initially
+  
+  // Per-sensor historical mode
+  sensorHistoricalMode: {}, // All sensors default to live mode (not historical)
+  sensorTimeRanges: {}, // Per-sensor time ranges
   
   // Table data initial state
   tableData: {},
@@ -396,15 +407,39 @@ const telemetrySlice = createSlice({
 
     setCompareMode: (state, action: PayloadAction<boolean>) => {
       state.isCompareMode = action.payload;
-      // When entering compare mode, disable live mode for data consistency
-      if (action.payload && state.isLiveMode) {
-        state.isLiveMode = false;
-        state.liveStatus = 'disconnected';
-        // Clear live flags from all sensors
-        Object.values(state.data).forEach(sensor => {
-          sensor.isLive = false;
-        });
+      // When exiting compare mode, clear the compare sensor IDs
+      if (!action.payload) {
+        state.compareSensorIds = [];
       }
+    },
+
+    // Sync compare sensor IDs from sensors slice
+    // This is called whenever selectedSensorIds changes in compare mode
+    setCompareSensorIds: (state, action: PayloadAction<string[]>) => {
+      state.compareSensorIds = action.payload;
+    },
+
+    // Per-sensor historical mode reducers
+    setSensorHistoricalMode: (state, action: PayloadAction<{ sensorId: string; isHistorical: boolean; timeRange?: { start: Date; end: Date } }>) => {
+      const { sensorId, isHistorical, timeRange } = action.payload;
+      state.sensorHistoricalMode[sensorId] = isHistorical;
+      if (isHistorical && timeRange) {
+        state.sensorTimeRanges[sensorId] = timeRange;
+      } else if (!isHistorical) {
+        // When switching back to live, clear the time range
+        delete state.sensorTimeRanges[sensorId];
+      }
+    },
+    
+    clearSensorHistoricalMode: (state, action: PayloadAction<string>) => {
+      const sensorId = action.payload;
+      delete state.sensorHistoricalMode[sensorId];
+      delete state.sensorTimeRanges[sensorId];
+    },
+    
+    clearAllSensorHistoricalModes: (state) => {
+      state.sensorHistoricalMode = {};
+      state.sensorTimeRanges = {};
     },
 
     clearUnknownSensor: (state, action: PayloadAction<string>) => {
@@ -447,6 +482,19 @@ const telemetrySlice = createSlice({
           return; // "return" here exits the forEach loop for this iteration.
         }
         // --- END REVISED LOGIC ---
+
+        // **IMPORTANT**: Skip live data updates for sensors that are in historical mode
+        // This ensures that when a user is viewing historical data, live MQTT data
+        // doesn't pollute their view. The sensor will get fresh data when switching back to live.
+        if (state.sensorHistoricalMode[sensorKey]) {
+          return; // Skip this sensor - it's viewing historical data
+        }
+
+        // **IMPORTANT**: Skip live data updates for sensors that are in compare mode
+        // Compare mode only works with historical data, so live updates should not pollute the comparison view
+        if (state.isCompareMode && state.compareSensorIds.includes(sensorKey)) {
+          return; // Skip this sensor - it's being compared with historical data
+        }
 
         // Now we are certain that `sensorKey` refers to an existing sensor 
         // (e.g., '6a8e5a7e-...') and we can safely update it.
@@ -706,10 +754,14 @@ export const {
   setLiveStatus,
   setLiveError,
   setCompareMode,
+  setCompareSensorIds,
   addLiveData,
   clearLiveData,
   updateMaxLiveReadings,
-  clearUnknownSensor
+  clearUnknownSensor,
+  setSensorHistoricalMode,
+  clearSensorHistoricalMode,
+  clearAllSensorHistoricalModes,
 } = telemetrySlice.actions;
 
 /* ──────────────────────────────────────────────────────────── */
@@ -726,6 +778,15 @@ export const selectLiveStatus = (st: RootState) => st.telemetry.liveStatus;
 
 // Compare mode selector
 export const selectIsCompareMode = (st: RootState) => st.telemetry.isCompareMode;
+export const selectCompareSensorIds = (st: RootState) => st.telemetry.compareSensorIds;
+
+// Per-sensor historical mode selectors
+export const selectSensorHistoricalMode = (st: RootState) => st.telemetry.sensorHistoricalMode;
+export const selectSensorTimeRanges = (st: RootState) => st.telemetry.sensorTimeRanges;
+export const selectIsSensorInHistoricalMode = (sensorId: string) => (st: RootState) => 
+  st.telemetry.sensorHistoricalMode[sensorId] || false;
+export const selectSensorTimeRange = (sensorId: string) => (st: RootState) => 
+  st.telemetry.sensorTimeRanges[sensorId];
 
 // Memoized selector for live sensors to prevent unnecessary re-renders
 export const selectLiveSensors = createSelector(

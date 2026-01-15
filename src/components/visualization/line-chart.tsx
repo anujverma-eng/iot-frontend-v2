@@ -207,6 +207,9 @@ export const LineChart: React.FC<LineChartProps> = ({
   const [brushDomain, setBrushDomain] = React.useState<{ startIndex?: number; endIndex?: number }>({});
   const [isZoomedIn, setIsZoomedIn] = React.useState(false);
   const [isInitialBrushSetup, setIsInitialBrushSetup] = React.useState(true);
+  
+  // Track previous data range to detect when data changes significantly (e.g., time range change)
+  const prevDataRangeRef = React.useRef<{ firstTs: number; lastTs: number; length: number } | null>(null);
 
   // Enhanced date formatting functions with performance optimization
   const formatTooltipDate = React.useCallback((timestamp: number) => {
@@ -585,10 +588,59 @@ export const LineChart: React.FC<LineChartProps> = ({
     // --- END REVISED LOGIC ---
   }, [config.type, config.unit]); // Only change when sensor type/unit changes
 
-  // Initialize brush domain when data changes (but don't trigger brush change callback)
+  // Reset brush when data changes significantly (e.g., different time range)
+  // This ensures the brush shows the full new data range instead of stale positions
   React.useEffect(() => {
-    if (orderedData.length > 2 && brushDomain.startIndex === undefined) { // Require minimum 3 data points
-      // Validate that we have valid timestamps in the data
+    if (orderedData.length < 3) {
+      // Not enough data for brush
+      prevDataRangeRef.current = null;
+      return;
+    }
+    
+    const firstTs = orderedData[0]?.timestamp;
+    const lastTs = orderedData[orderedData.length - 1]?.timestamp;
+    
+    if (!firstTs || !lastTs || isNaN(firstTs) || isNaN(lastTs)) {
+      return;
+    }
+    
+    const currentRange = { firstTs, lastTs, length: orderedData.length };
+    const prevRange = prevDataRangeRef.current;
+    
+    // Detect if the data range has changed significantly (different time range was selected)
+    // A significant change is when the time range shifted by more than 10% of its duration
+    // OR when the data length changed by more than 20%
+    let shouldResetBrush = false;
+    
+    if (!prevRange) {
+      // First data load - initialize brush
+      shouldResetBrush = true;
+    } else {
+      const prevDuration = prevRange.lastTs - prevRange.firstTs;
+      const currDuration = lastTs - firstTs;
+      
+      // Check if time range has shifted significantly (not just appended new data)
+      const startShift = Math.abs(firstTs - prevRange.firstTs);
+      const endShift = Math.abs(lastTs - prevRange.lastTs);
+      const durationThreshold = Math.max(prevDuration, currDuration) * 0.1;
+      
+      // Time range changed significantly (e.g., user selected different time range)
+      if (startShift > durationThreshold || endShift > durationThreshold) {
+        shouldResetBrush = true;
+      }
+      
+      // Data length changed significantly (e.g., different granularity or time range)
+      const lengthChange = Math.abs(orderedData.length - prevRange.length) / Math.max(prevRange.length, 1);
+      if (lengthChange > 0.2) {
+        shouldResetBrush = true;
+      }
+    }
+    
+    // Update ref with current range
+    prevDataRangeRef.current = currentRange;
+    
+    if (shouldResetBrush) {
+      // Validate timestamps before setting brush
       const hasValidTimestamps = orderedData.every(d => 
         d.timestamp && 
         typeof d.timestamp === 'number' && 
@@ -601,13 +653,17 @@ export const LineChart: React.FC<LineChartProps> = ({
         return;
       }
       
+      // Reset brush to show full data range
       setBrushDomain({
         startIndex: 0,
         endIndex: orderedData.length - 1
       });
+      setWindowTs(null);
+      setIsZoomedIn(false);
+      setZoomDomain(null);
       setIsInitialBrushSetup(true);
     }
-  }, [orderedData.length, brushDomain.startIndex]);
+  }, [orderedData]);
 
   // Handle brush change with window-based optimization
   const handleBrushChange = React.useCallback((brushData: any) => {

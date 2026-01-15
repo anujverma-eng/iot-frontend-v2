@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch } from '../store';
-import { fetchOptimizedTelemetry, selectTelemetryLoading } from '../store/telemetrySlice';
+import { fetchOptimizedTelemetry, selectTelemetryLoading, setCompareSensorIds } from '../store/telemetrySlice';
 import { addSelectedSensorId, removeSelectedSensorId, selectSelectedSensorIds } from '../store/sensorsSlice';
 import { createOptimizedTelemetryRequest } from '../utils/optimizationUtils';
 
@@ -41,6 +41,12 @@ export const useCompareSelection = (options: CompareSelectionOptions) => {
       abortControllerRef.current.abort();
     }
   }, []);
+
+  // Sync compare sensor IDs to telemetry slice for live data filtering
+  // This ensures addLiveData knows which sensors are being compared
+  useEffect(() => {
+    dispatch(setCompareSensorIds(selectedSensorIds));
+  }, [dispatch, selectedSensorIds]);
 
   // Clear loading states when telemetry loading completes
   useEffect(() => {

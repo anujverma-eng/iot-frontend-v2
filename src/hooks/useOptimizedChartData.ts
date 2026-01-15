@@ -12,15 +12,12 @@
  */
 
 import React from 'react';
-import { useSelector, useDispatch } from 'react-redux';
+import { useSelector } from 'react-redux';
 import { ChartConfig } from '../types/sensor';
-import { AppDispatch } from '../store';
 import { 
   selectTelemetryData, 
-  selectTelemetryLoading, 
-  selectMaxLiveReadings 
+  selectTelemetryLoading,
 } from '../store/telemetrySlice';
-import { selectIsLiveMode } from '../store/liveDataSlice';
 
 export interface OptimizedChartData {
   // Raw data (for reference)
@@ -55,8 +52,6 @@ export function useOptimizedChartData(
   // Get telemetry data from Redux (already optimized by backend)
   const telemetryData = useSelector(selectTelemetryData);
   const isLoading = useSelector(selectTelemetryLoading);
-  const isLiveMode = useSelector(selectIsLiveMode);
-  const maxLiveReadings = useSelector(selectMaxLiveReadings);
 
   // Process backend-optimized data
   const optimizedResult = React.useMemo(() => {
@@ -95,6 +90,9 @@ export function useOptimizedChartData(
     }
 
     // Use the series data directly from config (already optimized)
+    // NOTE: Live mode slicing is already handled by the parent component (solo-view.tsx, analytics.tsx)
+    // based on per-sensor historical mode. Do NOT slice again here based on global isLiveMode
+    // as that would incorrectly limit data for sensors that are in historical/offline mode.
     let seriesData = config.series || [];
     
     if (!seriesData.length) {
@@ -110,11 +108,6 @@ export function useOptimizedChartData(
         isProcessing: false,
         memoryFootprintMB: 0
       };
-    }
-
-    // Apply live mode slicing if needed
-    if (isLiveMode && seriesData.length > maxLiveReadings) {
-      seriesData = seriesData.slice(-maxLiveReadings);
     }
     
     // Data is already in the right format, just ensure timestamp is number
@@ -150,7 +143,7 @@ export function useOptimizedChartData(
     }
 
     return result;
-  }, [config, telemetryData, isLoading, isLiveMode, maxLiveReadings]);
+  }, [config, telemetryData, isLoading]);
 
   return optimizedResult;
 }

@@ -12,7 +12,6 @@ import { Icon } from "@iconify/react";
 import React from "react";
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch } from '../../store';
-import { selectIsLiveMode } from '../../store/liveDataSlice';
 import { fetchTableData, selectTableData, selectTableLoading } from '../../store/telemetrySlice';
 import { ChartConfig, DataPoint } from '../../types/sensor';
 import { formatNumericValue } from "../../utils/numberUtils";
@@ -39,6 +38,8 @@ interface TableViewProps {
   };
   onControlsReady?: (controls: TableControlsState) => void;
   hideInternalControls?: boolean; // Option to hide built-in controls when rendered externally
+  /** Per-sensor live mode - when true, use live chart data. When false, fetch from API */
+  isLiveMode?: boolean;
 }
 
 interface TableDataItem {
@@ -59,10 +60,15 @@ export const TableView: React.FC<TableViewProps> = ({
   sensorId, 
   timeRange,
   onControlsReady,
-  hideInternalControls = false
+  hideInternalControls = false,
+  isLiveMode: externalIsLiveMode,
 }) => {
   const dispatch = useDispatch<AppDispatch>();
-  const isLiveMode = useSelector(selectIsLiveMode);
+  
+  // Use external isLiveMode if provided (per-sensor mode from parent)
+  // This is the preferred approach - parent knows the sensor's actual mode
+  const isLiveMode = externalIsLiveMode ?? false; // Default to historical mode for safety
+  
   const tableData = useSelector(selectTableData);
   const isTableLoading = useSelector(selectTableLoading);
 

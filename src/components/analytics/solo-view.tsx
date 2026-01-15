@@ -21,7 +21,7 @@ import { chartColors } from "../../data/analytics";
 import { useOptimizedDataFetch } from "../../hooks/useOptimizedDataFetch";
 import { AppDispatch, RootState } from "../../store";
 import { fetchGateways, selectGateways } from "../../store/gatewaySlice";
-import { selectIsConnecting, selectIsLiveMode, toggleLiveMode } from "../../store/liveDataSlice";
+import { initializeLiveConnection, selectIsConnecting, selectIsLiveMode } from "../../store/liveDataSlice";
 import {
   fetchSensorById,
   fetchSensors,
@@ -38,6 +38,7 @@ import {
   selectMaxLiveReadings,
   selectTelemetryData,
   selectTelemetryLoading,
+  setSensorHistoricalMode,
   setTimeRange,
 } from "../../store/telemetrySlice";
 import { ChartConfig, SensorType } from "../../types/sensor";
@@ -53,9 +54,9 @@ import ExportConfirmationModal from "../ExportConfirmationModal";
 import TelemetryService, { EstimateExportResponse } from "../../api/telemetry.service";
 import { useBreakpoints } from "../../hooks/use-media-query";
 import { useLiveDataReadiness } from "../../hooks/useLiveDataReadiness";
-import { useLiveModeTransition } from "../../hooks/useLiveModeTransition";
 import { useOfflineDetectionIntegration } from "../../hooks/useOfflineDetectionIntegration";
 import { createOptimizedChartConfig, useOptimizedChartData } from "../../hooks/useOptimizedChartData";
+import { useSensorModeTransition } from "../../hooks/useSensorModeTransition";
 import { LiveReadingsSelector } from "./live-readings-selector";
 import { TableView } from "./table-view";
 import { TimeRangeSelector } from "./time-range-selector";
@@ -69,15 +70,21 @@ interface SoloViewParams {
 interface SoloViewProps {
   // When embedded inline, skip auto-enable live mode behavior
   isEmbedded?: boolean;
+  // Sensor ID to use when embedded (since URL params won't be set)
+  embeddedSensorId?: string;
   // When true, shows only the selected tab content in fullscreen mode
   isFullscreen?: boolean;
   // Callback to exit fullscreen mode
   onExitFullscreen?: () => void;
 }
 
-export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullscreen = false, onExitFullscreen }) => {
+export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, embeddedSensorId, isFullscreen = false, onExitFullscreen }) => {
   const navigate = useNavigate();
-  const { sensorId } = useParams<SoloViewParams>();
+  const { sensorId: urlSensorId } = useParams<SoloViewParams>();
+  
+  // When embedded, use the passed sensorId prop; otherwise use URL param
+  const sensorId = isEmbedded ? embeddedSensorId : urlSensorId;
+  
   const dispatch = useDispatch<AppDispatch>();
 
   // Capture inherited mode from URL only once on mount
@@ -125,56 +132,26 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
   const [starLoading, setStarLoading] = React.useState(false);
   const chartRef = React.useRef<HTMLDivElement>(null);
 
-  // Live mode state - use centralized Redux state directly (no local state)
-  const isLiveMode = useSelector(selectIsLiveMode);
+  // Live mode state - use per-sensor historical mode from telemetry slice
+  const globalIsLiveMode = useSelector(selectIsLiveMode);
   const isConnecting = useSelector(selectIsConnecting);
   const maxLiveReadings = useSelector(selectMaxLiveReadings);
-
-  // Derive live status from centralized state
-  const liveStatus = isConnecting ? "connecting" : isLiveMode ? "connected" : "disconnected";
 
   // Use optimized data fetch hook for efficient live data updates
   const { fetchData: fetchOptimizedData, cancelPendingRequests } = useOptimizedDataFetch();
 
-  // Add live mode transition detection for automatic data refresh
-  // Skip when embedded - parent (analytics page) handles transitions
-  useLiveModeTransition(
-    // onLiveToOffline - refresh data when switching to offline mode
-    () => {
-      // Skip when embedded - parent handles data refresh
-      if (isEmbedded) return;
+  // Use the per-sensor mode transition hook
+  // This automatically fetches the appropriate data when switching between live/historical modes
+  // When embedded, parent handles transitions so disable this hook
+  const { isLiveMode, isHistoricalMode } = useSensorModeTransition({
+    sensorId: sensorId || null,
+    pageContext: 'solo-view',
+    chartType: 'line-chart',
+    disabled: isEmbedded, // Parent handles transitions when embedded
+  });
 
-      if (sensorId) {
-        // Force re-fetch data with current time range when switching to offline
-        fetchOptimizedData(
-          {
-            sensorIds: [sensorId],
-            timeRange: filters.timeRange,
-            pageContext: "solo-view",
-          },
-          true
-        ); // Force immediate execution
-      }
-    },
-    // onOfflineToLive - fetch fresh historical data to fill any gap, then MQTT will append new readings
-    () => {
-      // Skip when embedded - parent handles data refresh
-      if (isEmbedded) return;
-
-      if (sensorId) {
-        // useOptimizedDataFetch hook automatically adds +1 minute buffer to end time when in live mode
-        // and adds liveMode: { enabled: true, maxReadings } for backend to return raw readings
-        fetchOptimizedData(
-          {
-            sensorIds: [sensorId],
-            timeRange: filters.timeRange,
-            pageContext: "solo-view",
-          },
-          true
-        ); // Force immediate execution
-      }
-    }
-  );
+  // Derive live status from centralized state
+  const liveStatus = isConnecting ? "connecting" : isLiveMode ? "connected" : "disconnected";
 
   // Add live data readiness to prevent flickering (similar to analytics page)
   // Detect if we're filtering for offline sensors
@@ -415,70 +392,46 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
     }
   }, [dispatch, activeOrgStatus, activeOrgId]);
 
-  // Auto-enable live mode when solo-view loads (only if no inherited mode or inherited mode is live)
-  // Skip auto-enable when embedded inline (uses parent's live mode state)
+  // Handle inherited mode from URL (live/offline) and apply per-sensor historical mode
+  // MQTT connection is now auto-managed at the app level, so we only need to handle 
+  // the per-sensor historical mode setting based on URL parameter
   React.useEffect(() => {
-    // Skip auto-enable behavior when embedded inline - preserve parent's mode
+    // Skip when embedded inline - preserve parent's mode
     if (isEmbedded) {
       setHasAttemptedAutoEnable(true);
       setHasAppliedInheritedMode(true);
       return;
     }
 
-    let autoEnableTimer: NodeJS.Timeout;
-
-    // Wait for gateways to be loaded and component to be initialized
-    if (gateways.length > 0 && !isLiveMode && !initialLoading && !hasAppliedInheritedMode) {
-      // Apply inherited mode from URL only once
-      if (hasInheritedMode) {
-        // If inherited mode is "live", enable live mode
-        if (inheritedMode === "live") {
-          autoEnableTimer = setTimeout(async () => {
-            try {
-              const gatewayIds = gateways.map((gateway) => gateway._id).slice(0, 10); // Limit to prevent too many subscriptions
-
-              if (gatewayIds.length > 0) {
-                await dispatch(toggleLiveMode({ enable: true })).unwrap();
-              }
-            } catch (error) {
-              // Error handled silently
-            } finally {
-              // Mark both auto-enable and inherited mode application as completed
-              setHasAttemptedAutoEnable(true);
-              setHasAppliedInheritedMode(true);
-            }
-          }, 500); // Shorter delay since we know the intended state
-        } else {
-          // If inherited mode is "offline", stay in offline mode
-          setHasAttemptedAutoEnable(true);
-          setHasAppliedInheritedMode(true);
-        }
-      } else {
-        // Default behavior: auto-enable live mode if no inherited state
-        autoEnableTimer = setTimeout(async () => {
-          try {
-            const gatewayIds = gateways.map((gateway) => gateway._id).slice(0, 10); // Limit to prevent too many subscriptions
-
-            if (gatewayIds.length > 0) {
-              await dispatch(toggleLiveMode({ enable: true })).unwrap();
-            }
-          } catch (error) {
-            // Error handled silently
-          } finally {
-            // Mark both auto-enable and inherited mode application as completed
-            setHasAttemptedAutoEnable(true);
-            setHasAppliedInheritedMode(true);
-          }
-        }, 1500); // Slightly longer delay for solo-view
+    // Apply inherited mode from URL if specified
+    if (hasInheritedMode && sensorId && !hasAppliedInheritedMode) {
+      // If inherited mode is "offline", set this sensor to historical mode
+      if (inheritedMode === "offline") {
+        dispatch(setSensorHistoricalMode({
+          sensorId,
+          isHistorical: true,
+          timeRange: filters.timeRange
+        }));
+      } else if (inheritedMode === "live") {
+        // Clear historical mode for this sensor if URL says live
+        dispatch(setSensorHistoricalMode({
+          sensorId,
+          isHistorical: false
+        }));
       }
+      setHasAttemptedAutoEnable(true);
+      setHasAppliedInheritedMode(true);
+    } else if (!hasInheritedMode && sensorId && !hasAppliedInheritedMode) {
+      // Default behavior: sensor starts in live mode (no historical mode set)
+      // Clear any previous historical mode that might exist
+      dispatch(setSensorHistoricalMode({
+        sensorId,
+        isHistorical: false
+      }));
+      setHasAttemptedAutoEnable(true);
+      setHasAppliedInheritedMode(true);
     }
-
-    return () => {
-      if (autoEnableTimer) {
-        clearTimeout(autoEnableTimer);
-      }
-    };
-  }, [gateways, isLiveMode, initialLoading, dispatch, hasAppliedInheritedMode, isEmbedded]); // Removed hasInheritedMode and inheritedMode from deps
+  }, [sensorId, hasInheritedMode, inheritedMode, hasAppliedInheritedMode, isEmbedded, dispatch, filters.timeRange]);
 
   /*****************************************************************************
    * 2️⃣  Ensure we always have a “selected” sensor
@@ -751,31 +704,37 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
   };
 
   const handleLiveModeChange = async (isLive: boolean) => {
-    try {
-      // Use centralized toggle - it handles all gateway discovery and connection logic
-      await dispatch(toggleLiveMode({ enable: isLive })).unwrap();
+    if (!sensorId) return;
+    
+    // Use per-sensor historical mode instead of global toggle
+    // This only affects the currently selected sensor, not the whole app
+    dispatch(setSensorHistoricalMode({
+      sensorId,
+      isHistorical: !isLive,
+      timeRange: !isLive ? filters.timeRange : undefined
+    }));
 
-      // Update URL parameter to reflect user's choice (optional - keeps URL in sync)
-      const currentUrl = new URL(window.location.href);
-      currentUrl.searchParams.set("mode", isLive ? "live" : "offline");
-      window.history.replaceState({}, "", currentUrl.toString());
-    } catch (error) {
-      // Error handled silently
-    }
+    // Update URL parameter to reflect user's choice (optional - keeps URL in sync)
+    const currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.set("mode", isLive ? "live" : "offline");
+    window.history.replaceState({}, "", currentUrl.toString());
   };
 
   const handleRetryConnection = async () => {
     try {
-      // Simply disable and re-enable using centralized logic
-      await dispatch(toggleLiveMode({ enable: false })).unwrap();
-
-      // Small delay before reconnecting
-      setTimeout(async () => {
-        try {
-          await dispatch(toggleLiveMode({ enable: true })).unwrap();
-        } catch (retryError) {}
-      }, 1000);
-    } catch (error) {}
+      // Re-initialize the MQTT connection using centralized logic
+      await dispatch(initializeLiveConnection()).unwrap();
+      
+      // Also clear historical mode for current sensor so it shows live data
+      if (sensorId) {
+        dispatch(setSensorHistoricalMode({
+          sensorId,
+          isHistorical: false,
+        }));
+      }
+    } catch (error) {
+      // Error handled silently
+    }
   };
 
   const handleDownloadCSV = async () => {
@@ -1256,6 +1215,7 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
                           sensorId={sensorId || ""}
                           timeRange={filters.timeRange}
                           onDownloadCSV={handleDownloadCSV}
+                          isLiveMode={isLiveMode}
                         />
                       ) : (
                         <div className="h-full flex items-center justify-center">
@@ -1492,7 +1452,7 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
                     </div>
                   </Tab>
                   <Tab key="table" title={isSmallScreen ? "Table" : "Table View"}>
-                    <div className={`${isMobileDevice ? "h-[400px] overflow-auto" : ""}`}>
+                    <div className={`${isMobileDevice ? "h-[400px]" : "max-h-[500px]"} overflow-auto`}>
                       {/* Show offline sensor waiting state in table view too - only in live mode */}
                       {isSensorOffline && isLiveMode ? (
                         <div className="h-full flex flex-col items-center justify-center p-8 text-center">
@@ -1519,6 +1479,7 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, isFullsc
                           sensorId={sensorId || ""}
                           timeRange={filters.timeRange}
                           onDownloadCSV={handleDownloadCSV}
+                          isLiveMode={isLiveMode}
                         />
                       ) : (
                         <div className="h-full flex flex-col items-center justify-center p-8 text-center">

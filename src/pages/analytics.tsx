@@ -69,13 +69,15 @@ import {
   selectMaxLiveReadings,
   selectIsCompareMode,
   setCompareMode,
+  setSensorHistoricalMode,
+  selectSensorHistoricalMode,
 } from "../store/telemetrySlice";
 import { createOptimizedTelemetryRequest } from "../utils/optimizationUtils";
-import { selectIsLiveMode, selectIsConnecting, toggleLiveMode } from "../store/liveDataSlice";
+import { selectIsLiveMode, selectIsConnecting } from "../store/liveDataSlice";
 import { useDebouncedSensorSelection } from "../hooks/useDebouncedSensorSelection";
 import { useLiveDataReadiness } from "../hooks/useLiveDataReadiness";
-import { useLiveModeTransition } from "../hooks/useLiveModeTransition";
 import { useCompareSelection } from "../hooks/useCompareSelection";
+import { useSensorModeTransition } from "../hooks/useSensorModeTransition";
 import { ChartConfig, FilterState, MultiSeriesConfig, SensorStatus, SensorType } from "../types/sensor";
 import { sortSensorsByBattery } from "../utils/battery"; // Import battery sorting utility
 import ExportConfirmationModal from "../components/ExportConfirmationModal";
@@ -189,11 +191,14 @@ export const AnalyticsPage: React.FC = () => {
   const gateways = useSelector(selectGateways);
 
   // Live mode Redux state (now centralized)
-  const isLiveMode = useSelector(selectIsLiveMode);
+  const globalIsLiveMode = useSelector(selectIsLiveMode); // Global MQTT connection state
   const isConnecting = useSelector(selectIsConnecting);
   const liveSensors = useSelector(selectLiveSensors);
   const maxLiveReadings = useSelector(selectMaxLiveReadings);
   const isCompareMode = useSelector(selectIsCompareMode);
+  
+  // Per-sensor historical mode state
+  const sensorHistoricalMode = useSelector(selectSensorHistoricalMode);
 
   // Organization status selectors
   const activeOrgStatus = useSelector((state: RootState) => state.activeOrg?.status);
@@ -225,18 +230,25 @@ export const AnalyticsPage: React.FC = () => {
 
       // Then trigger telemetry data fetch with the new time range
       if (selectedSensor) {
+        // Determine if sensor intends live mode (not in historical mode)
+        const sensorIntendsLive = !sensorHistoricalMode[selectedSensor];
+        // Add +5 minute buffer for live mode to account for network latency
+        const endTime = sensorIntendsLive 
+          ? new Date(pendingFilters.timeRange.end.getTime() + 5 * 60 * 1000)
+          : pendingFilters.timeRange.end;
+
         const request = createOptimizedTelemetryRequest({
           sensorIds: [selectedSensor],
           timeRange: {
             start: pendingFilters.timeRange.start.toISOString(),
-            end: pendingFilters.timeRange.end.toISOString(),
+            end: endTime.toISOString(),
           },
           context: {
             page: isSoloMode ? "solo-view" : "analytics",
             chartType: isSoloMode ? "line-chart" : "line-chart",
             isComparison: false, // Single sensor mode
           },
-          liveMode: isLiveMode ? { enabled: true, maxReadings: maxLiveReadings } : undefined,
+          liveMode: sensorIntendsLive ? { enabled: true, maxReadings: maxLiveReadings } : undefined,
         });
 
         dispatch(fetchOptimizedTelemetry(request));
@@ -244,18 +256,24 @@ export const AnalyticsPage: React.FC = () => {
 
       // Also fetch data for comparison sensors if in compare mode
       if (selectedSensorIds.length > 0) {
+        // Check if any sensor intends live mode
+        const anyIntendsLive = selectedSensorIds.some(id => !sensorHistoricalMode[id]);
+        const endTime = anyIntendsLive 
+          ? new Date(pendingFilters.timeRange.end.getTime() + 5 * 60 * 1000)
+          : pendingFilters.timeRange.end;
+
         const request = createOptimizedTelemetryRequest({
           sensorIds: selectedSensorIds,
           timeRange: {
             start: pendingFilters.timeRange.start.toISOString(),
-            end: pendingFilters.timeRange.end.toISOString(),
+            end: endTime.toISOString(),
           },
           context: {
             page: "analytics",
             chartType: "comparison",
             isComparison: true, // Comparison mode
           },
-          liveMode: isLiveMode ? { enabled: true, maxReadings: maxLiveReadings } : undefined,
+          liveMode: anyIntendsLive ? { enabled: true, maxReadings: maxLiveReadings } : undefined,
         });
 
         dispatch(fetchOptimizedTelemetry(request));
@@ -266,95 +284,6 @@ export const AnalyticsPage: React.FC = () => {
       setIsMobileFilterDrawerOpen(false);
     }
   };
-
-  // Add live mode transition detection for automatic data refresh
-  useLiveModeTransition(
-    // onLiveToOffline - refresh data when switching to offline mode
-    () => {
-      if (selectedSensor) {
-        // Force re-fetch data with current time range when switching to offline
-        const request = createOptimizedTelemetryRequest({
-          sensorIds: [selectedSensor],
-          timeRange: {
-            start: filters.timeRange.start.toISOString(),
-            end: filters.timeRange.end.toISOString(),
-          },
-          context: {
-            page: isSoloMode ? "solo-view" : "analytics",
-            chartType: isSoloMode ? "line-chart" : "line-chart",
-            isComparison: false, // Single sensor mode
-          },
-          liveMode: isLiveMode ? { enabled: true, maxReadings: maxLiveReadings } : undefined,
-        });
-
-        dispatch(fetchOptimizedTelemetry(request));
-      }
-
-      // Also refresh comparison data if active
-      if (selectedSensorIds.length > 0) {
-        const request = createOptimizedTelemetryRequest({
-          sensorIds: selectedSensorIds,
-          timeRange: {
-            start: filters.timeRange.start.toISOString(),
-            end: filters.timeRange.end.toISOString(),
-          },
-          context: {
-            page: "analytics",
-            chartType: "comparison",
-            isComparison: true, // Comparison mode
-          },
-          liveMode: isLiveMode ? { enabled: true, maxReadings: maxLiveReadings } : undefined,
-        });
-
-        dispatch(fetchOptimizedTelemetry(request));
-      }
-    },
-    // onOfflineToLive - fetch fresh historical data to fill any gap, then MQTT will append new readings
-    () => {
-      if (selectedSensor) {
-        // Update end time to NOW + 5 minute buffer to account for network latency
-        // This ensures we don't miss any readings due to timing differences
-        const now = new Date();
-        const endWithBuffer = new Date(now.getTime() + 5 * 60 * 1000); // +5 minute buffer
-        const request = createOptimizedTelemetryRequest({
-          sensorIds: [selectedSensor],
-          timeRange: {
-            start: filters.timeRange.start.toISOString(),
-            end: endWithBuffer.toISOString(), // Use current time + 1 min buffer to fill the gap
-          },
-          context: {
-            page: isSoloMode ? "solo-view" : "analytics",
-            chartType: isSoloMode ? "line-chart" : "line-chart",
-            isComparison: false, // Single sensor mode
-          },
-          liveMode: { enabled: true, maxReadings: maxLiveReadings },
-        });
-
-        dispatch(fetchOptimizedTelemetry(request));
-      }
-
-      // Also refresh comparison data if active
-      if (selectedSensorIds.length > 0) {
-        const now = new Date();
-        const endWithBuffer = new Date(now.getTime() + 5 * 60 * 1000); // +5 minute buffer
-        const request = createOptimizedTelemetryRequest({
-          sensorIds: selectedSensorIds,
-          timeRange: {
-            start: filters.timeRange.start.toISOString(),
-            end: endWithBuffer.toISOString(), // Use current time + 1 min buffer to fill the gap
-          },
-          context: {
-            page: "analytics",
-            chartType: "comparison",
-            isComparison: true, // Comparison mode
-          },
-          liveMode: { enabled: true, maxReadings: maxLiveReadings },
-        });
-
-        dispatch(fetchOptimizedTelemetry(request));
-      }
-    }
-  );
 
   // --- local search text (controlled input) ----------------------------
   const [searchQuery, setSearchQuery] = React.useState(filters.search || "");
@@ -372,6 +301,30 @@ export const AnalyticsPage: React.FC = () => {
 
   // Add state for selected sensor
   const [selectedSensor, setSelectedSensor] = React.useState<string | null>(null);
+
+  // Use the per-sensor mode transition hook
+  // This automatically fetches the appropriate data when switching between live/historical modes
+  const { isLiveMode, isHistoricalMode, fetchHistoricalData, fetchLiveInitialData } = useSensorModeTransition({
+    sensorId: selectedSensor,
+    pageContext: isSoloMode ? 'solo-view' : 'analytics',
+    chartType: 'line-chart',
+    disabled: false,
+  });
+
+  // Handler for when user toggles live/offline for current sensor
+  // Note: The useSensorModeTransition hook handles automatic data fetching on mode change
+  const handleSensorLiveModeChange = React.useCallback((isLive: boolean) => {
+    if (!selectedSensor) return;
+    
+    // When switching to live mode, clear historical mode for this sensor
+    // When switching to historical mode, set historical mode for this sensor
+    dispatch(setSensorHistoricalMode({
+      sensorId: selectedSensor,
+      isHistorical: !isLive,
+      timeRange: !isLive ? filters.timeRange : undefined
+    }));
+    // Data fetching is handled by useSensorModeTransition hook
+  }, [dispatch, selectedSensor, filters.timeRange]);
 
   // Time range validation state - removed since backend handles optimization
   // const [timeRangeValidation, setTimeRangeValidation] = React.useState<TimeRangeValidationResult | null>(null);
@@ -506,7 +459,9 @@ export const AnalyticsPage: React.FC = () => {
   };
 
   const syncLiveMode = (isLive: boolean) => {
-    dispatch(toggleLiveMode({ enable: isLive })); // This sets the live mode in Redux
+    // Use per-sensor historical mode instead of global toggle
+    // This only affects the currently selected sensor, not the whole app
+    handleSensorLiveModeChange(isLive);
   };
 
   // Fetch sensors on component mount
@@ -800,9 +755,14 @@ export const AnalyticsPage: React.FC = () => {
       timeRangeToUse.end.setHours(23, 59, 59, 999);
     }
 
-    // In live mode, add +1 minute buffer to end time to account for network latency
-    // This ensures we don't miss any readings due to timing differences
-    if (isLiveMode) {
+    // Determine if we INTEND to be in live mode for this sensor
+    // Use sensorHistoricalMode to check intent, not isLiveMode (which depends on MQTT connection)
+    // This ensures we add buffer even on initial load before MQTT connects
+    const sensorIntendsLiveMode = !sensorHistoricalMode[selectedSensor];
+
+    // In live mode (or intending live mode), add +5 minute buffer to end time
+    // This ensures we don't miss any readings due to timing differences or network latency
+    if (sensorIntendsLiveMode) {
       timeRangeToUse.end = new Date(timeRangeToUse.end.getTime() + 5 * 60 * 1000);
     }
 
@@ -817,14 +777,14 @@ export const AnalyticsPage: React.FC = () => {
         chartType: isSoloMode ? "line-chart" : "line-chart",
         isComparison: false, // Single sensor mode is never comparison
       },
-      liveMode: isLiveMode ? { enabled: true, maxReadings: maxLiveReadings } : undefined,
+      liveMode: sensorIntendsLiveMode ? { enabled: true, maxReadings: maxLiveReadings } : undefined,
     });
 
     dispatch(fetchOptimizedTelemetry(request));
   }, [
     selectedSensor,
     timeRangeKey,
-    isLiveMode,
+    sensorHistoricalMode,
     filters.timeRange,
     dispatch,
     isSoloMode,
@@ -841,8 +801,10 @@ export const AnalyticsPage: React.FC = () => {
   React.useEffect(() => {
     if (selectedSensorIds.length > 0 && !isCompareMode) {
       // Only fetch here if NOT in compare mode (compare mode uses useCompareSelection hook)
-      // In live mode, add +1 minute buffer to end time to account for network latency
-      const endTime = isLiveMode ? new Date(filters.timeRange.end.getTime() + 5 * 60 * 1000) : filters.timeRange.end;
+      // Check if any sensor intends live mode (not in historical mode)
+      const anyIntendsLive = selectedSensorIds.some(id => !sensorHistoricalMode[id]);
+      // In live mode, add +5 minute buffer to end time to account for network latency
+      const endTime = anyIntendsLive ? new Date(filters.timeRange.end.getTime() + 5 * 60 * 1000) : filters.timeRange.end;
 
       const request = createOptimizedTelemetryRequest({
         sensorIds: selectedSensorIds,
@@ -855,12 +817,12 @@ export const AnalyticsPage: React.FC = () => {
           chartType: "comparison",
           isComparison: false, // Not comparison mode here
         },
-        liveMode: isLiveMode ? { enabled: true, maxReadings: maxLiveReadings } : undefined,
+        liveMode: anyIntendsLive ? { enabled: true, maxReadings: maxLiveReadings } : undefined,
       });
 
       dispatch(fetchOptimizedTelemetry(request));
     }
-  }, [selectedSensorIds, filters.timeRange, isLiveMode, maxLiveReadings, dispatch, isCompareMode]); // Added isCompareMode dependency
+  }, [selectedSensorIds, filters.timeRange, sensorHistoricalMode, maxLiveReadings, dispatch, isCompareMode]);
 
   const handleSensorSelect = (id: string) => {
     // No need to cancel - optimized fetch will handle deduplication
@@ -914,18 +876,25 @@ export const AnalyticsPage: React.FC = () => {
 
       // 3. Force-fetch data with the new time range
       if (selectedSensor) {
+        // Determine if sensor intends live mode (not in historical mode)
+        const sensorIntendsLive = !sensorHistoricalMode[selectedSensor];
+        // Add +5 minute buffer for live mode
+        const endTime = sensorIntendsLive 
+          ? new Date(timeRange.end.getTime() + 5 * 60 * 1000)
+          : timeRange.end;
+
         const request = createOptimizedTelemetryRequest({
           sensorIds: [selectedSensor],
           timeRange: {
             start: timeRange.start.toISOString(),
-            end: timeRange.end.toISOString(),
+            end: endTime.toISOString(),
           },
           context: {
             page: isSoloMode ? "solo-view" : "analytics",
             chartType: isSoloMode ? "line-chart" : "line-chart",
             isComparison: false, // Single sensor mode
           },
-          liveMode: isLiveMode ? { enabled: true, maxReadings: maxLiveReadings } : undefined,
+          liveMode: sensorIntendsLive ? { enabled: true, maxReadings: maxLiveReadings } : undefined,
         });
 
         dispatch(fetchOptimizedTelemetry(request));
@@ -933,18 +902,24 @@ export const AnalyticsPage: React.FC = () => {
 
       // Also fetch for comparison mode
       if (selectedSensorIds.length > 0) {
+        // Check if any sensor intends live mode
+        const anyIntendsLive = selectedSensorIds.some(id => !sensorHistoricalMode[id]);
+        const endTime = anyIntendsLive 
+          ? new Date(timeRange.end.getTime() + 5 * 60 * 1000)
+          : timeRange.end;
+
         const request = createOptimizedTelemetryRequest({
           sensorIds: selectedSensorIds,
           timeRange: {
             start: timeRange.start.toISOString(),
-            end: timeRange.end.toISOString(),
+            end: endTime.toISOString(),
           },
           context: {
             page: "analytics",
             chartType: "comparison",
             isComparison: true, // Comparison mode
           },
-          liveMode: isLiveMode ? { enabled: true, maxReadings: maxLiveReadings } : undefined,
+          liveMode: anyIntendsLive ? { enabled: true, maxReadings: maxLiveReadings } : undefined,
         });
 
         dispatch(fetchOptimizedTelemetry(request));
@@ -1571,7 +1546,12 @@ export const AnalyticsPage: React.FC = () => {
         </div>
 
         {/* Embedded SoloView - preserves current live/offline mode */}
-        <SoloView isEmbedded={true} isFullscreen={isFullscreenTab} onExitFullscreen={() => setIsFullscreenTab(false)} />
+        <SoloView 
+          isEmbedded={true} 
+          embeddedSensorId={selectedSensor || undefined}
+          isFullscreen={isFullscreenTab} 
+          onExitFullscreen={() => setIsFullscreenTab(false)} 
+        />
 
         {/* Export Modal for inline detail view */}
         <ExportConfirmationModal

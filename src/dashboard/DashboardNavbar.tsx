@@ -18,14 +18,13 @@ import { Icon } from "@iconify/react";
 import { cn } from "../lib/utils";
 import { useAppDispatch, useAppSelector } from "../hooks/useAppDispatch";
 import { logout } from "../store/authSlice";
-import { selectIsLiveMode, selectIsConnecting, toggleLiveMode } from "../store/liveDataSlice";
+import { selectIsLiveMode, selectIsConnecting } from "../store/liveDataSlice";
 import { selectIsCompareMode } from "../store/telemetrySlice";
 import { selectActiveOrgName, selectActiveOrgStatus } from "../store/activeOrgSlice";
 import { OrgSelector } from "../components/OrgSelector";
 import { CreateOrganizationModal } from "../components/CreateOrganizationModal";
 import { canUserCreateOrganization } from "../utils/organizationUtils";
 import { useNavigate } from "react-router-dom";
-import { PermissionButton } from "../components/PermissionButton";
 import { getPermissionValue } from "../constants/permissions";
 
 interface DashboardNavbarProps {
@@ -60,7 +59,6 @@ export const DashboardNavbar = ({ onMenuToggle, className, style }: DashboardNav
   const activeOrgStatus = useAppSelector(selectActiveOrgStatus);
   const isLiveMode = useAppSelector(selectIsLiveMode);
   const isConnecting = useAppSelector(selectIsConnecting);
-  const isCompareMode = useAppSelector(selectIsCompareMode);
 
   // Check if user can create organization
   const memberships = profile.data?.memberships || [];
@@ -74,10 +72,6 @@ export const DashboardNavbar = ({ onMenuToggle, className, style }: DashboardNav
   /* Avatar fallback: first letter of e‑mail or a user icon  */
   const avatarFallback =
     userEmail && !isBusy ? userEmail.charAt(0).toUpperCase() : <Icon icon="lucide:user" className="text-blue-400" />;
-
-  const handleLiveModeToggle = () => {
-    dispatch(toggleLiveMode({ enable: !isLiveMode }));
-  };
 
   return (
     <Navbar
@@ -125,36 +119,21 @@ export const DashboardNavbar = ({ onMenuToggle, className, style }: DashboardNav
         {/* Organization Selector */}
         <OrgSelector />
 
-        {/* Live mode controls - Hidden in compare mode */}
-        {!isCompareMode && (
-          <Tooltip
-            content={
-              isConnecting
-                ? "Connecting to live data..."
-                : isLiveMode
-                  ? "Live mode is active - Click to disable"
-                  : "Live mode is disabled - Click to enable"
-            }
-          >
-            <PermissionButton
-              permission={getPermissionValue('SENSORS', 'LIVE')}
-              size="sm"
-              variant="flat"
-              color={isLiveMode ? "success" : "default"}
-              onPress={handleLiveModeToggle}
-              isLoading={isConnecting}
-              className={cn("transition-all duration-200", isLiveMode && "animate-pulse")}
-              lockedTooltip="You need 'sensors.live' permission to control live mode"
-              startContent={
-                isConnecting ? (
-                  <Icon icon="" className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Icon icon={isLiveMode ? "lucide:radio" : "lucide:wifi-off"} className="h-4 w-4" />
-                )
-              }
-            >
-              {isConnecting ? "Connecting..." : isLiveMode ? "Live" : "Offline"}
-            </PermissionButton>
+        {/* Live connection status indicator - just shows connection state, no toggle */}
+        {/* {isLiveMode && (
+          <Tooltip content="Live data connection is active">
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-success-100/50 dark:bg-success-900/30">
+              <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
+              <span className="text-xs font-medium text-success-700 dark:text-success-400">Live</span>
+            </div>
+          </Tooltip>
+        )} */}
+        {isConnecting && (
+          <Tooltip content="Connecting to live data...">
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-warning-100/50 dark:bg-warning-900/30">
+              <Icon icon="lucide:loader-2" className="w-3 h-3 text-warning animate-spin" />
+              <span className="text-xs font-medium text-warning-700 dark:text-warning-400">Connecting</span>
+            </div>
           </Tooltip>
         )}
         {/* <Button isIconOnly variant="light" size="sm" className="text-default-500">
