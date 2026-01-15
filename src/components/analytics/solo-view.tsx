@@ -1452,7 +1452,7 @@ export const SoloView: React.FC<SoloViewProps> = ({ isEmbedded = false, embedded
                     </div>
                   </Tab>
                   <Tab key="table" title={isSmallScreen ? "Table" : "Table View"}>
-                    <div className={`${isMobileDevice ? "h-[400px]" : "max-h-[500px]"} overflow-auto`}>
+                    <div>
                       {/* Show offline sensor waiting state in table view too - only in live mode */}
                       {isSensorOffline && isLiveMode ? (
                         <div className="h-full flex flex-col items-center justify-center p-8 text-center">

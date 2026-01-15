@@ -477,7 +477,7 @@ export const TableView: React.FC<TableViewProps> = ({
   };
 
   return (
-    <div className="w-full h-full flex flex-col">
+    <div className="w-full flex flex-col">
       {!hideInternalControls && (
         <div className="flex items-center gap-2 mb-4">
           <div className="flex items-center gap-2">
@@ -558,7 +558,7 @@ export const TableView: React.FC<TableViewProps> = ({
         </div>
       )}
 
-      <div className="flex-1 overflow-auto border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm relative">
+      <div className="flex-1 overflow-auto border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm relative max-h-[400px]">
         {/* Loading overlay for when refreshing data */}
         {isTableLoading && paginatedData.length > 0 && (
           <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 flex items-center justify-center z-10">

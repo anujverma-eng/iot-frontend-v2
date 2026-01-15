@@ -1113,7 +1113,7 @@ export const DashboardHome: React.FC = () => {
                         </div>
                       </div>
                     ) : selectedSensor && selectedSensorData && timeRange ? (
-                      <div className={`rounded-lg overflow-hidden ${isMobile ? 'max-h-[400px]' : 'max-h-[500px]'} overflow-y-auto`}>
+                      <div className="rounded-lg overflow-hidden">
                         <TableView
                           config={selectedSensorData as ChartConfig}
                           sensorId={selectedSensor}
