@@ -535,7 +535,7 @@ const telemetrySlice = createSlice({
         
         // Update type and unit from live data if provided
         if (type !== undefined) {
-          sensor.type = type;
+          sensor.type = type as SensorTelemetryResponse["type"];
         }
         if (unit !== undefined) {
           sensor.unit = unit;
