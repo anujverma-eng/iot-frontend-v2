@@ -26,6 +26,7 @@ import { fetchProfile } from '../store/profileSlice';
 import { UserService } from '../api/user.service';
 import { start, clear } from '../store/confirmationSlice';
 import { ConfirmBlock } from '../components/ConfirmBlock';
+import { extractErrorMessage } from '../utils/errorUtils';
 
 // Validation schemas
 const profileSchema = z.object({
@@ -224,11 +225,12 @@ export default function MyProfilePage() {
       }
     } catch (error: any) {
       console.error('Profile update error:', error);
-      setUpdateError(error?.message || 'Failed to update profile');
+      const errorMessage = extractErrorMessage(error, 'Failed to update profile');
+      setUpdateError(errorMessage);
       
       addToast({
         title: 'Update Failed',
-        description: error?.message || 'Failed to update profile',
+        description: errorMessage,
         color: 'danger'
       });
     } finally {
@@ -269,14 +271,8 @@ export default function MyProfilePage() {
     } catch (error: any) {
       console.error('Email update request error:', error);
       
-      // Handle specific error types
-      let errorMessage = error?.message || 'Failed to request email change';
-      
-      if (error.message === 'EMAIL_ALREADY_IN_USE') {
-        errorMessage = 'This email address is already in use by another account';
-      } else if (error.message === 'EMAIL_ALREADY_VERIFIED') {
-        errorMessage = 'This email address is already verified for your account';
-      }
+      // Use centralized error extraction utility
+      const errorMessage = extractErrorMessage(error, 'Failed to request email change');
       
       setUpdateError(errorMessage);
       
@@ -331,7 +327,7 @@ export default function MyProfilePage() {
       console.error('Email verification completion error:', error);
       addToast({
         title: 'Update Failed',
-        description: error?.message || 'Failed to complete email update',
+        description: extractErrorMessage(error, 'Failed to complete email update'),
         color: 'danger'
       });
     } finally {

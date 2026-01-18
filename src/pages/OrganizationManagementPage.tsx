@@ -16,6 +16,7 @@ import { selectActiveOrgId, selectActiveOrgName, selectActiveOrgStatus, setOrgNa
 import { OrgService } from '../api/org.service';
 import { UserRole } from '../types/User';
 import { OrganizationSettings } from '../components/OrganizationSettings';
+import { extractErrorMessage, extractErrorStatus } from '../utils/errorUtils';
 
 export default function OrganizationManagementPage() {
   const navigate = useNavigate();
@@ -77,20 +78,19 @@ export default function OrganizationManagementPage() {
       let errorMessage = 'Failed to update organization name';
       
       // Handle specific error cases
-      if (error.response?.status === 403) {
+      const status = extractErrorStatus(error);
+      if (status === 403) {
         errorMessage = 'Access denied. You don\'t have permission to rename this organization.';
-      } else if (error.response?.status === 400) {
-        // Handle validation errors
-        const validationData = error.response.data?.data;
+      } else if (status === 400) {
+        // Handle validation errors (these have a special structure)
+        const validationData = error.response?.data?.data;
         if (validationData?.name) {
           errorMessage = validationData.name[0];
         } else {
-          errorMessage = error.response.data?.message || 'Validation failed';
+          errorMessage = extractErrorMessage(error, 'Validation failed');
         }
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.message) {
-        errorMessage = error.message;
+      } else {
+        errorMessage = extractErrorMessage(error, errorMessage);
       }
       
       addToast({

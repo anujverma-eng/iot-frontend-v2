@@ -15,8 +15,10 @@ import { LiveDataLoading } from "../components/visualization/live-data-loading";
 import { fetchGateways, fetchGatewayStats, selectGateways, selectGatewayStats } from "../store/gatewaySlice";
 import {
   fetchSensors,
+  fetchFavoriteSensors,
   fetchSensorStats,
   selectSensors,
+  selectFavoriteSensors,
   selectSensorsLoading,
   selectSensorStats,
   selectEnhancedSensorStats,
@@ -103,6 +105,7 @@ export const DashboardHome: React.FC = () => {
   // Get state from Redux
   const gateways = useSelector(selectGateways);
   const sensors = useSelector(selectSensors);
+  const favoriteSensors = useSelector(selectFavoriteSensors);
   const sensorsLoading = useSelector(selectSensorsLoading);
   const gatewayStats = useSelector(selectGatewayStats);
   const sensorStats = useSelector(selectEnhancedSensorStats); // Use enhanced stats for real-time calculations
@@ -203,12 +206,6 @@ export const DashboardHome: React.FC = () => {
     }
   }, [hasInitialLoadCompleted]);
 
-  // Get favorite sensors
-  const favoriteSensors = React.useMemo(() => {
-    const favorites = sensors.filter((sensor) => sensor.favorite || sensor.isStarred);
-    return favorites;
-  }, [sensors]);
-
   // Set default selected favorite sensor when favorites change
   React.useEffect(() => {
     if (favoriteSensors.length > 0 && !selectedSensor) {
@@ -238,6 +235,8 @@ export const DashboardHome: React.FC = () => {
               search: "",
             }) as any
           ),
+          // Fetch favorite sensors separately with dedicated thunk
+          dispatch(fetchFavoriteSensors({ page: 1, limit: 50, claimed: true, search: "" }) as any),
           dispatch(fetchGatewayStats() as any),
           dispatch(fetchSensorStats() as any),
         ]);
@@ -598,7 +597,7 @@ export const DashboardHome: React.FC = () => {
                           <div className="flex flex-col">
                             <div className="flex items-center gap-2">
                               <span className="text-bold text-small">{sensor.displayName || sensor.mac}</span>
-                              {(sensor.favorite || sensor.isStarred) && (
+                              {(sensor.favorite) && (
                                 <Icon icon="lucide:star" className="w-3 h-3 text-warning" />
                               )}
                             </div>

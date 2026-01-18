@@ -182,7 +182,9 @@ export const toggleLiveMode = createAsyncThunk(
               mac: reading.mac, 
               lastSeen: now,
               battery: reading.battery, // Include battery in sensor updates
-              lastValue: reading.value // Include the actual sensor reading value
+              lastValue: reading.value, // Include the actual sensor reading value
+              type: reading.type, // Include sensor type from live data
+              unit: reading.unit // Include sensor unit from live data
             }));
           });
         },
@@ -530,6 +532,14 @@ const telemetrySlice = createSlice({
         sensor.lastUpdated = now;
         sensor.isLive = true;
         sensor.current = Number(value);
+        
+        // Update type and unit from live data if provided
+        if (type !== undefined) {
+          sensor.type = type;
+        }
+        if (unit !== undefined) {
+          sensor.unit = unit;
+        }
 
         // Update aggregates for live data
         if (sensor.series.length > 0) {

@@ -82,9 +82,11 @@ export async function startLive(
     currentSubscription = pubsub.subscribe({ topics }).subscribe({
       next: (msg: any) => {
         try {
+          console.log('[MQTT] Raw message received:', JSON.stringify(msg, null, 2));
 
           // Check if this is already a parsed sensor data message
           if (msg.sensors && Array.isArray(msg.sensors)) {
+            console.log('[MQTT] Parsed sensor data:', JSON.stringify(msg.sensors, null, 2));
 
             const enhancedData: LiveDataMessage = {
               sensors: msg.sensors.map((sensor: any) => ({
@@ -309,7 +311,7 @@ function parseDataMessage(message: any): LiveDataMessage | null {
 
     // Validate message structure
     if (parsed && parsed.sensors && Array.isArray(parsed.sensors)) {
-
+      console.log('[MQTT] Parsed data received:', JSON.stringify(parsed, null, 2));
       return parsed as LiveDataMessage;
     }
 

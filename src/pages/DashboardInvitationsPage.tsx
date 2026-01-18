@@ -44,6 +44,7 @@ import { format } from "date-fns";
 import type { Invite } from "../api/types";
 import { useBreakpoints } from "../hooks/use-media-query";
 import { canUserCreateOrganization } from "../utils/organizationUtils";
+import { extractErrorMessage } from "../utils/errorUtils";
 import { motion } from "framer-motion";
 
 // Helper function to get user-friendly status for my invitations
@@ -230,32 +231,6 @@ export default function DashboardInvitationsPage() {
     // No-op - data is managed by DashboardLayout
   }, []);
 
-  const parseError = (err: any): string => {
-    if (err?.response?.data?.message) {
-      const backendError = err.response.data.message;
-
-      if (typeof backendError === "object" && backendError.code) {
-        switch (backendError.code) {
-          case "INVITE_EXPIRED":
-            return "This invitation has expired.";
-          case "INVITE_NOT_FOUND":
-            return "Invitation not found.";
-          case "INVITE_ALREADY_ACCEPTED":
-            return "This invitation has already been accepted.";
-          case "INVITE_REVOKED":
-            return "This invitation has been revoked.";
-          case "USER_ALREADY_MEMBER":
-            return "You are already a member of this organization.";
-          default:
-            return backendError.message || "An error occurred";
-        }
-      } else if (typeof backendError === "string") {
-        return backendError;
-      }
-    }
-    return err?.message || "An unexpected error occurred";
-  };
-
   const handleAcceptInvite = async (token: string) => {
     setActionError(null);
     try {
@@ -272,7 +247,7 @@ export default function DashboardInvitationsPage() {
       navigate("/dashboard/home");
     } catch (error) {
       console.error("Failed to accept invitation:", error);
-      setActionError(parseError(error));
+      setActionError(extractErrorMessage(error, "Failed to accept invitation. Please try again."));
     }
   };
 
@@ -286,7 +261,7 @@ export default function DashboardInvitationsPage() {
       setIsInvitationDetailsModalOpen(false);
     } catch (error) {
       console.error("Failed to decline invitation:", error);
-      setActionError(parseError(error));
+      setActionError(extractErrorMessage(error, "Failed to decline invitation. Please try again."));
     }
   };
 

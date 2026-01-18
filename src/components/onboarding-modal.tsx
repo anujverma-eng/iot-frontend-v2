@@ -21,6 +21,7 @@ import { resolveInitialActiveOrg } from '../store/activeOrgSlice';
 import { EmailInput } from './email-input';
 import { InvitesService } from '../api/invites.service';
 import { UserRole } from '../types/User';
+import { extractErrorMessage, extractErrorCode } from '../utils/errorUtils';
 
 interface OnboardingModalProps {
   isOpen: boolean;
@@ -115,35 +116,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
       onClose();
     } catch (err: any) {
       
-      // Handle different error formats from backend
-      let errorMessage = 'Failed to create organization';
-      
-      if (err?.response?.data?.message) {
-        const backendError = err.response.data.message;
-        
-        if (typeof backendError === 'object' && backendError.code) {
-          switch (backendError.code) {
-            case 'ORG_NAME_EXISTS':
-              errorMessage = 'An organization with this name already exists. Please choose a different name.';
-              break;
-            case 'INVALID_ORG_NAME':
-              errorMessage = 'Please enter a valid organization name (2-50 characters).';
-              break;
-            case 'USER_LIMIT_EXCEEDED':
-              errorMessage = 'You have reached the maximum number of organizations allowed.';
-              break;
-            case 'INVALID_EMAIL':
-              errorMessage = 'One or more email addresses are invalid. Please check and try again.';
-              break;
-            default:
-              errorMessage = backendError.message || errorMessage;
-          }
-        } else if (typeof backendError === 'string') {
-          errorMessage = backendError;
-        }
-      } else if (err?.message) {
-        errorMessage = err.message;
-      }
+      // Use centralized error extraction utility
+      const errorMessage = extractErrorMessage(err, 'Failed to create organization');
       
       setError(errorMessage);
     } finally {
@@ -174,46 +148,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
     } catch (err: any) {
       console.error('Join organization error:', err);
       
-      // Handle different error formats from backend
-      let errorMessage = 'Failed to join organization';
-      
-      if (err?.response?.data?.message) {
-        const backendError = err.response.data.message;
-        
-        // Handle nested error structure
-        if (typeof backendError === 'object' && backendError.code) {
-          switch (backendError.code) {
-            case 'INVITE_EXPIRED':
-              errorMessage = 'This invitation has expired. Please request a new invitation from your organization admin.';
-              break;
-            case 'INVITE_NOT_FOUND':
-              errorMessage = 'Invalid invitation token. Please check the token and try again.';
-              break;
-            case 'INVITE_ALREADY_ACCEPTED':
-              errorMessage = 'This invitation has already been accepted.';
-              break;
-            case 'INVITE_REVOKED':
-              errorMessage = 'This invitation has been revoked by the organization admin.';
-              break;
-            case 'USER_ALREADY_MEMBER':
-              errorMessage = 'You are already a member of this organization.';
-              break;
-            default:
-              errorMessage = backendError.message || errorMessage;
-          }
-        } else if (typeof backendError === 'string') {
-          errorMessage = backendError;
-        }
-      } else if (err?.message) {
-        // Handle Redux toolkit errors
-        if (err.message.includes('expired')) {
-          errorMessage = 'This invitation has expired. Please request a new invitation.';
-        } else if (err.message.includes('not found')) {
-          errorMessage = 'Invalid invitation token. Please check the token and try again.';
-        } else {
-          errorMessage = err.message;
-        }
-      }
+      // Use centralized error extraction utility
+      const errorMessage = extractErrorMessage(err, 'Failed to join organization');
       
       setError(errorMessage);
     } finally {

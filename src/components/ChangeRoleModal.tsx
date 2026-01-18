@@ -27,6 +27,7 @@ import {
   selectRolePermissionsLoading,
   selectPermissionsForRole,
 } from "../store/rolePermissionsSlice";
+import { extractErrorMessage } from "../utils/errorUtils";
 
 interface ChangeRoleModalProps {
   isOpen: boolean;
@@ -208,7 +209,7 @@ export const ChangeRoleModal: React.FC<ChangeRoleModalProps> = ({
       setLocalError(null);
       await onSave(selectedRole, finalPermissions);
     } catch (error: any) {
-      setLocalError(error.message || "Failed to update role");
+      setLocalError(extractErrorMessage(error, "Failed to update role"));
     }
   };
 

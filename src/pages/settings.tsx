@@ -22,6 +22,7 @@ import { OrgService } from "../api/org.service";
 import { UserRole } from "../types/User";
 import { motion } from "framer-motion";
 import { useBreakpoints } from "../hooks/use-media-query";
+import { extractErrorMessage, extractErrorStatus } from "../utils/errorUtils";
 
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -84,19 +85,20 @@ export const SettingsPage: React.FC = () => {
 
       let errorMessage = "Failed to update organization name";
 
-      if (error.response?.status === 403) {
+      // Handle specific error cases
+      const status = extractErrorStatus(error);
+      if (status === 403) {
         errorMessage = "Access denied. You don't have permission to rename this organization.";
-      } else if (error.response?.status === 400) {
-        const validationData = error.response.data?.data;
+      } else if (status === 400) {
+        // Handle validation errors (these have a special structure)
+        const validationData = error.response?.data?.data;
         if (validationData?.name) {
           errorMessage = validationData.name[0];
         } else {
-          errorMessage = error.response.data?.message || "Validation failed";
+          errorMessage = extractErrorMessage(error, "Validation failed");
         }
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.message) {
-        errorMessage = error.message;
+      } else {
+        errorMessage = extractErrorMessage(error, errorMessage);
       }
 
       addToast({

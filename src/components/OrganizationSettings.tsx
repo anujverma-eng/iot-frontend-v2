@@ -30,6 +30,7 @@ import { offlineDetectionService } from "../services/offlineDetectionService";
 import { PermissionWrapper } from "./PermissionWrapper";
 import { PermissionButton } from "./PermissionButton";
 import { getPermissionValue } from "../constants/permissions";
+import { extractErrorMessage } from "../utils/errorUtils";
 
 // Timeout options
 const TIMEOUT_OPTIONS = [
@@ -171,7 +172,7 @@ export const OrganizationSettings: React.FC<OrganizationSettingsProps> = ({
       // Only close modal if the operation was successful
       onRenameModalClose();
     } catch (error: any) {
-      setUpdateError(error.message || "Failed to update organization name");
+      setUpdateError(extractErrorMessage(error, "Failed to update organization name"));
     } finally {
       setIsUpdatingName(false);
     }

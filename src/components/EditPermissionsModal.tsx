@@ -30,6 +30,7 @@ import {
   selectRolePermissionsLoading,
   selectPermissionsForRole
 } from '../store/rolePermissionsSlice';
+import { extractErrorMessage } from '../utils/errorUtils';
 
 interface EditPermissionsModalProps {
   isOpen: boolean;
@@ -230,7 +231,7 @@ export const EditPermissionsModal: React.FC<EditPermissionsModalProps> = ({
       setLocalError(null);
       await onSave(customPermissions);
     } catch (error: any) {
-      setLocalError(error.message || 'Failed to update permissions');
+      setLocalError(extractErrorMessage(error, 'Failed to update permissions'));
     }
   };
 

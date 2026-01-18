@@ -38,6 +38,7 @@ import { usePermissions } from "../hooks/usePermissions";
 import { PermissionWrapper } from "../components/PermissionWrapper";
 import { PermissionButton } from "../components/PermissionButton";
 import { debounce } from "../utils/debounce";
+import { extractErrorMessage, extractErrorCode, isErrorCode } from "../utils/errorUtils";
 import {
   fetchMembers,
   changeRole,
@@ -658,38 +659,8 @@ export const TeamPage: React.FC = () => {
     } catch (error: any) {
       console.error("Failed to send invite:", error);
 
-      // Handle specific backend error structure
-      let errorMessage = "Failed to send invite. Please try again.";
-
-      if (error?.response?.data?.message) {
-        const backendError = error.response.data.message;
-        if (typeof backendError === "object" && backendError.code && backendError.message) {
-          // Handle structured error response
-          switch (backendError.code) {
-            case "USER_ALREADY_MEMBER":
-              errorMessage = "👤 Already a Member: This user is already part of your organization.";
-              break;
-            case "INVITE_ALREADY_EXISTS":
-              errorMessage = "📧 Invitation Pending: An invitation has already been sent to this email address.";
-              break;
-            case "INVALID_EMAIL":
-              errorMessage = "📧 Invalid Email: Please enter a valid email address.";
-              break;
-            case "ORGANIZATION_NOT_FOUND":
-              errorMessage = "🏢 Organization Error: Unable to send invitation. Please try again.";
-              break;
-            case "INSUFFICIENT_PERMISSIONS":
-              errorMessage = "🚫 Permission Denied: You do not have permission to invite members to this organization.";
-              break;
-            default:
-              errorMessage = backendError.message || errorMessage;
-          }
-        } else if (typeof backendError === "string") {
-          errorMessage = backendError;
-        }
-      } else if (error?.message) {
-        errorMessage = error.message;
-      }
+      // Use centralized error extraction utility
+      const errorMessage = extractErrorMessage(error, "Failed to send invite. Please try again.");
 
       setInviteError(errorMessage);
 
@@ -784,12 +755,8 @@ export const TeamPage: React.FC = () => {
     } catch (error: any) {
       console.error("Failed to remove member:", error);
 
-      let errorMessage = "Failed to remove member. Please try again.";
-      if (error?.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error?.message) {
-        errorMessage = error.message;
-      }
+      // Use centralized error extraction utility
+      const errorMessage = extractErrorMessage(error, "Failed to remove member. Please try again.");
 
       addToast({
         title: "Remove Failed",
@@ -825,38 +792,8 @@ export const TeamPage: React.FC = () => {
     } catch (error: any) {
       console.error("Failed to revoke invite:", error);
 
-      // Handle specific backend error structure
-      let errorMessage = "Failed to revoke invite. Please try again.";
-
-      if (error?.response?.data?.message) {
-        const backendError = error.response.data.message;
-        if (typeof backendError === "object" && backendError.code && backendError.message) {
-          // Handle structured error response
-          switch (backendError.code) {
-            case "INVITE_NOT_FOUND":
-              errorMessage = "🔍 Invitation Not Found: This invitation no longer exists or has already been processed.";
-              break;
-            case "INVITE_ALREADY_REVOKED":
-              errorMessage = "❌ Already Revoked: This invitation has already been cancelled.";
-              break;
-            case "INVITE_ALREADY_ACCEPTED":
-              errorMessage = "✅ Already Accepted: This invitation has been accepted and cannot be revoked.";
-              break;
-            case "INSUFFICIENT_PERMISSIONS":
-              errorMessage = "🚫 Permission Denied: You do not have permission to revoke this invitation.";
-              break;
-            case "ORGANIZATION_NOT_FOUND":
-              errorMessage = "🏢 Organization Error: Unable to revoke invitation. Please try again.";
-              break;
-            default:
-              errorMessage = backendError.message || errorMessage;
-          }
-        } else if (typeof backendError === "string") {
-          errorMessage = backendError;
-        }
-      } else if (error?.message) {
-        errorMessage = error.message;
-      }
+      // Use centralized error extraction utility
+      const errorMessage = extractErrorMessage(error, "Failed to revoke invite. Please try again.");
 
       setRevokeError(errorMessage);
 
@@ -883,42 +820,8 @@ export const TeamPage: React.FC = () => {
     } catch (error: any) {
       console.error("Failed to accept invitation:", error);
 
-      // Handle specific backend error structure
-      let errorMessage = "Failed to accept invitation. Please try again.";
-
-      if (error?.response?.data?.message) {
-        const backendError = error.response.data.message;
-        if (typeof backendError === "object" && backendError.code && backendError.message) {
-          // Handle structured error response
-          switch (backendError.code) {
-            case "INVITE_REVOKED":
-              errorMessage =
-                "❌ Invitation Revoked: This invitation has been cancelled by the organization admin and is no longer valid.";
-              break;
-            case "INVITE_EXPIRED":
-              errorMessage =
-                "⏰ Invitation Expired: This invitation has passed its expiry date and can no longer be accepted.";
-              break;
-            case "INVITE_ALREADY_ACCEPTED":
-              errorMessage =
-                "✅ Already Accepted: You have already accepted this invitation and are now a member of the organization.";
-              break;
-            case "ORGANIZATION_NOT_FOUND":
-              errorMessage =
-                "🏢 Organization Not Found: The organization associated with this invitation no longer exists.";
-              break;
-            case "INVITE_NOT_FOUND":
-              errorMessage = "🔍 Invitation Not Found: This invitation link is invalid or has been removed.";
-              break;
-            default:
-              errorMessage = backendError.message || errorMessage;
-          }
-        } else if (typeof backendError === "string") {
-          errorMessage = backendError;
-        }
-      } else if (error?.message) {
-        errorMessage = error.message;
-      }
+      // Use centralized error extraction utility
+      const errorMessage = extractErrorMessage(error, "Failed to accept invitation. Please try again.");
 
       setAcceptDeclineError(errorMessage);
     }
@@ -935,38 +838,8 @@ export const TeamPage: React.FC = () => {
     } catch (error: any) {
       console.error("Failed to decline invitation:", error);
 
-      // Handle specific backend error structure
-      let errorMessage = "Failed to decline invitation. Please try again.";
-
-      if (error?.response?.data?.message) {
-        const backendError = error.response.data.message;
-        if (typeof backendError === "object" && backendError.code && backendError.message) {
-          // Handle structured error response
-          switch (backendError.code) {
-            case "INVITE_REVOKED":
-              errorMessage = "❌ Invitation Revoked: This invitation has been cancelled by the organization admin.";
-              break;
-            case "INVITE_EXPIRED":
-              errorMessage = "⏰ Invitation Expired: This invitation has passed its expiry date.";
-              break;
-            case "INVITE_ALREADY_ACCEPTED":
-              errorMessage = "✅ Already Accepted: This invitation has already been accepted and cannot be declined.";
-              break;
-            case "INVITE_ALREADY_DECLINED":
-              errorMessage = "❌ Already Declined: You have already declined this invitation.";
-              break;
-            case "INVITE_NOT_FOUND":
-              errorMessage = "🔍 Invitation Not Found: This invitation link is invalid or has been removed.";
-              break;
-            default:
-              errorMessage = backendError.message || errorMessage;
-          }
-        } else if (typeof backendError === "string") {
-          errorMessage = backendError;
-        }
-      } else if (error?.message) {
-        errorMessage = error.message;
-      }
+      // Use centralized error extraction utility
+      const errorMessage = extractErrorMessage(error, "Failed to decline invitation. Please try again.");
 
       setAcceptDeclineError(errorMessage);
     }

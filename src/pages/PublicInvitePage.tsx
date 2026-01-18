@@ -27,6 +27,7 @@ import { selectOrgAndFinalize } from '../store/activeOrgSlice';
 import { UserRole } from '../types/User';
 import { EmailInput } from '../components/email-input';
 import { createOrg } from '../store/orgSlice';
+import { extractErrorMessage, extractErrorCode, isErrorCode } from '../utils/errorUtils';
 
 interface PublicInviteInfo {
   email: string;
@@ -209,31 +210,16 @@ export const PublicInvitePage: React.FC = () => {
     } catch (error: any) {
       console.error('Failed to accept invitation:', error);
       
-      // Handle specific error cases
-      let errorMessage = 'Failed to accept invitation. Please try again.';
+      // Use centralized error extraction utility
+      let errorMessage = extractErrorMessage(error, 'Failed to accept invitation. Please try again.');
       
-      if (error?.response?.data?.message) {
-        const backendError = error.response.data.message;
-        if (typeof backendError === 'object' && backendError.code) {
-          switch (backendError.code) {
-            case 'EMAIL_MISMATCH':
-              errorMessage = `You're signed in as ${profile.data?.user?.email} but this invite is for ${inviteInfo.email}. Please switch accounts or sign in with the correct email.`;
-              break;
-            case 'INVITE_EXPIRED':
-              errorMessage = 'This invitation has expired. Please ask the admin to send a new invitation.';
-              break;
-            case 'INVITE_REVOKED':
-              errorMessage = 'This invitation has been revoked by the organization admin.';
-              break;
-            case 'ALREADY_MEMBER':
-              errorMessage = "You're already a member of this organization.";
-              // Redirect to dashboard
-              setTimeout(() => navigate('/dashboard/home'), 2000);
-              break;
-            default:
-              errorMessage = backendError.message || errorMessage;
-          }
-        }
+      // Handle special case for email mismatch that needs dynamic content
+      const errorCode = extractErrorCode(error);
+      if (errorCode === 'EMAIL_MISMATCH') {
+        errorMessage = `You're signed in as ${profile.data?.user?.email} but this invite is for ${inviteInfo.email}. Please switch accounts or sign in with the correct email.`;
+      } else if (isErrorCode(error, 'ALREADY_MEMBER')) {
+        // Redirect to dashboard
+        setTimeout(() => navigate('/dashboard/home'), 2000);
       }
       
       setActionError(errorMessage);
@@ -270,7 +256,10 @@ export const PublicInvitePage: React.FC = () => {
       
     } catch (error: any) {
       console.error('Failed to decline invitation:', error);
-      setActionError('Failed to decline invitation. Please try again.');
+      
+      // Use centralized error extraction utility
+      const errorMessage = extractErrorMessage(error, 'Failed to decline invitation. Please try again.');
+      setActionError(errorMessage);
     } finally {
       setActionLoading(null);
     }

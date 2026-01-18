@@ -1302,15 +1302,6 @@ export const AnalyticsPage: React.FC = () => {
 
   // Prepare multi-series chart config for comparison
   const multiSeriesConfig: MultiSeriesConfig | null = React.useMemo(() => {
-    console.log("[DEBUG] multiSeriesConfig calculation:", {
-      telemetryDataKeys: Object.keys(telemetryData),
-      selectedSensorIds,
-      telemetryDataEntries: Object.entries(telemetryData).map(([key, value]) => ({
-        key,
-        hasData: !!value,
-        seriesLength: value?.series?.length || 0,
-      })),
-    });
 
     if (Object.keys(telemetryData).length === 0 || selectedSensorIds.length === 0) return null;
 

@@ -323,13 +323,6 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
               </div>
 
               <div className="flex items-center gap-2">
-                {/* <Button isIconOnly size="sm" variant="light" onPress={handleToggleStar} className="text-warning">
-                  <Icon
-                    icon={isStarred ? "lucide:star" : "lucide:star"}
-                    className={isStarred ? "text-warning fill-warning" : "text-default-400"}
-                  />
-                </Button> */}
-
                 {onOpenInNewTab && (
                   <Button
                     size="sm"

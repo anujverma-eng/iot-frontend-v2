@@ -13,11 +13,12 @@ export const SensorService = {
     search?: string;
     sort?: string | null;
     dir?: "asc" | "desc";
+    favorite?: boolean;
   }) {
-    const { page = 1, limit = 50, claimed = true, search = "", sort, dir = "asc" } = params;
+    const { page = 1, limit = 50, claimed = true, search = "", sort, dir = "asc", favorite } = params;
     return http
       .get<ServerResponse>("/sensors", {
-        params: { page, limit, claimed, q: search, sort, dir },
+        params: { page, limit, claimed, q: search, sort, dir, favorite },
       })
       .then((r) => r.data);
   },

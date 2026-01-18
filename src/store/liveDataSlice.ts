@@ -140,6 +140,8 @@ export const initializeLiveConnection = createAsyncThunk(
                 lastSeen: nowStr,
                 battery: reading.battery, // Include battery data from socket
                 lastValue: reading.value, // Include the actual sensor reading value
+                type: reading.type, // Include sensor type from live data
+                unit: reading.unit, // Include sensor unit from live data
               })
             );
 

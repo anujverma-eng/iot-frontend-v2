@@ -3,29 +3,28 @@
 export const timeRangePresets = [
   { label: 'Last Hour', getValue: () => ({ 
     start: new Date(Date.now() - 60 * 60 * 1000), 
-    end: new Date() 
+    end: new Date(Date.now() + 5 * 60 * 1000)
   })},
   { label: 'Today', getValue: () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    return { start: today, end: new Date() };
+    return { start: today, end: new Date(Date.now() + 5 * 60 * 1000) };
   }},
-  { label: 'Last 2 Days', getValue: () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return { start: new Date(today.getTime() - 2 * 24 * 60 * 60 * 1000), end: today };
-  }},
+  { label: 'Last 2 Days', getValue: () => ({ 
+    start: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), 
+    end: new Date(Date.now() + 5 * 60 * 1000)
+  })},
   { label: 'Last 7 Days', getValue: () => ({ 
     start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), 
-    end: new Date() 
+    end: new Date(Date.now() + 5 * 60 * 1000)
   })},
   { label: 'Last 30 Days', getValue: () => ({ 
     start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), 
-    end: new Date() 
+    end: new Date(Date.now() + 5 * 60 * 1000)
   })},
   { label: 'Custom', getValue: () => ({ 
     start: new Date(Date.now() - 24 * 60 * 60 * 1000), 
-    end: new Date() 
+    end: new Date(Date.now() + 5 * 60 * 1000)
   })}
 ];
 

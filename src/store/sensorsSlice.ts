@@ -21,6 +21,7 @@ export const fetchSensors = createAsyncThunk(
     search,
     sort,
     dir,
+    favorite,
   }: {
     page: number;
     limit: number;
@@ -28,8 +29,28 @@ export const fetchSensors = createAsyncThunk(
     search: string;
     sort?: string;
     dir?: "asc" | "desc";
+    favorite?: boolean;
   }) => {
-    const response = await SensorService.getSensors({ page, limit, claimed, search, sort, dir });
+    const response = await SensorService.getSensors({ page, limit, claimed, search, sort, dir, favorite });
+    return response;
+  }
+);
+
+// Separate thunk for fetching favorite sensors
+export const fetchFavoriteSensors = createAsyncThunk(
+  "sensors/fetchFavorites",
+  async ({
+    page = 1,
+    limit = 50,
+    claimed = true,
+    search = "",
+  }: {
+    page?: number;
+    limit?: number;
+    claimed?: boolean;
+    search?: string;
+  } = {}) => {
+    const response = await SensorService.getSensors({ page, limit, claimed, search, favorite: true });
     return response;
   }
 );
@@ -131,6 +152,12 @@ interface State {
   loaded: boolean;
   error: string | null;
   data: Sensor[];
+  // Favorite sensors state (separate from main data)
+  favoriteSensors: {
+    loading: boolean;
+    error: string | null;
+    data: Sensor[];
+  };
   stats: {
     claimed: number;
     unclaimed: number;
@@ -170,6 +197,11 @@ const initial: State = {
   loaded: false,
   error: null,
   data: [],
+  favoriteSensors: {
+    loading: false,
+    error: null,
+    data: [],
+  },
   stats: null,
   pagination: {
     page: 1,
@@ -248,8 +280,8 @@ const sensorSlice = createSlice({
       state.pagination.limit = action.payload;
     },
     // Update lastSeen for a sensor when live data is received
-    updateSensorLastSeen: (state, action: PayloadAction<{ mac: string; lastSeen: string; battery?: number; lastValue?: number }>) => {
-      const { mac, lastSeen, battery, lastValue } = action.payload;
+    updateSensorLastSeen: (state, action: PayloadAction<{ mac: string; lastSeen: string; battery?: number; lastValue?: number; type?: string; unit?: string }>) => {
+      const { mac, lastSeen, battery, lastValue, type, unit } = action.payload;
       
       // Update in main sensors list - use more direct mutation to avoid reference changes
       const sensorIndex = state.data.findIndex((sensor: Sensor) => sensor.mac === mac);
@@ -258,7 +290,7 @@ const sensorSlice = createSlice({
         const sensor = state.data[sensorIndex];
         const newStatus = "live";
         
-        if (sensor.lastSeen !== lastSeen || sensor.status !== newStatus || sensor.battery !== battery || sensor.lastValue !== lastValue) {
+        if (sensor.lastSeen !== lastSeen || sensor.status !== newStatus || sensor.battery !== battery || sensor.lastValue !== lastValue || sensor.type !== type || sensor.unit !== unit) {
           sensor.lastSeen = lastSeen;
           sensor.status = newStatus;
           if (battery !== undefined) {
@@ -266,6 +298,12 @@ const sensorSlice = createSlice({
           }
           if (lastValue !== undefined) {
             sensor.lastValue = lastValue;
+          }
+          if (type !== undefined) {
+            sensor.type = type;
+          }
+          if (unit !== undefined) {
+            sensor.unit = unit;
           }
 
         }
@@ -276,7 +314,7 @@ const sensorSlice = createSlice({
         const selectedSensor = state.selectedSensor.data;
         const newStatus = "live";
         
-        if (selectedSensor.lastSeen !== lastSeen || selectedSensor.status !== newStatus || selectedSensor.battery !== battery || selectedSensor.lastValue !== lastValue) {
+        if (selectedSensor.lastSeen !== lastSeen || selectedSensor.status !== newStatus || selectedSensor.battery !== battery || selectedSensor.lastValue !== lastValue || selectedSensor.type !== type || selectedSensor.unit !== unit) {
           selectedSensor.lastSeen = lastSeen;
           selectedSensor.status = newStatus;
           if (battery !== undefined) {
@@ -284,6 +322,36 @@ const sensorSlice = createSlice({
           }
           if (lastValue !== undefined) {
             selectedSensor.lastValue = lastValue;
+          }
+          if (type !== undefined) {
+            selectedSensor.type = type;
+          }
+          if (unit !== undefined) {
+            selectedSensor.unit = unit;
+          }
+        }
+      }
+      
+      // Also update in favoriteSensors list
+      const favSensorIndex = state.favoriteSensors.data.findIndex((sensor: Sensor) => sensor.mac === mac);
+      if (favSensorIndex !== -1) {
+        const favSensor = state.favoriteSensors.data[favSensorIndex];
+        const newStatus = "live";
+        
+        if (favSensor.lastSeen !== lastSeen || favSensor.status !== newStatus || favSensor.battery !== battery || favSensor.lastValue !== lastValue || favSensor.type !== type || favSensor.unit !== unit) {
+          favSensor.lastSeen = lastSeen;
+          favSensor.status = newStatus;
+          if (battery !== undefined) {
+            favSensor.battery = battery;
+          }
+          if (lastValue !== undefined) {
+            favSensor.lastValue = lastValue;
+          }
+          if (type !== undefined) {
+            favSensor.type = type;
+          }
+          if (unit !== undefined) {
+            favSensor.unit = unit;
           }
         }
       }
@@ -301,6 +369,13 @@ const sensorSlice = createSlice({
       if (state.selectedSensor.data && state.selectedSensor.data.status === "live") {
         state.selectedSensor.data.status = "offline";
       }
+      
+      // Update favorite sensors as well
+      state.favoriteSensors.data.forEach((sensor: Sensor) => {
+        if (sensor.status === "live") {
+          sensor.status = "offline";
+        }
+      });
 
     },
     // Update sensor online status based on offline detection service
@@ -370,6 +445,34 @@ const sensorSlice = createSlice({
       s.data = sensors.map((sensor) => ({
         ...sensor,
         favorite: typeof sensor.favorite === "boolean" ? sensor.favorite : false,
+      }));
+    });
+
+    /* fetch favorite sensors ------------------------------------- */
+    builder.addCase(fetchFavoriteSensors.pending, (s) => {
+      s.favoriteSensors.loading = true;
+      s.favoriteSensors.error = null;
+    });
+    builder.addCase(fetchFavoriteSensors.rejected, (s, a) => {
+      s.favoriteSensors.loading = false;
+      s.favoriteSensors.error = a.error.message ?? "Error";
+    });
+    builder.addCase(fetchFavoriteSensors.fulfilled, (s, a) => {
+      s.favoriteSensors.loading = false;
+      let sensors: Sensor[] = [];
+      if (
+        typeof a.payload === "object" &&
+        a.payload !== null &&
+        "data" in a.payload
+      ) {
+        sensors = (a.payload as { data: Sensor[] }).data;
+      } else {
+        sensors = Array.isArray(a.payload) ? (a.payload as Sensor[]) : [];
+      }
+      // Ensure favorite is always boolean
+      s.favoriteSensors.data = sensors.map((sensor) => ({
+        ...sensor,
+        favorite: typeof sensor.favorite === "boolean" ? sensor.favorite : true,
       }));
     });
 
@@ -484,6 +587,21 @@ const sensorSlice = createSlice({
       if (s.detail.sensor?.mac === a.payload.mac) {
         s.detail.sensor.favorite = !s.detail.sensor.favorite;
       }
+      // Also update in favoriteSensors list - remove if unfavorited, or update if exists
+      const favIdx = s.favoriteSensors.data.findIndex((se) => se.mac === a.payload.mac);
+      if (favIdx !== -1) {
+        // If sensor was in favorites and got unfavorited, remove it
+        const mainSensor = s.data.find((se) => se.mac === a.payload.mac);
+        if (mainSensor && !mainSensor.favorite) {
+          s.favoriteSensors.data.splice(favIdx, 1);
+        }
+      } else {
+        // If sensor was not in favorites and got favorited, add it
+        const mainSensor = s.data.find((se) => se.mac === a.payload.mac);
+        if (mainSensor && mainSensor.favorite) {
+          s.favoriteSensors.data.push({ ...mainSensor });
+        }
+      }
     });
 
     /* display name update --------------------------------- */
@@ -517,6 +635,9 @@ export const {
 
 /* ─────────────────  selectors  ─────────────────── */
 export const selectSensors = (state: RootState) => state.sensors.data;
+export const selectFavoriteSensors = (state: RootState) => state.sensors.favoriteSensors.data;
+export const selectFavoriteSensorsLoading = (state: RootState) => state.sensors.favoriteSensors.loading;
+export const selectFavoriteSensorsError = (state: RootState) => state.sensors.favoriteSensors.error;
 export const selectSensorStats = (state: RootState) => state.sensors.stats;
 export const selectSensorPagination = (state: RootState) => state.sensors.pagination;
 export const selectSensorDetail = (state: RootState) => state.sensors.detail.sensor;
