@@ -227,12 +227,16 @@ export const DashboardHome: React.FC = () => {
       try {
         await Promise.all([
           dispatch(fetchGateways({ page: 1, limit: 5, search: "" }) as any),
+          // Fetch more sensors (like analytics page) so selectEnhancedSensorStats 
+          // can calculate accurate live/offline counts from the sensors array
           dispatch(
             fetchSensors({
               page: 1,
-              limit: 5,
+              limit: 50,
               claimed: true,
               search: "",
+              sort: 'lastSeen',
+              dir: 'desc'
             }) as any
           ),
           // Fetch favorite sensors separately with dedicated thunk
@@ -481,9 +485,10 @@ export const DashboardHome: React.FC = () => {
       totalGateways: gatewayStats?.totalGateways || 0,
       activeGateways: gateways.filter((gateway) => getGatewayOnlineStatus(gateway)).length,
       totalSensors: sensorStats?.claimed || 0,
-      activeSensors: sensorStats?.liveSensors || 0, // Now uses real-time calculated count
+      activeSensors: sensorStats?.liveSensors || 0,
+      offlineSensors: sensorStats?.offlineSensors || 0,
       favoriteSensors: favoriteSensors.length,
-      lowBatterySensors: sensorStats?.lowBatterySensors || 0, // Now uses real-time calculated count
+      lowBatterySensors: sensorStats?.lowBatterySensors || 0,
     }),
     [gatewayStats, sensorStats, gateways, favoriteSensors.length]
   );
@@ -532,15 +537,30 @@ export const DashboardHome: React.FC = () => {
           ? "gap-2 px-1" // Mobile: reduced gap and padding
           : "gap-3 sm:gap-4 px-2 sm:px-0" // Desktop: normal spacing
       }`}>
-        <StatsCard title="Total Gateways" value={stats.totalGateways.toString()} icon="lucide:cpu" color="primary" />
         <StatsCard
-          title="Live Gateways"
-          value={stats.activeGateways.toString()}
-          icon="lucide:activity"
+          title="Total Sensors"
+          value={(stats.totalSensors ?? 0).toString()}
+          icon="lucide:radio"
+          color="primary"
+        />
+        <StatsCard
+          title="Live Sensors"
+          value={(stats.activeSensors ?? 0).toString()}
+          icon="lucide:wifi"
           color="success"
         />
-        <StatsCard title="Total Sensors" value={stats.totalSensors.toString()} icon="lucide:radio" color="secondary" />
-        <StatsCard title="Live Sensors" value={stats.activeSensors.toString()} icon="lucide:signal" color="warning" />
+        <StatsCard
+          title="Offline Sensors"
+          value={(stats.offlineSensors ?? 0).toString()}
+          icon="lucide:wifi-off"
+          color="danger"
+        />
+        <StatsCard
+          title="Low Battery"
+          value={(stats.lowBatterySensors ?? 0).toString()}
+          icon="lucide:battery-warning"
+          color="danger"
+        />
       </div>
 
       <div className={`grid grid-cols-1 ${
