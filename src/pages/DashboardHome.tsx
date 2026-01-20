@@ -258,7 +258,6 @@ export const DashboardHome: React.FC = () => {
   // Show up to 5 sensors sorted by lowest battery level first
   const recentSensors = React.useMemo(() => {
     return [...sensors]
-      .sort((a, b) => (a.battery || 0) - (b.battery || 0)) // Sort by lowest battery first
       .slice(0, 5);
   }, [sensors]);
 
