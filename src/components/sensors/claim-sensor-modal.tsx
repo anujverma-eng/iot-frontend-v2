@@ -66,7 +66,7 @@ export const ClaimSensorModal: React.FC<ClaimSensorModalProps> = ({ isOpen, onCl
 
         response = (await GatewayService.getSensorsByGateway(selectedGateway, false, page, 10, searchQuery))?.data;
       } else {
-        response = await SensorService.getSensors({ page, limit: 10, claimed: false, search: searchQuery });
+        response = await SensorService.getUnclaimedSensors({ page, limit: 10, search: searchQuery });
       }
 
       // Store all sensors for client-side filtering

@@ -23,6 +23,15 @@ export const SensorService = {
       .then((r) => r.data);
   },
 
+  getUnclaimedSensors(params: { page?: number; limit?: number; search?: string }) {
+    const { page = 1, limit = 10, search = "" } = params;
+    return http
+      .get("/sensors/unclaimed", {
+        params: { page, limit, search },
+      })
+      .then((r) => r.data);
+  },
+
   getSensorByMac(mac: string): Promise<Sensor> {
     return http.get(`/sensors/${mac}`).then((r) => r.data.data as Sensor);
   },
