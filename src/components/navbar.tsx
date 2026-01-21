@@ -100,7 +100,7 @@ export const TopNavbar = () => {
             </NavbarItem>
             <NavbarItem className="hidden sm:flex">
               <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
-                <Button as={Link} color="" variant="flat" href="https://motionics.com" className="font-medium">
+                <Button as={Link} variant="light" color="default" href="https://motionics.com" className="font-medium">
                   motionics.com &nbsp;↗
                 </Button>
               </motion.div>
