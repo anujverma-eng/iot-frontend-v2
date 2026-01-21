@@ -115,14 +115,14 @@ export const DashboardSidebar = ({ isOpen, onToggle, className }: DashboardSideb
           "box-border",
           "fixed top-0 left-0 z-50 flex h-screen flex-col shadow-md",
           /* glass effect only for the wide drawer */
-          isOpen ? "bg-white/80 dark:bg-zinc-900/70 backdrop-blur-md" : "bg-[#353f8b]",
+          isOpen ? "bg-white/80 dark:bg-zinc-900/70 backdrop-blur-md" : "bg-[#293278]",
           className
         )}
       >
         {/* ─── brand bar ───────── */}
         <div 
-          className="flex flex-col items-center justify-center bg-[#353f8b]/100 rounded-br-lg overflow-hidden relative"
-          style={{ height: "5.5rem" }}
+          className="flex flex-col items-center justify-center bg-[#293278]/100 radoverflow-hidden relative"
+          style={{ height: "6rem" }}
         >
           {/* Full logo - only visible when expanded, fades AFTER collapse completes */}
           <motion.div
@@ -140,11 +140,10 @@ export const DashboardSidebar = ({ isOpen, onToggle, className }: DashboardSideb
             }}
           >
             <img
-              src="https://motionics.com/wp-content/uploads/2019/07/Motionics-logo-2.png"
-              alt="Motionics"
-              className="h-10 w-auto mb-1"
+              src="https://motionics.com/downloads/images/liveaccess-by-motionics-logo-white.png"
+              alt="LiveAccess by Motionics Logo White"
+              className="h-10 w-auto"
             />
-            <span className="text-white/90 text-xs font-medium tracking-wide">IOT Platform</span>
           </motion.div>
           
           {/* Collapsed icon - fades in ONLY after collapse completes */}
@@ -157,12 +156,16 @@ export const DashboardSidebar = ({ isOpen, onToggle, className }: DashboardSideb
             transition={{ 
               duration: 0.2, 
               ease: [0.4, 0, 0.2, 1],
-              // When collapsing: wait for sidebar to close first (300ms)
+              // When collapsing: wait for sidebar to close first (100ms)
               // When expanding: fade out immediately
               delay: isOpen ? 0 : 0.3,
             }}
           >
-            <Icon icon="lucide:cloud" className="h-7 w-7 text-white/90" />
+            <img
+            src="https://motionics.com/downloads/images/liveaccess-node-logomark-white.png"
+            alt="LiveAccess node logo"
+            className="h-10 w-auto opacity-100"
+/>
           </motion.div>
         </div>
 

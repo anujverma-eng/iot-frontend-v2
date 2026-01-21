@@ -25,10 +25,9 @@ export const TopNavbar = () => {
 
   const menuItems = [
     { name: "Home", href: "/" },
-    { name: "About", href: "/about" },
-    { name: "Platform", href: "/platform" },
-    { name: "Solutions", href: "/solutions" },
-    { name: "Pricing", href: "/pricing" },
+    { name: "Features", href: "#features" },
+    { name: "How it Works", href: "#howitworks" },
+    { name: "Contact", href: "https://motionics.com/sales-or-product-questions/" },
   ];
 
   const handleLogout = () => {
@@ -50,8 +49,11 @@ export const TopNavbar = () => {
             animate={{ opacity: 1, x: 0 }}
             className="flex items-center gap-2"
           >
-            <Icon icon="lucide:cloud" className="text-primary text-2xl" />
-            <p className="font-bold text-inherit text-xl">Motionics</p>
+           <img
+          src="https://motionics.com/downloads/images/liveaccess-by-motionics-logo.png"
+          alt="LiveAccess by Motionics logo"
+          style={{ width: "190px", height: "auto" }}
+          />
           </motion.div>
         </NavbarBrand>
       </NavbarContent>
@@ -89,17 +91,17 @@ export const TopNavbar = () => {
           </NavbarItem>
         ) : !isAuthPage && (
           <>
-            <NavbarItem className="hidden sm:flex">
-              <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
-                <Button as={Link} color="default" variant="flat" href="/login" className="font-medium">
+            <NavbarItem>
+              <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}>
+                <Button as={Link} color="primary" href="/login" variant="solid" className="font-medium">
                   Login
                 </Button>
               </motion.div>
             </NavbarItem>
-            <NavbarItem>
-              <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}>
-                <Button as={Link} color="primary" href="/login" variant="solid" className="font-medium">
-                  Sign Up
+            <NavbarItem className="hidden sm:flex">
+              <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
+                <Button as={Link} color="" variant="flat" href="https://motionics.com" className="font-medium">
+                  motionics.com &nbsp;↗
                 </Button>
               </motion.div>
             </NavbarItem>
@@ -135,7 +137,7 @@ export const TopNavbar = () => {
                 Login
               </Button>
               <Button as={Link} color="primary" href="/login" variant="solid" className="w-full font-medium">
-                Sign Up
+                Login
               </Button>
             </div>
           </NavbarMenuItem>

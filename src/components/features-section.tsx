@@ -6,7 +6,7 @@ const features = [
     icon: "lucide:wifi",
     title: "Real-Time Monitoring",
     description:
-      "View live sensor data in any web browser or mobile app with dynamic dashboards.",
+      "Remotely view live readings from your desktop, tablet or mobile",
   },
   {
     icon: "lucide:bell",

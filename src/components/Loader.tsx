@@ -37,11 +37,6 @@ export function FullScreenLoader({ show }: { show: boolean }) {
                 ease: "linear"
               }}
             >
-              <Icon
-                icon="lucide:settings"
-                className="text-4xl text-primary absolute -top-1 left-1/2 -translate-x-1/2"
-                aria-hidden="true"
-              />
             </motion.div>
           </motion.div>
         </motion.div>
