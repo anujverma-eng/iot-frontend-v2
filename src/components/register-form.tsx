@@ -129,7 +129,7 @@ export function RegisterForm() {
 
   /* ---------- UI ---------- */
   return (
-    <div className="w-full max-w-md">
+    <div className="w-full max-w-md -mt-6">
       <div className="rounded-[32px] bg-white/80 p-7 backdrop-blur dark:bg-black/30">
         {/* Header */}
         <div className="flex flex-col items-center text-center">
@@ -198,27 +198,54 @@ export function RegisterForm() {
             error={errors.confirmPassword?.message}
           />
 
-          {/* Terms */}
-          <Controller
-            control={control}
-            name="accept"
-            render={({ field }) => (
-              <Checkbox
-                isSelected={field.value}
-                onValueChange={field.onChange}
-                validationState={errors.accept ? "invalid" : undefined}
-              >
-                I agree to the{" "}
-                <Link as={RouterLink} to="/terms" color="primary">
-                  Terms of Service
-                </Link>{" "}
-                and{" "}
-                <Link as={RouterLink} to="/privacy" color="primary">
-                  Privacy Policy
-                </Link>
-              </Checkbox>
-            )}
-          />
+            {/* Terms */}
+            <Controller
+              control={control}
+              name="accept"
+              render={({ field }) => (
+                <div className="flex items-start gap-3 mt-1 p">
+                  <Checkbox
+                    className="translate-y-[2pt]"
+                    isSelected={field.value}
+                    onValueChange={field.onChange}
+                    validationState={errors.accept ? "invalid" : undefined}
+                    aria-label="Accept terms"
+                  />
+
+                  {/* Clickable label (toggles checkbox), links do not toggle */}
+                  <div
+                    className="text-m leading-5 text-default-600 select-none cursor-pointer"
+                    onClick={() => field.onChange(!field.value)}
+                  >
+                    I agree to the{" "}
+                    <Link
+                      as="a"
+                      href="https://store.motionics.com/pages/terms-of-service"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      color="primary"
+                      // Stop the label toggle
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Terms of Service
+                    </Link>{" "}
+                    and{" "}
+                    <Link
+                      as="a"
+                      href="https://store.motionics.com/pages/privacy-policy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      color="primary"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Privacy Policy
+                    </Link>
+                  </div>
+                </div>
+              )}
+            />
 
           {/* Primary action */}
           <Button

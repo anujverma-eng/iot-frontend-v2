@@ -171,7 +171,7 @@ export function LoginForm() {
 
   // Main login UI (redesigned)
   return (
-    <div className="w-full max-w-md">
+    <div className="w-full max-w-md -mt-6">
       <div className="rounded-[32px] bg-white/80 p-7 backdrop-blur dark:bg-black/30">
         {/* Header */}
         <div className="flex flex-col items-center text-center">

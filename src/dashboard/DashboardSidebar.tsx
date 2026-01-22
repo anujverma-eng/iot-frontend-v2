@@ -129,7 +129,7 @@ export const DashboardSidebar = ({
 
             {/* Only render label when expanded so it doesn't push content down */}
             {isOpen && (
-              <p className="mt-5 mb-1 px-3 text-[10px] font-semibold tracking-wider text-default-400">
+              <p className="mt-5 mb-1 px-3 text-[10px] font-semibold tracking-wider text-white/40">
                 MANAGEMENT
               </p>
             )}
@@ -202,7 +202,20 @@ function NavItem({
 
         {/* Remove badge from layout when collapsed */}
         {isOpen && item.badge && (
-          <Chip size="sm" variant="flat" color="primary" className="flex-shrink-0">
+          <Chip
+            size="sm"
+            variant="solid"
+            className="
+              flex-shrink-0
+              bg-[#888eee]
+              text-white
+              font-semibold
+              min-w-[20px]
+              h-[20px]
+              px-1
+              rounded-full
+            "
+          >
             {item.badge}
           </Chip>
         )}

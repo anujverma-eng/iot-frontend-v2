@@ -1,9 +1,7 @@
-// src/pages/forgot-password.tsx 
+// src/pages/forgot-password.tsx
 import React from "react";
-import { Link as RouterLink } from "react-router-dom";
-import {
-  Card, CardBody, Input, InputOtp, Button, Link, addToast,
-} from "@heroui/react";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { Input, InputOtp, Button, Link, addToast } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { motion } from "framer-motion";
 import { useAppDispatch, useAppSelector } from "../hooks/useAppDispatch";
@@ -15,21 +13,24 @@ import { Controller, useForm } from "react-hook-form";
 import { emailSchema, passwordSchema } from "../lib/validation";
 
 /* ---------- schema ---------- */
-const schema = z.object({
-  email: emailSchema,
-  code: z.string().length(6, "Enter the 6‑digit code"),
-  password: passwordSchema,
-  confirmPassword: z.string(),
-}).refine((v) => v.password === v.confirmPassword, {
-  path: ["confirmPassword"],
-  message: "Passwords do not match",
-});
+const schema = z
+  .object({
+    email: emailSchema,
+    code: z.string().length(6, "Enter the 6-digit code"),
+    password: passwordSchema,
+    confirmPassword: z.string(),
+  })
+  .refine((v) => v.password === v.confirmPassword, {
+    path: ["confirmPassword"],
+    message: "Passwords do not match",
+  });
 
 type FormValues = z.infer<typeof schema>;
 
 export function ForgotPassword() {
   const dispatch = useAppDispatch();
-  const confirm = useAppSelector(s => s.confirmation);
+  const navigate = useNavigate();
+  const confirm = useAppSelector((s) => s.confirmation);
 
   // Clear any existing state on initial load
   React.useEffect(() => {
@@ -37,31 +38,20 @@ export function ForgotPassword() {
   }, [dispatch]);
 
   const resetForm = useForm<FormValues>({
-    defaultValues: {
-      email: "",
-      code: "",
-      password: "",
-      confirmPassword: "",
-    },
+    defaultValues: { email: "", code: "", password: "", confirmPassword: "" },
     resolver: zodResolver(schema),
   });
 
   // Update form email when confirmation state changes
   React.useEffect(() => {
-    if (confirm.email) {
-      resetForm.setValue('email', confirm.email);
-    }
+    if (confirm.email) resetForm.setValue("email", confirm.email);
   }, [confirm.email, resetForm]);
 
-  // ───────────────────────── form setup
   const emailForm = useForm<{ email: string }>({
-    defaultValues: {
-      email: confirm.email ?? "",
-    },
+    defaultValues: { email: confirm.email ?? "" },
     resolver: zodResolver(z.object({ email: emailSchema })),
   });
 
-  // ───────────────────────── local state
   const [sent, setSent] = React.useState(false);
   const [vis1, setVis1] = React.useState(false);
   const [vis2, setVis2] = React.useState(false);
@@ -75,11 +65,11 @@ export function ForgotPassword() {
     const id = setInterval(() => {
       dispatch(tick());
       setSec(Math.max(0, Math.ceil((confirm.expiresAt! - Date.now()) / 1000)));
-    }, 1_000);
+    }, 1000);
     return () => clearInterval(id);
   }, [confirm.expiresAt, dispatch]);
 
-  // ───────────────────────── 1) send code
+  // 1) send code
   const sendCode = async (data: { email: string }) => {
     try {
       setIsSendingCode(true);
@@ -96,226 +86,233 @@ export function ForgotPassword() {
     }
   };
 
-  // ───────────────────────── 2) save new password (+code)
+  // 2) save new password (+code)
   const save = async (data: FormValues) => {
     try {
-      if (!confirm.email) {
-        throw new Error("Session expired - please start the process again");
-      }
-      
-      await dispatch(confirmCode({
-        code: data.code,
-        newPassword: data.password
-      })).unwrap();
+      if (!confirm.email) throw new Error("Session expired - please start the process again");
+
+      await dispatch(
+        confirmCode({
+          code: data.code,
+          newPassword: data.password,
+        })
+      ).unwrap();
 
       addToast({ title: "Password updated", color: "success" });
       dispatch(clear());
-      window.location.href = "/login";
+      navigate("/login");
     } catch (e: any) {
       addToast({
         title: "Failed",
         description: e.message || "Failed to reset password",
-        color: "danger"
+        color: "danger",
       });
-      if (e.message.includes("expired")) {
+
+      if (typeof e?.message === "string" && e.message.toLowerCase().includes("expired")) {
         dispatch(clear());
         setSent(false);
       }
     }
   };
 
-  // Handle OTP value change
   const handleOtpChange = (value: string) => {
     setOtpValue(value);
     resetForm.setValue("code", value);
   };
 
-  // ───────────────────────── UI
   return (
-    <div className="flex min-h-screen">
-      {/* === unchanged hero / illustration column === */}
-      <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-primary-600 to-primary-800">
-        <div className="absolute inset-0">
-          <motion.div
-            animate={{
-              backgroundPosition: ["0% 0%", "100% 100%"],
-              opacity: [0.1, 0.3, 0.1],
-            }}
-            transition={{ duration: 10, repeat: Infinity, repeatType: "reverse" }}
-            className="absolute inset-0 bg-[url('https://img.heroui.chat/image/ai?w=1000&h=1000&u=pattern')] bg-repeat opacity-10"
-          />
-        </div>
+    <div className="relative min-h-screen bg-background">
+      {/* Background image */}
+      <div
+        className="pointer-events-none absolute inset-0 bg-cover bg-center bg-no-repeat"
+        style={{
+          backgroundImage: "url('https://motionics.com/downloads/images/login-page-bg-20.png')",
+        }}
+        aria-hidden="true"
+      />
 
+      {/* Subtle overlay for readability */}
+      <div className="pointer-events-none absolute inset-0 bg-white/70 dark:bg-black/60" aria-hidden="true" />
+
+      {/* Centered card */}
+      <div className="relative z-10 flex min-h-screen items-center justify-center px-4 sm:px-6 lg:px-8 -mt-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="relative z-10 flex flex-col justify-center p-12"
+          transition={{ duration: 0.4 }}
+          className="w-full max-w-md"
         >
-          <h1 className="text-white text-4xl font-bold mb-4">Reset your password</h1>
-          <p className="text-white/90 text-lg">
-            We'll help you get back into your account securely and quickly.
-          </p>
+          <div className="rounded-[32px] bg-white/80 p-7 backdrop-blur
+                          border border-divider
+                          shadow-lg shadow-black/5
+                          dark:bg-black/30 dark:border-white/10 dark:shadow-black/30">
+            {/* Header */}
+            <div className="flex flex-col items-center text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-3xl bg-primary/10">
+                <Icon icon="lucide:key-round" className="h-6 w-6 text-primary" />
+              </div>
 
-          <motion.div
-            className="mt-12 grid grid-cols-2 gap-6"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-          >
-            <Info icon="lucide:shield"  title="Secure"  text="Multi‑factor authentication" />
-            <Info icon="lucide:clock"   title="Fast"    text="No lengthy forms"           />
-          </motion.div>
+              <h2 className="mt-4 text-2xl font-semibold tracking-medium text-foreground">
+                {sent ? "Reset your password" : "Forgot your password?"}
+              </h2>
+
+              <p className="mt-2 -mb-2 text-sm text-default-600">
+                {!sent
+                  ? "We'll send a 6-digit code to reset your password"
+                  : "Enter the 6-digit code and create a new password"}
+              </p>
+
+              {/* <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-divider bg-background/60 px-3 py-1 text-xs text-default-600">
+                <Icon icon="lucide:shield-check" className="h-4 w-4 text-primary" />
+                Secure reset
+              </div> */}
+            </div>
+
+            {!sent ? (
+              <form onSubmit={emailForm.handleSubmit(sendCode)} className="mt-7 flex flex-col gap-4" autoComplete="on">
+                <Controller
+                  control={emailForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <Input
+                      {...field}
+                      type="email"
+                      name="email"
+                      label="Email"
+                      placeholder="name@company.com"
+                      isRequired
+                      autoComplete="email"
+                      variant="bordered"
+                      validationState={emailForm.formState.errors.email ? "invalid" : undefined}
+                      errorMessage={emailForm.formState.errors.email?.message}
+                      startContent={<Icon icon="lucide:mail" width={20} className="text-default-400" />}
+                      classNames={{ inputWrapper: "bg-background/60 backdrop-blur" }}
+                    />
+                  )}
+                />
+
+                <Button type="submit" color="primary" size="lg" className="mt-1 w-full font-medium" isLoading={isSendingCode}>
+                  Send reset code
+                </Button>
+
+                <p className="text-center text-m text-default-500">
+                  Back to {" "}
+                  <Link as={RouterLink} to="/login" color="primary">
+                    Login
+                  </Link>
+                </p>
+              </form>
+            ) : (
+              <form onSubmit={resetForm.handleSubmit(save)} className="mt-7 flex flex-col gap-4" autoComplete="on">
+              <div className="flex justify-center">
+                <InputOtp
+                  length={6}
+                  value={otpValue}
+                  onValueChange={handleOtpChange}
+                  classNames={{
+                    base: "gap-2",
+                    input: "w-11 h-11 text-lg text-center",
+                  }}
+                  validationState={resetForm.formState.errors.code ? "invalid" : undefined}
+                  errorMessage={resetForm.formState.errors.code?.message}
+                />
+              </div>
+                <Controller
+                  control={resetForm.control}
+                  name="password"
+                  render={({ field }) => (
+                    <Input
+                      {...field}
+                      name="password"
+                      label="New password"
+                      placeholder="Create a new password"
+                      type={vis1 ? "text" : "password"}
+                      isRequired
+                      autoComplete="new-password"
+                      variant="bordered"
+                      validationState={resetForm.formState.errors.password ? "invalid" : undefined}
+                      errorMessage={resetForm.formState.errors.password?.message}
+                      startContent={<Icon icon="lucide:lock" width={20} className="text-default-400" />}
+                      endContent={
+                        <button
+                          type="button"
+                          onClick={() => setVis1(!vis1)}
+                          className="rounded-md p-1 text-default-400 hover:text-default-600"
+                          aria-label={vis1 ? "Hide password" : "Show password"}
+                        >
+                          <Icon icon={vis1 ? "lucide:eye" : "lucide:eye-off"} width={20} />
+                        </button>
+                      }
+                      classNames={{ inputWrapper: "bg-background/60 backdrop-blur" }}
+                    />
+                  )}
+                />
+
+                <Controller
+                  control={resetForm.control}
+                  name="confirmPassword"
+                  render={({ field }) => (
+                    <Input
+                      {...field}
+                      name="confirmPassword"
+                      label="Confirm password"
+                      placeholder="Re-enter your new password"
+                      type={vis2 ? "text" : "password"}
+                      isRequired
+                      autoComplete="new-password"
+                      variant="bordered"
+                      validationState={resetForm.formState.errors.confirmPassword ? "invalid" : undefined}
+                      errorMessage={resetForm.formState.errors.confirmPassword?.message}
+                      startContent={<Icon icon="lucide:lock" width={20} className="text-default-400" />}
+                      endContent={
+                        <button
+                          type="button"
+                          onClick={() => setVis2(!vis2)}
+                          className="rounded-md p-1 text-default-400 hover:text-default-600"
+                          aria-label={vis2 ? "Hide password" : "Show password"}
+                        >
+                          <Icon icon={vis2 ? "lucide:eye" : "lucide:eye-off"} width={20} />
+                        </button>
+                      }
+                      classNames={{ inputWrapper: "bg-background/60 backdrop-blur" }}
+                    />
+                  )}
+                />
+
+                <Button
+                  type="submit"
+                  color="primary"
+                  size="lg"
+                  className="mt-1 w-full font-medium"
+                  isLoading={resetForm.formState.isSubmitting}
+                  isDisabled={resetForm.formState.isSubmitting}
+                >
+                  Save new password
+                </Button>
+
+                <div className="text-center text-xs text-default-600">
+                  {confirm.remaining === 0 ? (
+                    "Resend limit reached"
+                  ) : confirm.expiresAt ? (
+                    `Resend in ${sec}s`
+                  ) : (
+                    <Button variant="light" size="sm" onPress={() => dispatch(resendCode())}>
+                      Resend code ({confirm.remaining} left)
+                    </Button>
+                  )}
+                </div>
+
+                <p className="text-center text-m text-default-500">
+                  Back to{" "}
+                  <Link as={RouterLink} to="/login" color="primary">
+                    sign in
+                  </Link>
+                </p>
+              </form>
+            )}
+          </div>
         </motion.div>
       </div>
-
-      {/* === right column card === */}
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-12">
-        <Card className="w-full max-w-md">
-          <CardBody className="gap-6">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-              {!sent ? (
-                <form onSubmit={emailForm.handleSubmit(sendCode)} className="flex flex-col gap-4">
-                  <h2 className="text-2xl font-bold">Forgot password?</h2>
-                  <p className="text-default-500">
-                    Enter your email address and we'll send you a 6‑digit verification code to reset your password.
-                  </p>
-
-                  <Controller
-                    control={emailForm.control}
-                    name="email"
-                    render={({ field }) => (
-                      <Input
-                        {...field}
-                        type="email"
-                        name="email"
-                        label="E‑mail"
-                        isRequired
-                        autoComplete="email"
-                        validationState={emailForm.formState.errors.email ? "invalid" : undefined}
-                        errorMessage={emailForm.formState.errors.email?.message}
-                        startContent={<Icon icon="lucide:mail" width={20} className="text-default-400" />}
-                        placeholder="Enter your email address"
-                      />
-                    )}
-                  />
-
-                  <Button 
-                    type="submit" 
-                    color="primary" 
-                    className="w-full"
-                    isLoading={isSendingCode}
-                  >
-                    Send reset code
-                  </Button>
-
-                  <p className="text-center text-default-500 text-sm">
-                    Remember it?&nbsp;
-                    <Link as={RouterLink} to="/login" color="primary">Sign in</Link>
-                  </p>
-                </form>
-              ) : (
-                <form onSubmit={resetForm.handleSubmit(save)} className="flex flex-col gap-5">
-                  <h2 className="text-2xl font-bold">Reset password</h2>
-                  <p className="text-default-500">
-                    Enter the 6‑digit code sent to your email and create a new password.
-                  </p>
-
-                  <InputOtp
-                    length={6}
-                    value={otpValue}
-                    onValueChange={handleOtpChange}
-                    classNames={{ input: "w-11 h-11 text-lg", base: "gap-2" }}
-                    validationState={resetForm.formState.errors.code ? "invalid" : undefined}
-                    errorMessage={resetForm.formState.errors.code?.message}
-                  />
-
-                  <Controller
-                    control={resetForm.control}
-                    name="password"
-                    render={({ field }) => (
-                      <Input
-                        {...field}
-                        name="password"
-                        label="New password"
-                        type={vis1 ? "text" : "password"}
-                        isRequired
-                        autoComplete="new-password"
-                        validationState={resetForm.formState.errors.password ? "invalid" : undefined}
-                        errorMessage={resetForm.formState.errors.password?.message}
-                        startContent={<Icon icon="lucide:lock" width={20} className="text-default-400" />}
-                        endContent={
-                          <button type="button" onClick={() => setVis1(!vis1)}>
-                            <Icon icon={vis1 ? "lucide:eye-off" : "lucide:eye"} width={20} className="text-default-400" />
-                          </button>
-                        }
-                        placeholder="Create a new password"
-                      />
-                    )}
-                  />
-
-                  <Controller
-                    control={resetForm.control}
-                    name="confirmPassword"
-                    render={({ field }) => (
-                      <Input
-                        {...field}
-                        name="confirmPassword"
-                        label="Confirm password"
-                        type={vis2 ? "text" : "password"}
-                        isRequired
-                        autoComplete="new-password"
-                        validationState={resetForm.formState.errors.confirmPassword ? "invalid" : undefined}
-                        errorMessage={resetForm.formState.errors.confirmPassword?.message}
-                        startContent={<Icon icon="lucide:lock" width={20} className="text-default-400" />}
-                        endContent={
-                          <button type="button" onClick={() => setVis2(!vis2)}>
-                            <Icon icon={vis2 ? "lucide:eye-off" : "lucide:eye"} width={20} className="text-default-400" />
-                          </button>
-                        }
-                        placeholder="Confirm your new password"
-                      />
-                    )}
-                  />
-
-                  <Button
-                    type="submit"
-                    color="primary"
-                    className="w-full"
-                    isLoading={resetForm.formState.isSubmitting}
-                    isDisabled={resetForm.formState.isSubmitting}
-                  >
-                    Save new password
-                  </Button>
-
-                  <p className="text-center text-xs text-default-600">
-                    {confirm.remaining === 0 ? (
-                      "Resend limit reached"
-                    ) : confirm.expiresAt ? (
-                      `Resend in ${sec}s`
-                    ) : (
-                      <Button variant="light" size="sm" onPress={() => dispatch(resendCode())}>
-                        Resend code ({confirm.remaining} left)
-                      </Button>
-                    )}
-                  </p>
-                </form>
-              )}
-            </motion.div>
-          </CardBody>
-        </Card>
-      </div>
-    </div>
-  );
-}
-
-/* tiny helper for the hero bullet cards */
-function Info({ icon, title, text }: { icon: string; title: string; text: string }) {
-  return (
-    <div className="p-6 rounded-lg bg-white/10 backdrop-blur-sm">
-      <Icon icon={icon} className="text-white mb-4" width={32} />
-      <h3 className="text-white text-lg font-semibold mb-1">{title}</h3>
-      <p className="text-white/80 text-sm">{text}</p>
     </div>
   );
 }
