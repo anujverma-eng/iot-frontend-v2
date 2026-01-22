@@ -78,7 +78,7 @@ export const DashboardNavbar = ({ onMenuToggle, className, style }: DashboardNav
       isBordered={false}
       isBlurred
       className={cn(
-        "top-0 w-full z-40 bg-background/70 backdrop-blur-xl h-16 border-none shadow-md",
+        "top-0 w-full z-40 bg-white backdrop-blur-[0px] h-20 border-none shadow-[0px] mt-1 -mb-12",
         "lg:pl-64",
         "[data-collapsed=true]&:lg:pl-16",
         "max-lg:pl-0",
@@ -196,10 +196,15 @@ export const DashboardNavbar = ({ onMenuToggle, className, style }: DashboardNav
             {/* <DropdownItem key="settings" startContent={<Icon icon="lucide:settings" />}>
               Settings
             </DropdownItem> */}
-            <DropdownItem key="billing" startContent={<Icon icon="lucide:credit-card" />}>
-              Billing
+            <DropdownItem key="billing" startContent={<Icon icon="lucide:credit-card" />}
+              className="text-black/30 font-medium" >
+             Billing
             </DropdownItem>
-            <DropdownItem key="help" startContent={<Icon icon="lucide:help-circle" />}>
+            <DropdownItem key="help" startContent={<Icon icon="lucide:help-circle" />}
+              as="a"
+              href="https://motionics.com/sales-or-product-questions"
+              target="_blank"
+              rel="noopener noreferrer" >
               Help & Feedback
             </DropdownItem>
             <DropdownItem key="logout" color="danger" startContent={<Icon icon="lucide:log-out" />}>
